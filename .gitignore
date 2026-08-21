@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+.svelte-kit/
+
+# Capacitor native platforms (generated, large binary assets)
+mobile-app/android/
+mobile-app/ios/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# NOTE: bun.lockb is intentionally NOT ignored — commit it for reproducible installs.

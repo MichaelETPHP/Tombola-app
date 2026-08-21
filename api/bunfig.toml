@@ -1,0 +1,2 @@
+[run]
+# Auto-reload on file changes is handled by bun --watch in package.json scripts

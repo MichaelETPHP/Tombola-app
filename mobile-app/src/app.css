@@ -1,0 +1,140 @@
+/* ─── Tombola Design System — Global Styles ──────────────────────── */
+
+/* Reset */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* ── Brand Colors ─────────────────────────────── */
+  --color-primary: #00D3A0;
+  --color-primary-dark: #00B589;
+  --color-coral-start: #FF6B6B;
+  --color-coral-end: #FF8674;
+
+  /* ── Accent Colors ─────────────────────────────── */
+  --color-gold: #F5A623;
+  --color-gold-bg: #FFF3D6;
+  --color-pink: #FF5C7A;
+  --color-pink-bg: #FFE1E6;
+  --color-pink-track: #FFD9DF;
+  --color-blue: #4A7FFF;
+  --color-blue-bg: #E3EEFF;
+  --color-blue-track: #DCE8FF;
+
+  /* ── Neutral Colors ─────────────────────────────── */
+  --color-card-bg: #FFFFFF;
+  --color-text-primary: #1A1D29;
+  --color-text-secondary: #8A8FA3;
+  --color-nav-inactive: #A6ABBD;
+  --color-dot-inactive: #D9DCE3;
+
+  /* ── Background Gradient ────────────────────────── */
+  --bg-gradient-start: #E3F9EF;
+  --bg-gradient-end: #B9EEDA;
+
+  /* ── Shadows ────────────────────────────────────── */
+  --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.06);
+  --shadow-card-light: 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-nav: 0 10px 24px rgba(0, 0, 0, 0.08);
+
+  /* ── Spacing Scale ──────────────────────────────── */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* ── Radii ──────────────────────────────────────── */
+  --radius-card: 24px;
+  --radius-button: 16px;
+  --radius-action: 20px;
+  --radius-nav: 32px;
+
+  /* ── Typography ─────────────────────────────────── */
+  --font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-family);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+body {
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+}
+
+/* Subtle diagonal stripe texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.04;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.03) 10px,
+    rgba(0, 0, 0, 0.03) 11px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure content sits above the texture overlay */
+body > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Safe area padding for notched devices ────────── */
+.safe-area-top {
+  padding-top: max(var(--space-20), env(safe-area-inset-top));
+}
+
+.safe-area-bottom {
+  padding-bottom: max(var(--space-16), env(safe-area-inset-bottom));
+}
+
+/* ── Utility: Press opacity for tappable elements ── */
+.tappable {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tappable:active {
+  opacity: 0.85;
+}
+
+/* ── Utility: CTA press scale ──────────────────────── */
+.pressable {
+  transition: transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* ── Scrollbar hiding for mobile feel ──────────────── */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+}
