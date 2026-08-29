@@ -7,23 +7,11 @@
 </script>
 
 <span
-  class="badge"
+  class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold capitalize"
   style={palette
     ? `color: ${palette.fg}; background: ${palette.bg};`
-    : 'color: var(--color-text-secondary); background: var(--color-border);'}
+    : 'color: var(--color-muted); background: var(--color-border);'}
 >
+  <span class="h-1.5 w-1.5 rounded-full" style={palette ? `background: ${palette.fg};` : 'background: var(--color-muted);'}></span>
   {status.replace(/_/g, ' ')}
 </span>
-
-<style>
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px var(--space-12);
-    border-radius: var(--radius-pill);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: capitalize;
-    white-space: nowrap;
-  }
-</style>

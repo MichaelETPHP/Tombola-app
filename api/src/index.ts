@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error-handler.middleware.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { rafflesRoutes, adminRafflesRoutes } from './modules/raffles/raffles.routes.js';
-import { ticketsRoutes } from './modules/tickets/tickets.routes.js';
+import { ticketsRoutes, myTicketsRoutes } from './modules/tickets/tickets.routes.js';
 import { paymentsRoutes } from './modules/payments/payments.routes.js';
 import { drawsRoutes } from './modules/draws/draws.routes.js';
 import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.routes.js';
@@ -14,12 +15,22 @@ import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { closeDb } from './db/client.js';
 import { logger } from './lib/logger.js';
+import { languageMiddleware } from './lib/i18n.js';
+import type { AppEnv } from './types/hono.js';
 
 // ─── Create Hono App ─────────────────────────────────────────────
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
 // ─── Global Middleware ────────────────────────────────────────────
+
+app.use('*', async (c, next) => {
+  const requestId = c.req.header('x-request-id')?.slice(0, 100) || crypto.randomUUID();
+  c.set('requestId', requestId);
+  c.header('X-Request-Id', requestId);
+  await next();
+});
+app.use('*', secureHeaders());
 
 app.use(
   '*',
@@ -31,6 +42,7 @@ app.use(
     maxAge: 86400,
   })
 );
+app.use('*', languageMiddleware);
 
 app.onError(errorHandler);
 
@@ -41,8 +53,17 @@ app.get('/health', (c) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
+    version: '1.0.0',
+    requestId: c.get('requestId'),
   });
 });
+
+app.get('/', (c) => c.json({
+  name: 'Tombola API',
+  version: '1.0.0',
+  status: 'ready',
+  languages: ['en', 'am'],
+}));
 
 // ─── Public Routes ────────────────────────────────────────────────
 
@@ -55,6 +76,7 @@ app.route('/payments', paymentsRoutes);
 
 app.route('/users', usersRoutes);
 app.route('/raffles', ticketsRoutes);  // POST /raffles/:id/tickets
+app.route('/tickets', myTicketsRoutes);  // GET /tickets — separate mount, see tickets.routes.ts
 app.route('/payouts', payoutsRoutes);
 
 // ─── Admin Routes ─────────────────────────────────────────────────
@@ -62,6 +84,12 @@ app.route('/payouts', payoutsRoutes);
 app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
 app.route('/admin/payouts', adminPayoutsRoutes);
+
+app.notFound((c) => c.json({
+  error: c.get('t')('common.notFound'),
+  code: 'NOT_FOUND',
+  requestId: c.get('requestId'),
+}, 404));
 
 // ─── Start Background Jobs ───────────────────────────────────────
 

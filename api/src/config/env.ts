@@ -1,39 +1,79 @@
 import { z } from 'zod';
 
 /**
+ * Docker Compose (and some other env-injection paths) sets a variable to
+ * an empty string rather than omitting it entirely when `${VAR}` has
+ * nothing to substitute — Zod's `.optional()`/`.default()` only kick in
+ * for `undefined`, not `''`, so without this every optional/defaulted URL
+ * field below would hard-fail validation on a totally normal "not
+ * configured yet" deployment. Wrap those fields in this instead of using
+ * them raw.
+ */
+const emptyToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((val) => (val === '' ? undefined : val), schema);
+
+/**
  * Zod-validated environment configuration.
  * Fails fast at boot with a clear error if any required variable is missing.
  */
 const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url('DATABASE_URL must be a valid PostgreSQL connection URL'),
+  DB_SCHEMA: z.string().default('Tombola_DB'),
 
   // JWT
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
 
   // SMS Gateway
-  SMS_API_URL: z.string().url().optional(),
+  SMS_API_URL: emptyToUndefined(z.string().url().optional()),
   SMS_API_KEY: z.string().optional(),
+  DEMO_OTP_ENABLED: z.string().default('false').transform((val) => val === 'true'),
+
+  // Telegram Mini App + Login. Bot token and OIDC client ID must belong to
+  // the same bot. Login remains disabled until these are configured.
+  TELEGRAM_BOT_TOKEN: emptyToUndefined(z.string().min(20).optional()),
+  TELEGRAM_CLIENT_ID: emptyToUndefined(z.string().regex(/^\d+$/).optional()),
+  TELEGRAM_AUTH_MAX_AGE_SECONDS: z
+    .string()
+    .default('300')
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().min(60).max(3600)),
 
   // Payment - Chapa
   CHAPA_SECRET_KEY: z.string().optional(),
   CHAPA_WEBHOOK_SECRET: z.string().optional(),
+
+  // Mobile app origin — Chapa redirects the user's browser here (return_url)
+  // after checkout, separate from CALLBACK_URL/webhook which is server-to-server.
+  MOBILE_APP_URL: emptyToUndefined(z.string().url().default('http://localhost:4345')),
+
+  // Skip the real Chapa API and send checkout through a fake payment page
+  // in the mobile app instead — for local testing without live merchant
+  // credentials. That page still calls the real webhook, so the rest of
+  // the flow (ticket issuance, payment status polling) is exercised for
+  // real. Explicit opt-in, never on by default.
+  MOCK_PAYMENTS: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
 
   // Payment - Telebirr
   TELEBIRR_APP_ID: z.string().optional(),
   TELEBIRR_APP_KEY: z.string().optional(),
 
   // CORS
-  CORS_ORIGINS: z
-    .string()
-    .default('http://localhost:5173,http://localhost:5174')
-    .transform((val) => val.split(',')),
+  CORS_ORIGINS: emptyToUndefined(
+    z
+      .string()
+      .default('http://localhost:4345,http://localhost:5355')
+      .transform((val) => val.split(','))
+  ),
 
   // Server
   PORT: z
     .string()
-    .default('3000')
+    .default('3435')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().positive()),
 

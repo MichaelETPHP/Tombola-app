@@ -1,121 +1,78 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import type { Raffle } from '../stores/raffles.store.js';
-  import OddsBadge from './OddsBadge.svelte';
+  import PrizeImage from './PrizeImage.svelte';
+  import { formatEtb } from '../utils/currency.js';
+  import { ArrowRight, Clock3, Ticket } from 'lucide-svelte';
 
   export let raffle: Raffle;
-  /** Tickets the current user owns in this raffle, if known. */
   export let ticketsOwned = 0;
+  export let index = 0;
 
   $: soldPct = raffle.ticketCap > 0 ? Math.min(100, (raffle.ticketsSold / raffle.ticketCap) * 100) : 0;
+  $: ticketsRemaining = Math.max(0, raffle.ticketCap - raffle.ticketsSold);
   $: daysLeft = Math.max(
     0,
-    Math.ceil((new Date(raffle.currentDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    Math.ceil((new Date(raffle.currentDeadline).getTime() - Date.now()) / 86_400_000)
   );
+  $: canEnter = raffle.status === 'open' && ticketsRemaining > 0;
 </script>
 
-<a href="/raffles/{raffle.id}" class="raffle-card tappable">
-  <div class="prize-image" style={raffle.prizeImageUrl ? `background-image: url(${raffle.prizeImageUrl})` : ''}>
-    {#if !raffle.prizeImageUrl}
-      <span class="placeholder">🎁</span>
-    {/if}
+<a
+  href="/raffles/{raffle.id}"
+  class="tappable pressable grid min-h-[152px] grid-cols-[116px_1fr] overflow-hidden rounded-card border border-white/70 bg-card text-inherit no-underline shadow-card-light"
+  in:fly={{ y: 10, duration: 240, delay: Math.min(index, 6) * 40, easing: cubicOut }}
+  aria-label="View {raffle.title}"
+>
+  <div class="min-h-full bg-[#d9f5e9]">
+    <PrizeImage
+      src={raffle.prizeImageUrl}
+      title={raffle.title}
+      prizeName={raffle.prizeName}
+      size="sm"
+      eager={index < 3}
+    />
   </div>
 
-  <div class="body">
-    <div class="top-row">
-      <h3>{raffle.title}</h3>
-      <span class="price">{raffle.ticketPrice} ETB</span>
+  <div class="flex min-w-0 flex-col justify-between gap-2 p-3.5">
+    <div class="min-w-0">
+      <div class="mb-1 flex items-start justify-between gap-2">
+        <h3 class="line-clamp-2 font-sans text-[15px] font-extrabold leading-[1.18] tracking-[-0.02em] text-ink">
+          {raffle.title}
+        </h3>
+        <ArrowRight size={17} class="mt-0.5 shrink-0 text-primary-dark" strokeWidth={2.25} />
+      </div>
+      <p class="truncate text-[12px] text-muted">{raffle.prizeName}</p>
     </div>
 
-    <p class="prize-name">{raffle.prizeName}</p>
-
-    <div class="progress-track">
-      <div class="progress-fill" style="width: {soldPct}%"></div>
+    <div class="flex flex-col gap-1.5">
+      <div class="h-1.5 overflow-hidden rounded-full bg-dot-inactive">
+        <div
+          class="h-full rounded-full bg-primary-dark transition-[width] duration-500 ease-[var(--ease-out)]"
+          style="width: {soldPct}%"
+        ></div>
+      </div>
+      <div class="flex items-center justify-between gap-2 text-[10px] font-medium text-muted">
+        <span class="flex items-center gap-1"><Ticket size={11} /> {ticketsRemaining} left</span>
+        <span class="flex items-center gap-1"><Clock3 size={11} /> {daysLeft}d</span>
+      </div>
     </div>
-    <div class="meta-row">
-      <span>{raffle.ticketsSold}/{raffle.ticketCap} tickets</span>
-      <span>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>
-    </div>
 
-    <OddsBadge {ticketsOwned} ticketsSold={raffle.ticketsSold} />
+    <div class="flex items-end justify-between gap-2 border-t border-dot-inactive/70 pt-2">
+      <div>
+        <p class="text-[9px] font-semibold uppercase tracking-[0.07em] text-muted">Per ticket</p>
+        <p class="text-[13px] font-extrabold text-primary-dark">{formatEtb(raffle.ticketPrice)} ETB</p>
+      </div>
+      <span class="rounded-full bg-bg-start px-2.5 py-1.5 text-[10px] font-bold text-primary-dark">
+        {#if ticketsOwned > 0}
+          {ticketsOwned} owned
+        {:else if canEnter}
+          Enter now
+        {:else}
+          View result
+        {/if}
+      </span>
+    </div>
   </div>
 </a>
-
-<style>
-  .raffle-card {
-    display: flex;
-    flex-direction: column;
-    background: var(--color-card-bg);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .prize-image {
-    height: 120px;
-    background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
-    background-size: cover;
-    background-position: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .placeholder {
-    font-size: 32px;
-  }
-
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-8);
-    padding: var(--space-16);
-  }
-
-  .top-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-8);
-  }
-
-  h3 {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-  }
-
-  .price {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--color-primary-dark);
-    white-space: nowrap;
-  }
-
-  .prize-name {
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-
-  .progress-track {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--color-dot-inactive);
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--color-primary);
-    border-radius: 3px;
-    transition: width 0.3s ease;
-  }
-
-  .meta-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-</style>

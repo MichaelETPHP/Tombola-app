@@ -1,25 +1,37 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// Installed apps use the bundled build by default. Set this only when a
+// developer intentionally wants the device to live-reload from a dev URL.
+const serverUrl = process.env.CAPACITOR_SERVER_URL;
+
 const config: CapacitorConfig = {
   appId: 'com.tombola.app',
   appName: 'Tombola',
   webDir: 'build',
-  server: {
-    // In development, proxy to the Vite dev server
-    ...(process.env.NODE_ENV === 'development' && {
-      url: 'http://localhost:5173',
-      cleartext: true,
-    }),
-  },
+  ...(serverUrl && {
+    server: {
+      url: serverUrl,
+      cleartext: serverUrl.startsWith('http://'),
+    },
+  }),
   plugins: {
     SplashScreen: {
-      launchAutoHide: true,
+      // Dismissed by the root layout after authentication is restored.
+      launchAutoHide: false,
       backgroundColor: '#E3F9EF',
+      androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER',
       showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
     },
     StatusBar: {
       style: 'LIGHT',
       backgroundColor: '#00D3A0',
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
     },
   },
 };

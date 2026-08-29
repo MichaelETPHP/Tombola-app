@@ -1,0 +1,15 @@
+# Applies to every service's build — all three Dockerfiles use the repo
+# root as their build context (so mobile-app can reach ../deploy/*.conf).
+**/node_modules
+**/.svelte-kit
+**/build
+**/dist
+mobile-app/android
+**/.env
+**/.env.*
+**/*.log
+.git
+**/README.md
+api/API.md
+docs
+SOFTWARE_REQUIREMENTS.md

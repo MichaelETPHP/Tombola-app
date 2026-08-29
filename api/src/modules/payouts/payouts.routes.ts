@@ -67,9 +67,8 @@ adminPayoutsRoutes.get('/', async (c) => {
  */
 adminPayoutsRoutes.patch('/:id', async (c) => {
   const payoutId = c.req.param('id');
-  const admin = c.get('admin');
   const body = await c.req.json();
   const data = updatePayoutStatusSchema.parse(body);
-  const result = await updatePayoutStatus(payoutId, admin.id, data);
+  const result = await updatePayoutStatus(payoutId, data);
   return c.json({ payout: result });
 });

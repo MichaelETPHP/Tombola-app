@@ -26,7 +26,7 @@ cp .env.example .env
 bun install
 
 # Start the dev server
-bun run dev                  # → http://localhost:5174
+bun run dev                  # → http://localhost:5355
 
 # Type check
 bun run check
@@ -52,9 +52,11 @@ These screens are fully wired up and will work as soon as the corresponding
 API endpoint exists — until then they show a clear empty/error state instead
 of pretending to work:
 
-- **Admin login** (`POST /admin/auth/login`) — there's no `admins` table or
-  password auth in the API yet, only phone/OTP auth for participants. Add it
-  once `docs/schema.sql` defines admin accounts.
+- **Admin login** (`POST /admin/auth/login`) — there's no route wired up yet.
+  `api/src/db/Migration/001_first_schema.sql` does define an `admin_users`
+  table (`phone_number` + `password_hash` + `role`), but admin auth there is
+  phone+password, not the email+password this login form currently assumes —
+  reconcile before wiring up the route.
 - **Audit log** (`GET /admin/audit-log`) — no `audit_log` table/module in
   the API yet.
 - **Raffle prize photo upload** — the API's `createRaffleSchema` has no

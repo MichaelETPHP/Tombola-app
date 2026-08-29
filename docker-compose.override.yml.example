@@ -1,0 +1,15 @@
+# Local-only convenience — adds host port bindings so you can actually
+# reach each service from your machine when running `docker compose up`
+# outside of Coolify. Copy this to `docker-compose.override.yml` (that
+# filename is auto-merged by Compose, no -f flag needed) and it's already
+# gitignored, so it never accidentally ships to the VPS.
+services:
+  api:
+    ports:
+      - '3435:3435'
+  mobile-app:
+    ports:
+      - '4345:80'
+  admin-app:
+    ports:
+      - '5355:5355'

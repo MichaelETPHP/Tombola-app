@@ -4,7 +4,7 @@
   /** 0–100 */
   export let value = 0;
   export let size = 56;
-  export let thickness = dimensions.progressRingThickness;
+  export let thickness: number = dimensions.progressRingThickness;
   export let color = '#00D3A0';
   export let trackColor = '#D9DCE3';
   export let label = '';
@@ -15,7 +15,7 @@
   $: offset = circumference - (clamped / 100) * circumference;
 </script>
 
-<div class="ring" style="width: {size}px; height: {size}px;">
+<div class="relative inline-flex items-center justify-center" style="width: {size}px; height: {size}px;">
   <svg width={size} height={size} viewBox="0 0 {size} {size}">
     <circle
       cx={size / 2}
@@ -36,32 +36,12 @@
       stroke-dasharray={circumference}
       stroke-dashoffset={offset}
       transform="rotate(-90 {size / 2} {size / 2})"
-      class="progress"
+      class="transition-[stroke-dashoffset] duration-[600ms] ease-out"
     />
   </svg>
   {#if label || $$slots.default}
-    <span class="ring-label">
+    <span class="absolute text-[11px] font-bold text-ink">
       <slot>{label}</slot>
     </span>
   {/if}
 </div>
-
-<style>
-  .ring {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .progress {
-    transition: stroke-dashoffset 0.4s ease;
-  }
-
-  .ring-label {
-    position: absolute;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-  }
-</style>

@@ -7,73 +7,53 @@
   export let subLabel = '';
   /** Which accent palette from theme tokens to apply. */
   export let accent: keyof typeof statCardAccents = 'tickets';
-  /** Optional 0–100 progress to render as a ring instead of a plain number. */
+  /** Optional 0–100 progress — renders a small ring alongside the value, bottom-right. */
   export let progress: number | null = null;
+  /** Optional full-width CTA button below the value (Active Tickets card only). */
+  export let ctaLabel = '';
+  export let ctaHref = '';
 
   $: palette = statCardAccents[accent];
 </script>
 
-<div class="stat-card">
-  <div class="icon" style="background: {palette.iconBg}; color: {palette.iconColor};">
-    <slot name="icon">●</slot>
+<div class="flex flex-col gap-3 rounded-card bg-card p-5 shadow-card">
+  <div class="flex items-center gap-2">
+    <div
+      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+      style="background: {palette.iconBg}; color: {palette.iconColor};"
+    >
+      <slot name="icon" />
+    </div>
+    <span class="text-sm font-semibold text-ink">{label}</span>
   </div>
 
-  {#if progress !== null}
-    <ProgressRing
-      value={progress}
-      size={48}
-      color={palette.accentColor}
-      trackColor={'trackColor' in palette ? palette.trackColor : '#D9DCE3'}
-      label="{Math.round(progress)}%"
-    />
-  {:else}
-    <span class="value">{value}</span>
-  {/if}
+  <div class="flex items-end justify-between gap-2">
+    <div class="flex min-w-0 flex-col gap-0.5">
+      <span class="whitespace-nowrap text-3xl font-extrabold tracking-tight text-ink">{value}</span>
+      {#if subLabel}
+        <span class="text-xs text-muted">{subLabel}</span>
+      {/if}
+    </div>
 
-  <span class="label">{label}</span>
-  {#if subLabel}
-    <span class="sub-label">{subLabel}</span>
+    {#if progress !== null}
+      <ProgressRing
+        value={progress}
+        size={40}
+        thickness={5}
+        color={palette.accentColor}
+        trackColor={'trackColor' in palette ? palette.trackColor : '#D9DCE3'}
+        label="{Math.round(progress)}%"
+      />
+    {/if}
+  </div>
+
+  {#if ctaLabel}
+    <a
+      href={ctaHref}
+      class="pressable flex h-11 w-full items-center justify-center gap-2 rounded-button bg-gradient-to-br from-coral-start to-coral-end text-sm font-bold text-white shadow-[0_6px_16px_rgba(255,107,107,0.35)]"
+    >
+      <slot name="cta-icon" />
+      {ctaLabel}
+    </a>
   {/if}
 </div>
-
-<style>
-  .stat-card {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-8);
-    background: var(--color-card-bg);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
-    padding: var(--space-16);
-  }
-
-  .icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-  }
-
-  .value {
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: var(--color-text-primary);
-  }
-
-  .label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .sub-label {
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--color-text-secondary);
-  }
-</style>

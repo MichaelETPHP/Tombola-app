@@ -7,9 +7,9 @@
 
 // ── Brand Colors ─────────────────────────────────────────
 export const colors = {
-  primary: '#4F46E5',
-  primaryDark: '#4338CA',
-  primaryBg: '#EEF2FF',
+  primary: '#159A7F',
+  primaryDark: '#107C68',
+  primaryBg: '#E2F5EF',
 
   danger: '#DC2626',
   dangerBg: '#FEE2E2',
@@ -23,34 +23,45 @@ export const colors = {
   info: '#2563EB',
   infoBg: '#DBEAFE',
 
-  bg: '#F8FAFC',
+  bg: '#F3F7F5',
   cardBg: '#FFFFFF',
-  border: '#E2E8F0',
+  border: '#DDE7E3',
 
-  textPrimary: '#0F172A',
-  textSecondary: '#64748B',
-  textMuted: '#94A3B8',
+  textPrimary: '#17201E',
+  textSecondary: '#66736F',
+  textMuted: '#96A39F',
 
-  sidebarBg: '#0F172A',
-  sidebarText: '#CBD5E1',
-  sidebarActiveBg: '#1E293B',
+  sidebarBg: '#17201E',
+  sidebarText: '#B8C5C1',
+  sidebarActiveBg: '#24312E',
   sidebarActiveText: '#FFFFFF',
 } as const;
 
 // ── Status → Color Mapping ───────────────────────────────
 export const statusColors = {
+  active: { fg: colors.success, bg: colors.successBg },
+  suspended: { fg: colors.danger, bg: colors.dangerBg },
+  banned: { fg: colors.danger, bg: colors.dangerBg },
+  draft: { fg: colors.textSecondary, bg: colors.border },
   open: { fg: colors.success, bg: colors.successBg },
   locked: { fg: colors.warning, bg: colors.warningBg },
+  awaiting_trigger: { fg: colors.warning, bg: colors.warningBg },
   drawing: { fg: colors.info, bg: colors.infoBg },
   completed: { fg: colors.textSecondary, bg: colors.border },
   cancelled: { fg: colors.danger, bg: colors.dangerBg },
 
   pending_claim: { fg: colors.warning, bg: colors.warningBg },
-  claimed: { fg: colors.info, bg: colors.infoBg },
+  id_submitted: { fg: colors.info, bg: colors.infoBg },
   verified: { fg: colors.primary, bg: colors.primaryBg },
   fulfilled: { fg: colors.success, bg: colors.successBg },
   expired: { fg: colors.danger, bg: colors.dangerBg },
   rejected: { fg: colors.danger, bg: colors.dangerBg },
+
+  // Integration status (admin-app /integrations page)
+  mock: { fg: colors.warning, bg: colors.warningBg },
+  live: { fg: colors.success, bg: colors.successBg },
+  unconfigured: { fg: colors.danger, bg: colors.dangerBg },
+  not_implemented: { fg: colors.textSecondary, bg: colors.border },
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────
@@ -66,12 +77,12 @@ export const spacing = {
 
 // ── Corner Radii ─────────────────────────────────────────
 export const radii = {
-  card: 12,
-  button: 8,
+  card: 18,
+  button: 11,
   pill: 999,
 } as const;
 
 // ── Typography ───────────────────────────────────────────
 export const typography = {
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: "'Outfit', 'Segoe UI', sans-serif",
 } as const;

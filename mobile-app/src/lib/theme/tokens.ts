@@ -74,7 +74,7 @@ export const shadows = {
 
 // ── Typography ───────────────────────────────────────────
 export const typography = {
-  fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 
   greetingSize: 22,
   greetingWeight: 700,

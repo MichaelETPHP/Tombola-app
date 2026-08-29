@@ -6,7 +6,7 @@ import {
   extendRaffleDeadline,
 } from '../db/queries/raffles.queries.js';
 import { listRaffleTickets } from '../db/queries/tickets.queries.js';
-import { createDraw } from '../db/queries/draws.queries.js';
+import { createDrawTrigger } from '../db/queries/draws.queries.js';
 import { sendTriggerLink } from '../lib/sms.js';
 import { findUserById } from '../db/queries/users.queries.js';
 import { logger } from '../lib/logger.js';
@@ -27,26 +27,27 @@ async function selectTriggerParticipant(raffleId: string): Promise<void> {
   const randomIndex = Math.floor(Math.random() * tickets.length);
   const selectedTicket = tickets[randomIndex];
 
-  // Create trigger token and draw record
-  const triggerToken = nanoid(32);
-  const triggerExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+  // Create the trigger link (first attempt)
+  const linkToken = nanoid(32);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
-  await createDraw({
+  await createDrawTrigger({
     raffleId,
-    triggerUserId: selectedTicket.userId,
-    triggerToken,
-    triggerExpiresAt,
+    selectedUserId: selectedTicket.userId,
+    attemptNumber: 1,
+    linkToken,
+    expiresAt,
   });
 
   // Send trigger link via SMS
   const user = await findUserById(selectedTicket.userId);
   if (user) {
-    const link = `${process.env.API_BASE_URL || 'http://localhost:3000'}/draws/${triggerToken}`;
-    await sendTriggerLink(user.phone, link);
+    const link = `${process.env.API_BASE_URL || 'http://localhost:3435'}/draws/${linkToken}`;
+    await sendTriggerLink(user.phoneNumber, link);
   }
 
-  // Update raffle status to "drawing"
-  await updateRaffleStatus(raffleId, 'drawing');
+  // Raffle is locked and now waiting on this trigger to be clicked
+  await updateRaffleStatus(raffleId, 'awaiting_trigger');
 
   logger.info(
     `Trigger participant selected for raffle ${raffleId}: user ${selectedTicket.userId}, ticket #${selectedTicket.ticketNumber}`
@@ -78,7 +79,7 @@ async function checkRaffles(): Promise<void> {
       newDeadline.setDate(newDeadline.getDate() + raffle.deadlineDays);
 
       logger.info(
-        `Raffle ${raffle.id} past deadline (extension #${raffle.extensionCount + 1}) — extending to ${newDeadline.toISOString()}`
+        `Raffle ${raffle.id} past deadline — extending to ${newDeadline.toISOString()}`
       );
       await extendRaffleDeadline(raffle.id, newDeadline);
     }

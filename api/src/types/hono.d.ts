@@ -1,4 +1,6 @@
 import type { Context } from 'hono';
+import type { TFunction } from 'i18next';
+import type { Locale } from '../lib/i18n.js';
 
 /**
  * Authenticated user payload attached to Hono context by auth middleware.
@@ -25,6 +27,9 @@ export interface AppEnv {
   Variables: {
     user: AuthUser;
     admin: AuthAdmin;
+    locale: Locale;
+    t: TFunction;
+    requestId: string;
   };
 }
 

@@ -15,7 +15,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid Authorization header' }, 401);
+    return c.json({ error: c.get('t')('auth.missingToken'), code: 'AUTH_MISSING_TOKEN' }, 401);
   }
 
   const token = authHeader.slice(7); // Remove 'Bearer '
@@ -45,7 +45,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
     await next();
   } catch (_error) {
-    return c.json({ error: 'Invalid or expired token' }, 401);
+    return c.json({ error: c.get('t')('auth.invalidToken'), code: 'AUTH_INVALID_TOKEN' }, 401);
   }
 };
 

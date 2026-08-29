@@ -1,28 +1,40 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
+  import { auth } from '$lib/stores/auth.store.js';
+  import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
+  import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
+  import { Trophy } from 'lucide-svelte';
+
+  const pullRefresh = getPullRefreshContext();
 
   interface Payout {
     id: string;
     raffleId: string;
-    status: 'pending_claim' | 'claimed' | 'verified' | 'fulfilled' | 'expired' | 'rejected';
+    status: 'pending_claim' | 'id_submitted' | 'verified' | 'rejected' | 'fulfilled' | 'expired';
     claimDeadline: string;
     createdAt: string;
   }
 
   let payouts: Payout[] = [];
   let loading = true;
+  let hasFetched = false;
 
   const statusLabels: Record<Payout['status'], string> = {
     pending_claim: 'Claim your prize',
-    claimed: 'Claim under review',
+    id_submitted: 'Claim under review',
     verified: 'Verified — preparing delivery',
     fulfilled: 'Delivered',
     expired: 'Claim window expired',
     rejected: 'Claim rejected',
   };
 
-  onMount(async () => {
+  $: if (!$auth.isLoading && !$auth.isAuthenticated) {
+    goto('/login?returnTo=/wins', { replaceState: true });
+  }
+
+  async function loadWins() {
+    loading = true;
     try {
       const res = await api.get<{ payouts: Payout[] }>('/payouts/mine');
       payouts = res.payouts;
@@ -31,87 +43,53 @@
     } finally {
       loading = false;
     }
-  });
+  }
+
+  // Reactive rather than onMount — the silent-refresh on app boot can still
+  // be in flight when this page mounts, so fetch once auth actually resolves
+  // rather than firing immediately with no token.
+  $: if ($auth.isAuthenticated && !hasFetched) {
+    hasFetched = true;
+    loadWins();
+  }
+
+  $: pullRefresh.set($auth.isAuthenticated ? loadWins : null);
 </script>
 
-<div class="wins-page">
-  <h1>My wins</h1>
+{#if $auth.isLoading}
+  <div class="flex flex-col gap-3">
+    <ListItemSkeleton />
+    <ListItemSkeleton />
+    <ListItemSkeleton />
+  </div>
+{:else if $auth.isAuthenticated}
+  <div class="flex flex-col gap-4">
+    <h1 class="text-[22px] font-extrabold text-ink">My wins</h1>
 
-  {#if loading}
-    <p class="hint">Loading…</p>
-  {:else if payouts.length === 0}
-    <p class="hint">No wins yet — keep entering raffles!</p>
-  {:else}
-    <div class="list">
-      {#each payouts as payout (payout.id)}
-        <div class="win-card">
-          <span class="trophy">🏆</span>
-          <div class="info">
-            <span class="status">{statusLabels[payout.status]}</span>
-            {#if payout.status === 'pending_claim'}
-              <span class="deadline">
-                Claim by {new Date(payout.claimDeadline).toLocaleDateString()}
-              </span>
-            {/if}
+    {#if loading}
+      <div class="flex flex-col gap-3">
+        <ListItemSkeleton />
+        <ListItemSkeleton />
+        <ListItemSkeleton />
+      </div>
+    {:else if payouts.length === 0}
+      <p class="text-[13px] text-muted">No wins yet — keep entering raffles!</p>
+    {:else}
+      <div class="flex flex-col gap-3">
+        {#each payouts as payout (payout.id)}
+          <div class="flex items-center gap-4 rounded-card bg-card p-4 shadow-card">
+            <Trophy size={24} class="text-gold" />
+            <div class="flex flex-col gap-0.5">
+              <span class="text-sm font-bold text-ink">{statusLabels[payout.status]}</span>
+              {#if payout.status === 'pending_claim'}
+                <span class="text-xs text-coral-start">
+                  Claim by {new Date(payout.claimDeadline).toLocaleDateString()}
+                </span>
+              {/if}
+            </div>
           </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
-</div>
-
-<style>
-  .wins-page {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-16);
-  }
-
-  h1 {
-    font-size: 22px;
-    font-weight: 800;
-  }
-
-  .hint {
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-12);
-  }
-
-  .win-card {
-    display: flex;
-    align-items: center;
-    gap: var(--space-16);
-    background: var(--color-card-bg);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
-    padding: var(--space-16);
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .trophy {
-    font-size: 24px;
-  }
-
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .status {
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  .deadline {
-    font-size: 12px;
-    color: var(--color-coral-start);
-  }
-</style>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}

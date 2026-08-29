@@ -10,6 +10,7 @@ node_modules/
 dist/
 build/
 .svelte-kit/
+dev-dist/
 
 # Capacitor native platforms (generated, large binary assets)
 mobile-app/android/
@@ -26,5 +27,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local Docker Compose overrides (host port mappings, etc.)
+docker-compose.override.yml
 
 # NOTE: bun.lockb is intentionally NOT ignored — commit it for reproducible installs.

@@ -4,10 +4,10 @@ import { sql } from '../client.js';
 export interface DbTicket {
   id: string;
   raffleId: string;
-  userId: string;
   ticketNumber: number;
-  paymentId: string | null;
-  createdAt: Date;
+  userId: string;
+  paymentId: string;
+  purchasedAt: Date;
 }
 
 /**
@@ -65,7 +65,7 @@ export async function listUserTickets(userId: string): Promise<DbTicket[]> {
     FROM tickets t
     JOIN raffles r ON t.raffle_id = r.id
     WHERE t.user_id = ${userId}
-    ORDER BY t.created_at DESC
+    ORDER BY t.purchased_at DESC
   `;
 }
 

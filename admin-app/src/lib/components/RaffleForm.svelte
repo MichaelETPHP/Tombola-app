@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { CircleDollarSign, Gift, ImagePlus, Settings2 } from 'lucide-svelte';
   import { createRaffleSchema, type CreateRaffleInput } from '../schemas/index.js';
 
   const dispatch = createEventDispatcher<{ submit: CreateRaffleInput }>();
-
   export let submitting = false;
   export let errorMessage = '';
 
@@ -13,13 +13,12 @@
   let prizeValue = '';
   let ticketPrice = '';
   let ticketCap = '';
-  let maxTicketsPerUser = '';
-  let deadlineDays = '';
+  let maxTicketsPerUser = '5';
+  let deadlineDays = '2';
   let fieldErrors: Record<string, string> = {};
 
   function handleSubmit() {
     fieldErrors = {};
-
     const parsed = createRaffleSchema.safeParse({
       title,
       description: description || undefined,
@@ -30,165 +29,56 @@
       maxTicketsPerUser: Number(maxTicketsPerUser),
       deadlineDays: Number(deadlineDays),
     });
-
     if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        fieldErrors[issue.path[0] as string] = issue.message;
-      }
+      for (const issue of parsed.error.issues) fieldErrors[issue.path[0] as string] = issue.message;
       return;
     }
-
     dispatch('submit', parsed.data);
   }
+
+  const inputClass = 'h-11 w-full rounded-button border border-border bg-bg/55 px-3.5 text-sm text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none';
+  const labelClass = 'text-xs font-bold text-ink';
 </script>
 
-<form class="raffle-form" on:submit|preventDefault={handleSubmit}>
-  <div class="field">
-    <label for="title">Title</label>
-    <input id="title" type="text" bind:value={title} />
-    {#if fieldErrors.title}<span class="field-error">{fieldErrors.title}</span>{/if}
+<form class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]" on:submit|preventDefault={handleSubmit}>
+  <div class="space-y-5">
+    <section class="rounded-card border border-border bg-card p-5 sm:p-6">
+      <div class="mb-6 flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary-bg text-primary"><Gift size={18} /></span><div><h2 class="text-sm font-bold text-ink">Prize presentation</h2><p class="mt-0.5 text-xs text-faint">What participants will see in the mobile app</p></div></div>
+      <div class="space-y-5">
+        <label class="flex flex-col gap-2"><span class={labelClass}>Raffle title</span><input id="title" type="text" bind:value={title} class={inputClass} placeholder="Win an iPhone 16 Pro Max" />{#if fieldErrors.title}<span class="text-xs text-danger">{fieldErrors.title}</span>{/if}</label>
+        <div class="grid gap-5 sm:grid-cols-2">
+          <label class="flex flex-col gap-2"><span class={labelClass}>Prize name</span><input id="prizeName" type="text" bind:value={prizeName} class={inputClass} placeholder="iPhone 16 Pro Max 256GB" />{#if fieldErrors.prizeName}<span class="text-xs text-danger">{fieldErrors.prizeName}</span>{/if}</label>
+          <label class="flex flex-col gap-2"><span class={labelClass}>Retail value (ETB)</span><input id="prizeValue" type="number" min="0" step="0.01" bind:value={prizeValue} class={inputClass} placeholder="120000" />{#if fieldErrors.prizeValue}<span class="text-xs text-danger">{fieldErrors.prizeValue}</span>{/if}</label>
+        </div>
+        <label class="flex flex-col gap-2"><span class={labelClass}>Description <span class="font-medium text-faint">(optional)</span></span><textarea id="description" rows="4" bind:value={description} class="w-full resize-none rounded-button border border-border bg-bg/55 px-3.5 py-3 text-sm leading-6 text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" placeholder="Add the key product details and what makes this prize exciting."></textarea></label>
+        <div class="flex items-start gap-3 rounded-button border border-dashed border-border bg-bg/45 p-4"><ImagePlus size={18} class="mt-0.5 shrink-0 text-faint" /><div><p class="text-xs font-bold text-ink">Prize photo upload is coming next</p><p class="mt-1 text-xs leading-5 text-muted">The current API has no raffle image-upload endpoint. Image controls will be enabled when that endpoint is connected.</p></div></div>
+      </div>
+    </section>
+
+    <section class="rounded-card border border-border bg-card p-5 sm:p-6">
+      <div class="mb-6 flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary-bg text-primary"><CircleDollarSign size={18} /></span><div><h2 class="text-sm font-bold text-ink">Ticket economics</h2><p class="mt-0.5 text-xs text-faint">Set the price and fixed number of available chances</p></div></div>
+      <div class="grid gap-5 sm:grid-cols-2">
+        <label class="flex flex-col gap-2"><span class={labelClass}>Price per ticket (ETB)</span><input id="ticketPrice" type="number" min="0" step="0.01" bind:value={ticketPrice} class={inputClass} placeholder="100" />{#if fieldErrors.ticketPrice}<span class="text-xs text-danger">{fieldErrors.ticketPrice}</span>{/if}</label>
+        <label class="flex flex-col gap-2"><span class={labelClass}>Total ticket quota</span><input id="ticketCap" type="number" min="10" step="1" bind:value={ticketCap} class={inputClass} placeholder="500" />{#if fieldErrors.ticketCap}<span class="text-xs text-danger">{fieldErrors.ticketCap}</span>{/if}</label>
+      </div>
+    </section>
   </div>
 
-  <div class="field">
-    <label for="description">Description</label>
-    <textarea id="description" rows="3" bind:value={description}></textarea>
-  </div>
+  <aside class="space-y-5">
+    <section class="rounded-card border border-border bg-card p-5">
+      <div class="mb-5 flex items-center gap-2.5"><Settings2 size={17} class="text-primary" /><h2 class="text-sm font-bold text-ink">Entry rules</h2></div>
+      <div class="space-y-5">
+        <label class="flex flex-col gap-2"><span class={labelClass}>Maximum per participant</span><input id="maxTicketsPerUser" type="number" min="1" max="5" step="1" bind:value={maxTicketsPerUser} class={inputClass} />{#if fieldErrors.maxTicketsPerUser}<span class="text-xs text-danger">{fieldErrors.maxTicketsPerUser}</span>{/if}<span class="text-[11px] leading-4 text-faint">Participants purchase at least 1 and never more than 5 tickets per raffle.</span></label>
+        <label class="flex flex-col gap-2"><span class={labelClass}>Sales deadline (days)</span><input id="deadlineDays" type="number" min="1" max="90" step="1" bind:value={deadlineDays} class={inputClass} />{#if fieldErrors.deadlineDays}<span class="text-xs text-danger">{fieldErrors.deadlineDays}</span>{/if}</label>
+      </div>
+    </section>
 
-  <div class="grid">
-    <div class="field">
-      <label for="prizeName">Prize name</label>
-      <input id="prizeName" type="text" bind:value={prizeName} />
-      {#if fieldErrors.prizeName}<span class="field-error">{fieldErrors.prizeName}</span>{/if}
-    </div>
+    <section class="rounded-card bg-sidebar p-5 text-white">
+      <p class="text-xs font-bold uppercase tracking-[0.14em] text-primary">Before publishing</p>
+      <ul class="mt-4 space-y-3 text-xs leading-5 text-white/60"><li>Ticket sales close when the quota is reached.</li><li>The draw begins two days after sales close.</li><li>One ticket equals one independent chance to win.</li></ul>
+    </section>
 
-    <div class="field">
-      <label for="prizeValue">Prize value (ETB)</label>
-      <input id="prizeValue" type="number" min="0" step="0.01" bind:value={prizeValue} />
-      {#if fieldErrors.prizeValue}<span class="field-error">{fieldErrors.prizeValue}</span>{/if}
-    </div>
-
-    <div class="field">
-      <label for="ticketPrice">Ticket price (ETB)</label>
-      <input id="ticketPrice" type="number" min="0" step="0.01" bind:value={ticketPrice} />
-      {#if fieldErrors.ticketPrice}<span class="field-error">{fieldErrors.ticketPrice}</span>{/if}
-    </div>
-
-    <div class="field">
-      <label for="ticketCap">Ticket cap</label>
-      <input id="ticketCap" type="number" min="10" step="1" bind:value={ticketCap} />
-      {#if fieldErrors.ticketCap}<span class="field-error">{fieldErrors.ticketCap}</span>{/if}
-    </div>
-
-    <div class="field">
-      <label for="maxTicketsPerUser">Max tickets / user</label>
-      <input id="maxTicketsPerUser" type="number" min="1" max="100" step="1" bind:value={maxTicketsPerUser} />
-      {#if fieldErrors.maxTicketsPerUser}<span class="field-error">{fieldErrors.maxTicketsPerUser}</span>{/if}
-    </div>
-
-    <div class="field">
-      <label for="deadlineDays">Deadline (days)</label>
-      <input id="deadlineDays" type="number" min="1" max="90" step="1" bind:value={deadlineDays} />
-      {#if fieldErrors.deadlineDays}<span class="field-error">{fieldErrors.deadlineDays}</span>{/if}
-    </div>
-  </div>
-
-  <p class="hint">
-    Prize photo upload isn't wired up yet — the API doesn't expose an image
-    endpoint for raffles yet, only <code>lib/image.ts</code>'s sharp wrapper.
-    Add <code>prizeImageUrl</code> to the create-raffle contract once it does.
-  </p>
-
-  {#if errorMessage}
-    <p class="form-error">{errorMessage}</p>
-  {/if}
-
-  <button type="submit" class="submit" disabled={submitting}>
-    {submitting ? 'Creating…' : 'Create raffle'}
-  </button>
+    {#if errorMessage}<p class="rounded-button bg-danger-bg p-3 text-xs font-medium text-danger" role="alert">{errorMessage}</p>{/if}
+    <button type="submit" class="admin-press h-12 w-full rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(21,154,127,0.18)] disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>{submitting ? 'Creating raffle…' : 'Create raffle'}</button>
+  </aside>
 </form>
-
-<style>
-  .raffle-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-20);
-    background: var(--color-card-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    padding: var(--space-24);
-    max-width: 640px;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-16);
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-8);
-  }
-
-  label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-
-  input,
-  textarea {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-button);
-    padding: var(--space-8) var(--space-12);
-    font-size: 14px;
-    font-family: var(--font-family);
-    color: var(--color-text-primary);
-  }
-
-  input:focus,
-  textarea:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 1px;
-  }
-
-  .field-error {
-    font-size: 12px;
-    color: var(--color-danger);
-  }
-
-  .hint {
-    font-size: 12px;
-    color: var(--color-text-muted);
-    background: var(--color-bg);
-    border-radius: var(--radius-button);
-    padding: var(--space-12);
-  }
-
-  .hint code {
-    font-family: monospace;
-  }
-
-  .form-error {
-    font-size: 13px;
-    color: var(--color-danger);
-  }
-
-  .submit {
-    align-self: flex-start;
-    background: var(--color-primary);
-    color: #ffffff;
-    border: none;
-    border-radius: var(--radius-button);
-    padding: var(--space-12) var(--space-24);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .submit:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-</style>

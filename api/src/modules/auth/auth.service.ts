@@ -1,158 +1,195 @@
-import { findUserByPhone, createUser } from '../../db/queries/users.queries.js';
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
+import {
+  findUserByPhone,
+  findUserById,
+  findUserByTelegramId,
+  createUser,
+  linkTelegramIdentity,
+  type DbUser,
+} from '../../db/queries/users.queries.js';
+import { findAdminById } from '../../db/queries/admin.queries.js';
+import { createOtpCode, deleteExpiredOtps, findLatestOtp, incrementOtpAttempts, markOtpVerified } from '../../db/queries/otp.queries.js';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  signTelegramLinkToken,
+  verifyTelegramLinkToken,
+  verifyTelegramNonceToken,
+} from '../../lib/jwt.js';
+import { validateMiniAppInitData, validateTelegramIdToken, type TelegramIdentity } from '../../lib/telegram.js';
 import { sendOtp } from '../../lib/sms.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+import { env } from '../../config/env.js';
+import type { Locale } from '../../lib/i18n.js';
 
-/**
- * In-memory OTP store.
- * In production, use Redis or a database table with TTL.
- */
-const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
 
-const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_OTP_ATTEMPTS = 3;
-
-/**
- * Generate a 6-digit OTP code.
- */
 function generateOtpCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return String(100000 + (values[0] % 900000));
 }
 
-/**
- * Request an OTP for a phone number.
- */
-export async function requestOtp(phone: string): Promise<{ message: string }> {
+export async function requestOtp(phone: string, locale: Locale = 'en'): Promise<{ messageKey: string; expiresIn: number }> {
   const code = generateOtpCode();
+  const existingUser = await findUserByPhone(phone);
+  const codeHash = await Bun.password.hash(code, { algorithm: 'bcrypt', cost: 8 });
 
-  otpStore.set(phone, {
-    code,
-    expiresAt: Date.now() + OTP_EXPIRY_MS,
-    attempts: 0,
+  await createOtpCode({
+    phoneNumber: phone,
+    codeHash,
+    purpose: existingUser ? 'login' : 'signup',
+    expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
   });
+  void deleteExpiredOtps().catch((error) => logger.warn(`OTP cleanup failed: ${String(error)}`));
 
-  // Clean up expired entries periodically
-  for (const [key, entry] of otpStore) {
-    if (entry.expiresAt <= Date.now()) {
-      otpStore.delete(key);
-    }
-  }
-
-  const result = await sendOtp(phone, code);
-
+  const result = await sendOtp(phone, code, locale);
   if (!result.success) {
     logger.error(`Failed to send OTP to ${phone}: ${result.error}`);
-    throw new AppError(500, 'Failed to send verification code. Please try again.');
+    throw new AppError(502, 'auth.otpSendFailed');
   }
 
   logger.info(`OTP requested for ${phone}`);
-
-  return { message: 'Verification code sent' };
+  return { messageKey: 'auth.otpSent', expiresIn: OTP_EXPIRY_MS / 1000 };
 }
 
-/**
- * Verify an OTP code and issue JWT tokens.
- * Auto-registers the user on first successful verification.
- */
-export async function verifyOtp(
-  phone: string,
-  code: string
-): Promise<{
-  accessToken: string;
-  refreshToken: string;
-  user: { id: string; phone: string; fullName: string | null; isNewUser: boolean };
-}> {
-  const stored = otpStore.get(phone);
+function publicUser(user: DbUser, isNewUser = false) {
+  return {
+    id: user.id,
+    phone: user.phoneNumber,
+    fullName: user.fullName,
+    preferredLanguage: user.preferredLanguage,
+    telegramLinked: Boolean(user.telegramUserId),
+    telegramUsername: user.telegramUsername,
+    telegramPhotoUrl: user.telegramPhotoUrl,
+    isNewUser,
+  };
+}
 
-  if (!stored) {
-    throw new AppError(400, 'No verification code found. Please request a new one.');
+async function createSession(user: DbUser, isNewUser = false) {
+  if (user.status !== 'active') throw new AppError(403, 'auth.accountSuspended');
+  return {
+    accessToken: await signAccessToken({ sub: user.id, phone: user.phoneNumber, role: 'user' }),
+    refreshToken: await signRefreshToken({ sub: user.id, role: 'user' }),
+    user: publicUser(user, isNewUser),
+  };
+}
+
+async function attachTelegram(user: DbUser, identity: TelegramIdentity): Promise<DbUser> {
+  const alreadyLinked = await findUserByTelegramId(identity.userId);
+  if (alreadyLinked && alreadyLinked.id !== user.id) {
+    throw new AppError(409, 'auth.telegramAlreadyLinked');
+  }
+  const linked = await linkTelegramIdentity(user.id, identity);
+  if (!linked) throw new AppError(409, 'auth.telegramAlreadyLinked');
+  return linked;
+}
+
+export async function verifyOtp(phone: string, code: string, telegramLinkToken?: string) {
+  const allowDemoCode = env.NODE_ENV !== 'production' && env.DEMO_OTP_ENABLED && code === '123456';
+  const stored = await findLatestOtp(phone);
+
+  if (!stored && !allowDemoCode) throw new AppError(400, 'auth.otpMissing');
+
+  if (stored && !allowDemoCode) {
+    if (stored.expiresAt.getTime() <= Date.now()) throw new AppError(400, 'auth.otpExpired');
+    if (stored.attempts >= stored.maxAttempts) throw new AppError(429, 'auth.tooManyAttempts');
+
+    await incrementOtpAttempts(stored.id);
+    const valid = await Bun.password.verify(code, stored.codeHash).catch(() => false);
+    if (!valid) throw new AppError(400, 'auth.otpInvalid');
+    await markOtpVerified(stored.id);
+  } else if (stored) {
+    await markOtpVerified(stored.id);
   }
 
-  if (stored.expiresAt <= Date.now()) {
-    otpStore.delete(phone);
-    throw new AppError(400, 'Verification code expired. Please request a new one.');
-  }
-
-  stored.attempts++;
-
-  if (stored.attempts > MAX_OTP_ATTEMPTS) {
-    otpStore.delete(phone);
-    throw new AppError(429, 'Too many attempts. Please request a new verification code.');
-  }
-
-  if (stored.code !== code) {
-    throw new AppError(400, 'Invalid verification code.');
-  }
-
-  // OTP verified — clean up
-  otpStore.delete(phone);
-
-  // Find or create user
   let user = await findUserByPhone(phone);
   let isNewUser = false;
-
   if (!user) {
     user = await createUser(phone);
     isNewUser = true;
     logger.info(`New user registered: ${phone}`);
   }
-
-  if (user.isSuspended) {
-    throw new AppError(403, 'Your account has been suspended. Contact support.');
+  if (telegramLinkToken) {
+    const telegram = await verifyTelegramLinkToken(telegramLinkToken);
+    user = await attachTelegram(user, {
+      userId: telegram.telegramUserId,
+      username: telegram.username,
+      photoUrl: telegram.photoUrl,
+      fullName: telegram.fullName,
+    });
   }
+  return createSession(user, isNewUser);
+}
 
-  // Issue tokens
-  const accessToken = await signAccessToken({
-    sub: user.id,
-    phone: user.phone,
-    role: 'user',
-  });
-
-  const refreshToken = await signRefreshToken({
-    sub: user.id,
-    role: 'user',
-  });
+export async function authenticateTelegramMiniApp(initData: string) {
+  const identity = validateMiniAppInitData(initData);
+  const user = await findUserByTelegramId(identity.userId);
+  if (user) return { status: 'authenticated' as const, ...(await createSession(user)) };
 
   return {
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      phone: user.phone,
-      fullName: user.fullName,
-      isNewUser,
+    status: 'phone_required' as const,
+    telegramLinkToken: await signTelegramLinkToken({
+      telegramUserId: identity.userId,
+      username: identity.username,
+      photoUrl: identity.photoUrl,
+      fullName: identity.fullName,
+    }),
+    telegramUser: {
+      fullName: identity.fullName ?? 'Telegram user',
+      username: identity.username ?? null,
+      photoUrl: identity.photoUrl ?? null,
     },
   };
 }
 
-/**
- * Refresh an access token using a valid refresh token.
- */
-export async function refreshAccessToken(
-  refreshToken: string
-): Promise<{ accessToken: string }> {
+export async function authenticateTelegramOidc(idToken: string, nonceToken: string) {
+  const nonce = await verifyTelegramNonceToken(nonceToken);
+  const identity = await validateTelegramIdToken(idToken, nonce.nonce);
+  let user = await findUserByTelegramId(identity.userId);
+  if (user) return { status: 'authenticated' as const, ...(await createSession(user)) };
+
+  // Tombola currently operates with Ethiopian E.164 numbers. A Telegram
+  // account with no shared phone (or a non-Ethiopian number) can still link
+  // safely through the normal OTP screen.
+  if (!identity.phone || !/^\+251[0-9]{9}$/.test(identity.phone)) {
+    return {
+      status: 'phone_required' as const,
+      telegramLinkToken: await signTelegramLinkToken({
+        telegramUserId: identity.userId,
+        username: identity.username,
+        photoUrl: identity.photoUrl,
+        fullName: identity.fullName,
+      }),
+    };
+  }
+
+  user = await findUserByPhone(identity.phone);
+  let isNewUser = false;
+  if (!user) {
+    user = await createUser(identity.phone);
+    isNewUser = true;
+  }
+  user = await attachTelegram(user, identity);
+  return { status: 'authenticated' as const, ...(await createSession(user, isNewUser)) };
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
   const payload = await verifyRefreshToken(refreshToken);
 
-  const user = await findUserByPhone(payload.sub);
-
-  // Re-fetch to get current phone (in case it was changed)
-  // Using sub as user ID
-  const userById = user; // In a real app, look up by ID
-
-  if (!userById) {
-    throw new AppError(401, 'User not found');
+  if (payload.role === 'user') {
+    const user = await findUserById(payload.sub);
+    if (!user) throw new AppError(401, 'user.notFound');
+    if (user.status !== 'active') throw new AppError(403, 'auth.accountSuspended');
+    return {
+      accessToken: await signAccessToken({ sub: user.id, phone: user.phoneNumber, role: 'user' }),
+    };
   }
 
-  if (userById.isSuspended) {
-    throw new AppError(403, 'Account suspended');
-  }
-
-  const accessToken = await signAccessToken({
-    sub: userById.id,
-    phone: userById.phone,
-    role: payload.role,
-  });
-
-  return { accessToken };
+  const admin = await findAdminById(payload.sub);
+  if (!admin || admin.role !== payload.role) throw new AppError(401, 'auth.invalidToken');
+  return {
+    accessToken: await signAccessToken({ sub: admin.id, phone: admin.phoneNumber, role: admin.role }),
+  };
 }

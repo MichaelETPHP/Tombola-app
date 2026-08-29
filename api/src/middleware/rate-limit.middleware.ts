@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import type { AppEnv } from '../types/hono.js';
 
 interface RateLimitEntry {
   count: number;
@@ -11,7 +12,7 @@ interface RateLimitOptions {
   /** Window duration in seconds */
   windowSeconds: number;
   /** Custom key extractor (defaults to IP + path) */
-  keyExtractor?: (c: Parameters<MiddlewareHandler>[0]) => string;
+  keyExtractor?: (c: Parameters<MiddlewareHandler<AppEnv>>[0]) => string;
 }
 
 /**
@@ -22,7 +23,7 @@ interface RateLimitOptions {
  * Usage:
  *   app.post('/auth/otp/request', rateLimit({ max: 5, windowSeconds: 300 }), handler)
  */
-export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
+export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppEnv> {
   const { max, windowSeconds, keyExtractor } = options;
   const store = new Map<string, RateLimitEntry>();
 
@@ -64,7 +65,8 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
 
       return c.json(
         {
-          error: 'Too many requests',
+          error: c.get('t')('rate.tooMany'),
+          code: 'RATE_LIMITED',
           retryAfter,
         },
         429

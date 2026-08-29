@@ -1,89 +1,54 @@
 <script lang="ts">
-  export let variant: 'primary' | 'secondary' | 'ghost' = 'primary';
+  export let variant: 'primary' | 'secondary' | 'ghost' | 'danger' | 'glass' = 'primary';
   export let size: 'md' | 'lg' = 'md';
   export let disabled = false;
   export let loading = false;
   export let type: 'button' | 'submit' = 'button';
+
+  const variantClasses = {
+    primary:
+      'bg-gradient-to-br from-coral-start to-coral-end text-white shadow-[0_6px_16px_rgba(255,107,107,0.35)]',
+    secondary: 'bg-card text-ink shadow-card-light',
+    ghost: 'bg-transparent text-primary-dark',
+    // iOS convention — destructive actions (log out, delete, cancel) read
+    // as plain red text, not a filled button, to stay visually secondary
+    // to the screen's primary action while still signaling consequence.
+    danger: 'bg-transparent text-coral-start',
+    // Frosted-glass CTA — translucent coral tint + backdrop-blur with a
+    // white top-edge highlight to catch light, like an iOS material button.
+    glass:
+      'relative overflow-hidden border border-white/50 bg-gradient-to-br from-[rgba(255,107,107,0.82)] to-[rgba(255,134,116,0.7)] text-white shadow-[0_10px_26px_rgba(255,107,107,0.32),inset_0_1px_0_rgba(255,255,255,0.55)] backdrop-blur-md',
+  } as const;
+
+  const sizeClasses = {
+    md: 'h-11 text-[15px] px-5',
+    lg: 'h-[52px] text-base px-6',
+  } as const;
 </script>
 
 <button
   {type}
-  class="btn {variant} {size} pressable"
+  class="pressable inline-flex w-full items-center justify-center gap-2 rounded-button font-sans font-semibold disabled:cursor-not-allowed disabled:opacity-50 {variantClasses[
+    variant
+  ]} {sizeClasses[size]}"
   disabled={disabled || loading}
   on:click
 >
-  {#if loading}
-    <span class="spinner" aria-hidden="true"></span>
+  {#if variant === 'glass'}
+    <span
+      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/45 via-white/10 to-transparent"
+      aria-hidden="true"
+    ></span>
   {/if}
-  <slot />
+  <span class="relative z-10 inline-flex items-center gap-2">
+    {#if loading}
+      <span
+        class="h-4 w-4 animate-spin rounded-full border-2 {variant === 'primary' || variant === 'glass'
+          ? 'border-white/40 border-t-white'
+          : 'border-black/15 border-t-primary-dark'}"
+        aria-hidden="true"
+      ></span>
+    {/if}
+    <slot />
+  </span>
 </button>
-
-<style>
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-8);
-    width: 100%;
-    border: none;
-    border-radius: var(--radius-button);
-    font-family: var(--font-family);
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .btn.md {
-    height: 44px;
-    font-size: 15px;
-    padding: 0 var(--space-20);
-  }
-
-  .btn.lg {
-    height: 52px;
-    font-size: 16px;
-    padding: 0 var(--space-24);
-  }
-
-  .btn.primary {
-    background: linear-gradient(135deg, var(--color-coral-start) 0%, var(--color-coral-end) 100%);
-    color: #ffffff;
-    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.35);
-  }
-
-  .btn.secondary {
-    background: var(--color-card-bg);
-    color: var(--color-text-primary);
-    box-shadow: var(--shadow-card-light);
-  }
-
-  .btn.ghost {
-    background: transparent;
-    color: var(--color-primary-dark);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-top-color: #ffffff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-
-  .btn.secondary .spinner,
-  .btn.ghost .spinner {
-    border-color: rgba(0, 0, 0, 0.15);
-    border-top-color: var(--color-primary-dark);
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-</style>

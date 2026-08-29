@@ -1,6 +1,13 @@
 import { sql } from '../client.js';
 
-export type RaffleStatus = 'open' | 'locked' | 'drawing' | 'completed' | 'cancelled';
+export type RaffleStatus =
+  | 'draft'
+  | 'open'
+  | 'locked'
+  | 'awaiting_trigger'
+  | 'drawing'
+  | 'completed'
+  | 'cancelled';
 
 export interface DbRaffle {
   id: string;
@@ -13,20 +20,24 @@ export interface DbRaffle {
   ticketCap: number;
   maxTicketsPerUser: number;
   deadlineDays: number;
+  extensionDays: number;
+  opensAt: Date;
+  deadlineAt: Date;
   status: RaffleStatus;
-  ticketsSold: number;
-  serverSeedHash: string;
-  serverSeed: string;
-  extensionCount: number;
-  originalDeadline: Date;
-  currentDeadline: Date;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Computed via a subquery on every SELECT below — not a real column (the schema has no counter to increment). */
+  ticketsSold: number;
 }
 
+/** Appended to every raffles SELECT/RETURNING to compute the live ticket count. */
+const TICKETS_SOLD_EXPR = sql`(SELECT COUNT(*)::int FROM tickets t WHERE t.raffle_id = raffles.id) AS tickets_sold`;
+
 /**
- * Create a new raffle.
+ * Create a new raffle. Opens immediately; the provably-fair seed is
+ * generated later, at draw execution time (see draws.service.ts) — the
+ * schema has no column to pre-commit a hash before then.
  */
 export async function createRaffle(data: {
   title: string;
@@ -38,29 +49,44 @@ export async function createRaffle(data: {
   ticketCap: number;
   maxTicketsPerUser: number;
   deadlineDays: number;
-  serverSeedHash: string;
-  serverSeed: string;
   createdBy: string;
+  opensAt?: Date;
+  deadlineAt?: Date;
+  status?: 'draft' | 'open';
 }): Promise<DbRaffle> {
-  const deadline = new Date();
-  deadline.setDate(deadline.getDate() + data.deadlineDays);
+  const opensAt = data.opensAt ?? new Date();
+  const deadline = data.deadlineAt ?? new Date(opensAt);
+  if (!data.deadlineAt) deadline.setDate(deadline.getDate() + data.deadlineDays);
 
   const rows = await sql<DbRaffle[]>`
     INSERT INTO raffles (
       title, description, prize_name, prize_value, prize_image_url,
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
-      server_seed_hash, server_seed, status, tickets_sold,
-      original_deadline, current_deadline, extension_count, created_by
+      status, opens_at, deadline_at, created_by
     ) VALUES (
       ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
-      ${data.deadlineDays}, ${data.serverSeedHash}, ${data.serverSeed},
-      'open', 0, ${deadline}, ${deadline}, 0, ${data.createdBy}
+      ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy}
     )
-    RETURNING *
+    RETURNING *, 0 AS tickets_sold
   `;
   return rows[0];
+}
+
+export async function updateRaffle(
+  id: string,
+  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt'>>
+): Promise<DbRaffle | null> {
+  const keys = Object.keys(updates) as (keyof typeof updates)[];
+  if (keys.length === 0) return findRaffleById(id);
+  const rows = await sql<DbRaffle[]>`
+    UPDATE raffles
+    SET ${sql(updates, ...keys)}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *, ${TICKETS_SOLD_EXPR}
+  `;
+  return rows[0] ?? null;
 }
 
 /**
@@ -68,7 +94,10 @@ export async function createRaffle(data: {
  */
 export async function findRaffleById(id: string): Promise<DbRaffle | null> {
   const rows = await sql<DbRaffle[]>`
-    SELECT * FROM raffles WHERE id = ${id} LIMIT 1
+    SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+    FROM raffles
+    WHERE id = ${id}
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -85,7 +114,8 @@ export async function listRaffles(options: {
 
   if (status) {
     return sql<DbRaffle[]>`
-      SELECT * FROM raffles
+      SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+      FROM raffles
       WHERE status = ${status}
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -93,7 +123,8 @@ export async function listRaffles(options: {
   }
 
   return sql<DbRaffle[]>`
-    SELECT * FROM raffles
+    SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+    FROM raffles
     ORDER BY created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
@@ -107,41 +138,47 @@ export async function updateRaffleStatus(id: string, status: RaffleStatus): Prom
     UPDATE raffles
     SET status = ${status}, updated_at = NOW()
     WHERE id = ${id}
-    RETURNING *
+    RETURNING *, ${TICKETS_SOLD_EXPR}
   `;
   return rows[0] ?? null;
 }
 
 /**
- * Increment tickets sold count.
- */
-export async function incrementTicketsSold(id: string, count: number): Promise<DbRaffle | null> {
-  const rows = await sql<DbRaffle[]>`
-    UPDATE raffles
-    SET tickets_sold = tickets_sold + ${count}, updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `;
-  return rows[0] ?? null;
-}
-
-/**
- * Extend a raffle's deadline.
+ * Extend a raffle's deadline — updates `deadline_at` in place and logs the
+ * extension to `raffle_extensions` (there's no counter/original-deadline
+ * column on `raffles` itself; the log table is the source of truth for history).
  */
 export async function extendRaffleDeadline(
   id: string,
-  newDeadline: Date
+  newDeadline: Date,
+  reason?: string
 ): Promise<DbRaffle | null> {
-  const rows = await sql<DbRaffle[]>`
-    UPDATE raffles
-    SET
-      current_deadline = ${newDeadline},
-      extension_count = extension_count + 1,
-      updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `;
-  return rows[0] ?? null;
+  return sql.begin(async (tx) => {
+    const [raffle] = await tx<DbRaffle[]>`
+      SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+      FROM raffles
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    if (!raffle) return null;
+
+    await tx`
+      INSERT INTO raffle_extensions (
+        raffle_id, previous_deadline, new_deadline, tickets_sold_at_extension, reason
+      ) VALUES (
+        ${id}, ${raffle.deadlineAt}, ${newDeadline}, ${raffle.ticketsSold},
+        ${reason ?? 'cap not reached by deadline'}
+      )
+    `;
+
+    const [updated] = await tx<DbRaffle[]>`
+      UPDATE raffles
+      SET deadline_at = ${newDeadline}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *, ${TICKETS_SOLD_EXPR}
+    `;
+    return updated ?? null;
+  });
 }
 
 /**
@@ -149,9 +186,10 @@ export async function extendRaffleDeadline(
  */
 export async function findRafflesAtCap(): Promise<DbRaffle[]> {
   return sql<DbRaffle[]>`
-    SELECT * FROM raffles
+    SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+    FROM raffles
     WHERE status = 'open'
-      AND tickets_sold >= ticket_cap
+      AND (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = raffles.id) >= ticket_cap
   `;
 }
 
@@ -160,8 +198,9 @@ export async function findRafflesAtCap(): Promise<DbRaffle[]> {
  */
 export async function findRafflesPastDeadline(): Promise<DbRaffle[]> {
   return sql<DbRaffle[]>`
-    SELECT * FROM raffles
+    SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+    FROM raffles
     WHERE status = 'open'
-      AND current_deadline < NOW()
+      AND deadline_at < NOW()
   `;
 }

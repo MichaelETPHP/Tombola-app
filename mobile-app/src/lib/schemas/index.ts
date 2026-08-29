@@ -18,6 +18,10 @@ export const authResponseSchema = z.object({
     phone: z.string(),
     fullName: z.string().nullable(),
     isNewUser: z.boolean(),
+    preferredLanguage: z.enum(['en', 'am']).optional(),
+    telegramLinked: z.boolean().optional(),
+    telegramUsername: z.string().nullable().optional(),
+    telegramPhotoUrl: z.string().nullable().optional(),
   }),
 });
 
@@ -34,7 +38,7 @@ export const raffleSchema = z.object({
   ticketCap: z.number(),
   ticketsSold: z.number(),
   maxTicketsPerUser: z.number(),
-  status: z.enum(['open', 'locked', 'drawing', 'completed', 'cancelled']),
+  status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
   currentDeadline: z.string(),
   createdAt: z.string(),
 });
@@ -46,7 +50,7 @@ export const raffleListResponseSchema = z.object({
 // ── Ticket Schemas ───────────────────────────────────────
 
 export const purchaseTicketsSchema = z.object({
-  quantity: z.number().int().positive().min(1).max(100),
+  quantity: z.number().int().min(1).max(5),
   paymentGateway: z.enum(['chapa', 'telebirr']).default('chapa'),
 });
 

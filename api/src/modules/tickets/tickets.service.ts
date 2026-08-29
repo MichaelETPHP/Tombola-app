@@ -1,9 +1,9 @@
 import { nanoid } from 'nanoid';
-import { findRaffleById } from '../../db/queries/raffles.queries.js';
-import { countUserTicketsInRaffle, listUserTickets } from '../../db/queries/tickets.queries.js';
-import { createPayment } from '../../db/queries/payments.queries.js';
+import { listUserTickets } from '../../db/queries/tickets.queries.js';
+import { reservePayment } from '../../db/queries/payments.queries.js';
 import { chapaInitialize } from '../../lib/payment-gateway.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+import { env } from '../../config/env.js';
 import type { PurchaseTicketsInput } from './tickets.schema.js';
 
 /**
@@ -17,57 +17,42 @@ export async function purchaseTickets(
   userPhone: string,
   input: PurchaseTicketsInput
 ) {
-  // 1. Check raffle exists and is open
-  const raffle = await findRaffleById(raffleId);
-  if (!raffle) {
-    throw new AppError(404, 'Raffle not found');
-  }
-  if (raffle.status !== 'open') {
-    throw new AppError(400, 'This raffle is no longer accepting ticket purchases');
-  }
-
-  // 2. Check ticket cap
-  const remainingTickets = raffle.ticketCap - raffle.ticketsSold;
-  if (input.quantity > remainingTickets) {
-    throw new AppError(400, `Only ${remainingTickets} tickets remaining`);
-  }
-
-  // 3. Check per-user limit
-  const userTicketCount = await countUserTicketsInRaffle(raffleId, userId);
-  if (userTicketCount + input.quantity > raffle.maxTicketsPerUser) {
-    const remaining = raffle.maxTicketsPerUser - userTicketCount;
-    throw new AppError(
-      400,
-      `You can only purchase ${remaining} more ticket(s) for this raffle (limit: ${raffle.maxTicketsPerUser})`
-    );
-  }
-
-  // 4. Calculate total amount
-  const amount = raffle.ticketPrice * input.quantity;
   const txRef = `TXN-${nanoid(16)}`;
-
-  // 5. Create pending payment record
-  const payment = await createPayment({
+  const reservation = await reservePayment({
     userId,
     raffleId,
-    amount,
-    currency: 'ETB',
     gateway: input.paymentGateway,
-    gatewayTxRef: txRef,
+    gatewayRef: txRef,
     ticketCount: input.quantity,
   });
+  if (!reservation.ok) {
+    if (reservation.reason === 'not_found') throw new AppError(404, 'raffle.notFound');
+    if (reservation.reason === 'closed') throw new AppError(409, 'This raffle is no longer accepting ticket purchases');
+    if (reservation.reason === 'raffle_limit') throw new AppError(409, `Only ${reservation.available ?? 0} tickets remain available`);
+    throw new AppError(409, `You can reserve only ${reservation.available ?? 0} more tickets for this raffle`);
+  }
+  const { payment, raffle } = reservation;
+  const amount = payment.amount;
 
-  // 6. Initialize payment with gateway
   if (input.paymentGateway === 'chapa') {
     const chapaResult = await chapaInitialize({
       amount,
       currency: 'ETB',
       phone_number: userPhone,
       tx_ref: txRef,
-      callback_url: `${process.env.API_BASE_URL || 'http://localhost:3000'}/payments/webhook/chapa`,
+      callback_url: `${process.env.API_BASE_URL || 'http://localhost:3435'}/payments/webhook/chapa`,
+      // Where Chapa sends the user's browser after they finish paying —
+      // separate from callback_url, which is the server-to-server webhook
+      // that actually issues the tickets (see payments.service.ts).
+      return_url: `${env.MOBILE_APP_URL}/payments/${payment.id}`,
       customization: {
         title: `Tombola: ${raffle.title}`,
         description: `${input.quantity} ticket(s) for "${raffle.title}"`,
+      },
+      mock: {
+        raffleTitle: raffle.title,
+        ticketCount: input.quantity,
+        unitPrice: raffle.ticketPrice,
       },
     });
 
@@ -91,8 +76,15 @@ export async function purchaseTickets(
 }
 
 /**
- * Get all tickets for a user.
+ * Get all tickets for a user. Reshapes `purchasedAt` (the real column) to
+ * `createdAt` to keep the API contract stable for the mobile app.
  */
 export async function getUserTickets(userId: string) {
-  return listUserTickets(userId);
+  const tickets = await listUserTickets(userId);
+  return tickets.map((t) => ({
+    id: t.id,
+    raffleId: t.raffleId,
+    ticketNumber: t.ticketNumber,
+    createdAt: t.purchasedAt,
+  }));
 }

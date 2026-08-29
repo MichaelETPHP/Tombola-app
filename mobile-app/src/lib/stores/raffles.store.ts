@@ -11,7 +11,7 @@ export interface Raffle {
   ticketCap: number;
   ticketsSold: number;
   maxTicketsPerUser: number;
-  status: 'open' | 'locked' | 'drawing' | 'completed' | 'cancelled';
+  status: 'draft' | 'open' | 'locked' | 'awaiting_trigger' | 'drawing' | 'completed' | 'cancelled';
   currentDeadline: string;
   createdAt: string;
 }

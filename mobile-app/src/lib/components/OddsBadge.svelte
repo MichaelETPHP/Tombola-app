@@ -14,28 +14,7 @@
   $: display = odds === 0 ? '0%' : odds < 0.1 ? '<0.1%' : `${odds.toFixed(1)}%`;
 </script>
 
-<span class="odds-badge">
-  <span class="dot"></span>
+<span class="inline-flex items-center gap-2 rounded-full bg-blue-bg px-3 py-1 text-xs font-semibold text-blue">
+  <span class="h-1.5 w-1.5 rounded-full bg-blue"></span>
   {display} win odds
 </span>
-
-<style>
-  .odds-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-8);
-    padding: 4px var(--space-12);
-    border-radius: 999px;
-    background: var(--color-blue-bg);
-    color: var(--color-blue);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--color-blue);
-  }
-</style>

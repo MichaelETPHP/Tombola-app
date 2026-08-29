@@ -1,118 +1,118 @@
-/* ─── Tombola Design System — Global Styles ──────────────────────── */
+@import 'tailwindcss';
 
-/* Reset */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ─── Tombola Design System — Theme Tokens ─────────────────────────── */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-:root {
-  /* ── Brand Colors ─────────────────────────────── */
-  --color-primary: #00D3A0;
-  --color-primary-dark: #00B589;
-  --color-coral-start: #FF6B6B;
-  --color-coral-end: #FF8674;
+  --color-primary: #00d3a0;
+  --color-primary-dark: #00b589;
+  --color-coral-start: #ff6b6b;
+  --color-coral-end: #ff8674;
 
-  /* ── Accent Colors ─────────────────────────────── */
-  --color-gold: #F5A623;
-  --color-gold-bg: #FFF3D6;
-  --color-pink: #FF5C7A;
-  --color-pink-bg: #FFE1E6;
-  --color-pink-track: #FFD9DF;
-  --color-blue: #4A7FFF;
-  --color-blue-bg: #E3EEFF;
-  --color-blue-track: #DCE8FF;
+  --color-gold: #f5a623;
+  --color-gold-bg: #fff3d6;
+  --color-pink: #ff5c7a;
+  --color-pink-bg: #ffe1e6;
+  --color-pink-track: #ffd9df;
+  --color-blue: #4a7fff;
+  --color-blue-bg: #e3eeff;
+  --color-blue-track: #dce8ff;
 
-  /* ── Neutral Colors ─────────────────────────────── */
-  --color-card-bg: #FFFFFF;
-  --color-text-primary: #1A1D29;
-  --color-text-secondary: #8A8FA3;
-  --color-nav-inactive: #A6ABBD;
-  --color-dot-inactive: #D9DCE3;
+  --color-card: #ffffff;
+  --color-ink: #1a1d29;
+  --color-muted: #8a8fa3;
+  --color-nav-inactive: #a6abbd;
+  --color-dot-inactive: #d9dce3;
 
-  /* ── Background Gradient ────────────────────────── */
-  --bg-gradient-start: #E3F9EF;
-  --bg-gradient-end: #B9EEDA;
+  --color-action-bg: #dff7ee;
+  --color-action-icon: #00c896;
 
-  /* ── Shadows ────────────────────────────────────── */
+  --color-bg-start: #e3f9ef;
+  --color-bg-end: #b9eeda;
+
   --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.06);
   --shadow-card-light: 0 4px 12px rgba(0, 0, 0, 0.04);
   --shadow-nav: 0 10px 24px rgba(0, 0, 0, 0.08);
 
-  /* ── Spacing Scale ──────────────────────────────── */
-  --space-4: 4px;
-  --space-8: 8px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-32: 32px;
-
-  /* ── Radii ──────────────────────────────────────── */
   --radius-card: 24px;
   --radius-button: 16px;
   --radius-action: 20px;
   --radius-nav: 32px;
-
-  /* ── Typography ─────────────────────────────────── */
-  --font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-html, body {
-  height: 100%;
-  font-family: var(--font-family);
-  color: var(--color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+/* ─── Motion — custom easing curves ────────────────────────────────
+   Built-in CSS easings (ease, ease-out) are too weak to feel intentional.
+   These carry punch without overshoot, for interactions vs. on-screen
+   movement respectively. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-body {
-  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-  min-height: 100vh;
-  min-height: 100dvh;
-  position: relative;
+/* ─── Base ──────────────────────────────────────────────────────────── */
+@layer base {
+  html,
+  body {
+    height: 100%;
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
+    min-height: 100vh;
+    min-height: 100dvh;
+    position: relative;
+  }
+
+  /* Subtle diagonal stripe texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.04;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 10px,
+      rgba(0, 0, 0, 0.03) 10px,
+      rgba(0, 0, 0, 0.03) 11px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ensure content sits above the texture overlay */
+  body > div {
+    position: relative;
+    z-index: 1;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    scrollbar-width: none;
+  }
 }
 
-/* Subtle diagonal stripe texture overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  opacity: 0.04;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 10px,
-    rgba(0, 0, 0, 0.03) 10px,
-    rgba(0, 0, 0, 0.03) 11px
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Ensure content sits above the texture overlay */
-body > div {
-  position: relative;
-  z-index: 1;
-}
-
-/* ── Safe area padding for notched devices ────────── */
+/* ─── Interaction utilities (mobile press states) ──────────────────── */
 .safe-area-top {
-  padding-top: max(var(--space-20), env(safe-area-inset-top));
+  padding-top: max(20px, env(safe-area-inset-top));
 }
 
 .safe-area-bottom {
-  padding-bottom: max(var(--space-16), env(safe-area-inset-bottom));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
-/* ── Utility: Press opacity for tappable elements ── */
 .tappable {
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity 140ms var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -120,9 +120,8 @@ body > div {
   opacity: 0.85;
 }
 
-/* ── Utility: CTA press scale ──────────────────────── */
 .pressable {
-  transition: transform 0.1s ease;
+  transition: transform 140ms var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -130,11 +129,56 @@ body > div {
   transform: scale(0.97);
 }
 
-/* ── Scrollbar hiding for mobile feel ──────────────── */
-::-webkit-scrollbar {
-  display: none;
+/* ─── Skeleton loading ──────────────────────────────────────────────
+   A faster pulse than the CSS-default 2s reads as "loading quickly" —
+   perceived performance matters as much as actual load time. */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
-* {
-  scrollbar-width: none;
+.skeleton {
+  animation: skeleton-pulse 1.3s var(--ease-in-out) infinite;
+  background-color: var(--color-dot-inactive);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+/* ─── Raffle-ticket perforation — the app's visual signature ─────────
+   Relies on an overflow-hidden rounded ancestor to clip the two edge
+   circles into semicircular "torn ticket" notches; no CSS masking. */
+.ticket-perforation {
+  position: relative;
+  height: 0;
+  margin: 0 14px;
+  border-top: 2px dashed var(--color-dot-inactive);
+}
+
+.ticket-perforation::before,
+.ticket-perforation::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-bg-start), var(--color-bg-end));
+}
+
+.ticket-perforation::before {
+  left: -22px;
+}
+
+.ticket-perforation::after {
+  right: -22px;
 }

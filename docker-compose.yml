@@ -1,0 +1,85 @@
+# Tombola — all three services, one Coolify project on a shared VPS.
+#
+# No `ports:` mappings on purpose — this VPS runs other Coolify projects
+# too, so binding host ports here risks colliding with them. Coolify's own
+# proxy talks to each service over the internal Docker network using the
+# `expose`d container port; assign each service's public domain in the
+# Coolify dashboard instead of hardcoding it here.
+#
+# There's no Postgres service — DATABASE_URL below points at the existing
+# external Postgres/Supabase instance this project already uses.
+#
+# Local testing: `cp .env.example .env`, fill it in, then
+# `cp docker-compose.override.yml.example docker-compose.override.yml`
+# before `docker compose up --build` — Compose merges that file in
+# automatically and it's the one that adds host ports, so this file itself
+# stays Coolify-safe either way.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    expose:
+      - '3435'
+    environment:
+      NODE_ENV: production
+      PORT: '3435'
+      DATABASE_URL: ${DATABASE_URL}
+      DB_SCHEMA: ${DB_SCHEMA:-Tombola_DB}
+      DB_SSL: ${DB_SSL:-false}
+      DB_POOL_MIN: ${DB_POOL_MIN:-2}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      # SMS gateway — leave unset for now (dev-mode logs the OTP instead of
+      # sending it) or set DEMO_OTP_ENABLED so 123456 works for any phone.
+      SMS_API_URL: ${SMS_API_URL:-}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      DEMO_OTP_ENABLED: ${DEMO_OTP_ENABLED:-true}
+      # Everything below is mock-data-only for now, per the current stage
+      # of this project — flip MOCK_PAYMENTS to false and fill in the real
+      # Chapa keys once that integration is actually ready.
+      CHAPA_SECRET_KEY: ${CHAPA_SECRET_KEY:-your-chapa-secret-key}
+      CHAPA_WEBHOOK_SECRET: ${CHAPA_WEBHOOK_SECRET:-your-chapa-webhook-secret}
+      MOCK_PAYMENTS: ${MOCK_PAYMENTS:-true}
+      TELEBIRR_APP_ID: ${TELEBIRR_APP_ID:-your-telebirr-app-id}
+      TELEBIRR_APP_KEY: ${TELEBIRR_APP_KEY:-your-telebirr-app-key}
+      MOBILE_APP_URL: ${MOBILE_APP_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+
+  mobile-app:
+    build:
+      context: .
+      dockerfile: mobile-app/Dockerfile
+      args:
+        # Build-time only — baked into the client bundle, so this must be
+        # the API's real public URL, not an internal Docker hostname.
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    expose:
+      - '80'
+    depends_on:
+      api:
+        condition: service_healthy
+
+  admin-app:
+    build:
+      context: .
+      dockerfile: admin-app/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    expose:
+      - '5355'
+    environment:
+      NODE_ENV: production
+      PORT: '5355'
+      HOST: '0.0.0.0'
+      # adapter-node needs this to build correct absolute URLs behind
+      # Coolify's reverse proxy — the admin-app's own public https:// URL.
+      ORIGIN: ${ADMIN_APP_URL}
+    depends_on:
+      api:
+        condition: service_healthy

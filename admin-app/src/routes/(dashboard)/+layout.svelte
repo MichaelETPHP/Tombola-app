@@ -9,33 +9,21 @@
 </script>
 
 {#if $auth.isLoading}
-  <div class="loading">Loading…</div>
+  <div class="flex min-h-[100dvh] bg-bg">
+    <div class="hidden w-[268px] animate-pulse bg-sidebar lg:block"></div>
+    <main class="w-full max-w-[1480px] flex-1 p-4 md:p-7 xl:p-9">
+      <div class="mb-8 h-8 w-48 animate-pulse rounded-button bg-border"></div>
+      <div class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <div class="h-64 animate-pulse rounded-card bg-border"></div>
+        <div class="h-64 animate-pulse rounded-card bg-border"></div>
+      </div>
+    </main>
+  </div>
 {:else if $auth.isAuthenticated}
-  <div class="shell">
+  <div class="min-h-[100dvh] bg-bg lg:flex">
     <Sidebar />
-    <main class="content">
+    <main class="admin-reveal mx-auto w-full max-w-[1480px] flex-1 p-4 pb-10 md:p-7 xl:p-9">
       <slot />
     </main>
   </div>
 {/if}
-
-<style>
-  .loading {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-secondary);
-  }
-
-  .shell {
-    display: flex;
-    min-height: 100vh;
-  }
-
-  .content {
-    flex: 1;
-    padding: var(--space-32);
-    max-width: 1100px;
-  }
-</style>

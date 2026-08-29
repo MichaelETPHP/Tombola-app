@@ -7,15 +7,49 @@ export const createRaffleSchema = z.object({
   prizeValue: z.number().positive(),
   ticketPrice: z.number().positive(),
   ticketCap: z.number().int().positive().min(10),
-  maxTicketsPerUser: z.number().int().positive().min(1).max(100),
+  maxTicketsPerUser: z.number().int().min(1).max(5),
   deadlineDays: z.number().int().positive().min(1).max(90),
+  prizeImageUrl: z.string().url().optional(),
+  opensAt: z.coerce.date().optional(),
+  deadlineAt: z.coerce.date().optional(),
+  status: z.enum(['draft', 'open']).default('draft'),
+}).superRefine((data, ctx) => {
+  if (data.opensAt && data.deadlineAt && data.deadlineAt <= data.opensAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['deadlineAt'], message: 'Deadline must be after opening time' });
+  }
+});
+
+export const updateRaffleSchema = z.object({
+  title: z.string().min(3).max(200).optional(),
+  description: z.string().max(2000).nullable().optional(),
+  prizeName: z.string().min(2).max(200).optional(),
+  prizeValue: z.number().positive().optional(),
+  prizeImageUrl: z.string().url().nullable().optional(),
+  ticketPrice: z.number().positive().optional(),
+  ticketCap: z.number().int().min(10).optional(),
+  maxTicketsPerUser: z.number().int().min(1).max(5).optional(),
+  opensAt: z.coerce.date().optional(),
+}).refine((data) => Object.keys(data).length > 0, 'At least one field is required');
+
+export const updateRaffleStatusSchema = z.object({
+  status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
+  reason: z.string().trim().min(3).max(500).optional(),
+});
+
+export const updateRaffleDeadlineSchema = z.object({
+  deadlineAt: z.coerce.date().refine((value) => value.getTime() > Date.now(), 'Deadline must be in the future'),
+  reason: z.string().trim().min(3).max(500),
 });
 
 export const listRafflesSchema = z.object({
-  status: z.enum(['open', 'locked', 'drawing', 'completed', 'cancelled']).optional(),
+  status: z
+    .enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled'])
+    .optional(),
   limit: z.coerce.number().int().positive().max(50).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
 export type CreateRaffleInput = z.infer<typeof createRaffleSchema>;
+export type UpdateRaffleInput = z.infer<typeof updateRaffleSchema>;
+export type UpdateRaffleStatusInput = z.infer<typeof updateRaffleStatusSchema>;
 export type ListRafflesInput = z.infer<typeof listRafflesSchema>;

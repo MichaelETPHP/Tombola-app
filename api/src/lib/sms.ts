@@ -59,10 +59,12 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
 /**
  * Send an OTP code via SMS.
  */
-export async function sendOtp(phone: string, code: string): Promise<SmsGatewayResponse> {
+export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' = 'en'): Promise<SmsGatewayResponse> {
   return sendSms({
     to: phone,
-    message: `Your Tombola verification code is: ${code}. Valid for 5 minutes.`,
+    message: locale === 'am'
+      ? `የTombola ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
+      : `Your Tombola verification code is ${code}. It is valid for 5 minutes.`,
   });
 }
 

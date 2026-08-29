@@ -1,108 +1,114 @@
-import { findDrawByToken, completeDraw as dbCompleteDraw } from '../../db/queries/draws.queries.js';
+import {
+  findDrawTriggerByToken,
+  markDrawTriggerClicked,
+  createDrawResult,
+} from '../../db/queries/draws.queries.js';
 import { findRaffleById, updateRaffleStatus } from '../../db/queries/raffles.queries.js';
 import { listRaffleTickets } from '../../db/queries/tickets.queries.js';
 import { createPayout } from '../../db/queries/payouts.queries.js';
-import { computeWinner } from '../../lib/provably-fair.js';
+import { generateServerSeed, commitServerSeed, computeWinner } from '../../lib/provably-fair.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
 /**
  * Process a trigger link click — execute the draw.
- * 
- * This is the core provably-fair draw execution:
- * 1. Validate the trigger token and check it hasn't expired
- * 2. Use the click timestamp as the client seed
- * 3. Combine with the server seed and compute the winner
- * 4. Record everything for public verification
- * 5. Create the payout record
+ *
+ * The server seed is generated HERE, at execution time, rather than
+ * pre-committed when the raffle opened. The schema only has a place to
+ * store server_seed/server_seed_hash on `draw_results`, which can't exist
+ * before a `draw_triggers` row does (which itself only exists once the
+ * raffle locks) — so there's nowhere to persist a hash before this point.
+ * This means the classic "hash published before ticket sales" guarantee
+ * doesn't hold with the current schema; what's still true is that the
+ * seed can't be chosen after the winner would be known, since the winning
+ * ticket is derived from server_seed + this click's timestamp together.
  */
-export async function executeDraw(token: string) {
-  // 1. Find and validate the draw
-  const draw = await findDrawByToken(token);
+export async function executeDraw(token: string, clickedIp: string | null = null) {
+  // 1. Find and validate the trigger
+  const trigger = await findDrawTriggerByToken(token);
 
-  if (!draw) {
+  if (!trigger) {
     throw new AppError(404, 'Invalid trigger link');
   }
 
-  if (draw.status !== 'pending_trigger') {
-    if (draw.status === 'completed') {
+  if (trigger.status !== 'pending') {
+    if (trigger.status === 'clicked') {
       throw new AppError(400, 'This draw has already been completed');
     }
-    if (draw.status === 'expired') {
-      throw new AppError(400, 'This trigger link has expired');
-    }
-    throw new AppError(400, `Draw is in unexpected state: ${draw.status}`);
+    throw new AppError(400, 'This trigger link has expired');
   }
 
-  if (draw.triggerExpiresAt < new Date()) {
+  if (trigger.expiresAt < new Date()) {
     throw new AppError(400, 'This trigger link has expired');
   }
 
   // 2. Get the raffle and validate state
-  const raffle = await findRaffleById(draw.raffleId);
+  const raffle = await findRaffleById(trigger.raffleId);
   if (!raffle) {
     throw new AppError(500, 'Raffle not found for draw');
   }
 
   // 3. Get all tickets for the raffle
-  const tickets = await listRaffleTickets(draw.raffleId);
+  const tickets = await listRaffleTickets(trigger.raffleId);
   if (tickets.length === 0) {
     throw new AppError(500, 'No tickets found for raffle');
   }
 
-  // 4. Generate client seed from click timestamp
+  // 4. Generate the server seed and a client seed from the click timestamp
+  const serverSeed = generateServerSeed();
+  const serverSeedHash = await commitServerSeed(serverSeed);
   const clientSeed = Date.now().toString();
 
-  // 5. Compute winner using provably-fair algorithm
-  const { winnerIndex, combinedHash } = await computeWinner(
-    raffle.serverSeed,
-    clientSeed,
-    tickets.length
-  );
+  // 5. Compute winner using the provably-fair algorithm
+  const { winnerIndex, combinedHash } = await computeWinner(serverSeed, clientSeed, tickets.length);
 
-  // The winner is determined by the index into the sorted ticket array
   const winningTicket = tickets[winnerIndex];
-
   if (!winningTicket) {
     throw new AppError(500, 'Failed to determine winning ticket');
   }
 
-  // 6. Complete the draw record
-  await dbCompleteDraw(draw.id, {
+  // 6. Mark the trigger clicked and record the draw result
+  await markDrawTriggerClicked(trigger.id, clickedIp);
+
+  const drawResult = await createDrawResult({
+    raffleId: trigger.raffleId,
+    drawTriggerId: trigger.id,
+    serverSeed,
+    serverSeedHash,
     clientSeed,
-    serverSeed: raffle.serverSeed,
-    combinedHash,
-    winnerTicketNumber: winningTicket.ticketNumber,
+    finalSeedHash: combinedHash,
+    winningTicketNumber: winningTicket.ticketNumber,
     winnerUserId: winningTicket.userId,
   });
 
   // 7. Update raffle status to completed
-  await updateRaffleStatus(draw.raffleId, 'completed');
+  await updateRaffleStatus(trigger.raffleId, 'completed');
 
   // 8. Create payout record with 7-day claim deadline
   const claimDeadline = new Date();
   claimDeadline.setDate(claimDeadline.getDate() + 7);
 
   await createPayout({
-    drawId: draw.id,
-    raffleId: draw.raffleId,
+    raffleId: trigger.raffleId,
+    drawResultId: drawResult.id,
     winnerUserId: winningTicket.userId,
+    grossPrizeValue: raffle.prizeValue,
     claimDeadline,
   });
 
   logger.info(
-    `Draw completed for raffle ${draw.raffleId}: ticket #${winningTicket.ticketNumber} (user ${winningTicket.userId})`
+    `Draw completed for raffle ${trigger.raffleId}: ticket #${winningTicket.ticketNumber} (user ${winningTicket.userId})`
   );
 
   return {
-    raffleId: draw.raffleId,
+    raffleId: trigger.raffleId,
     raffleName: raffle.title,
     winnerTicketNumber: winningTicket.ticketNumber,
     totalTickets: tickets.length,
-    serverSeed: raffle.serverSeed,
+    serverSeed,
     clientSeed,
     combinedHash,
-    serverSeedHash: raffle.serverSeedHash,
+    serverSeedHash,
     message: 'Draw completed! The winner has been notified.',
   };
 }

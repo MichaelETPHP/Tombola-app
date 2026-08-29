@@ -1,7 +1,8 @@
 import { get } from 'svelte/store';
 import { auth, setAuth, clearAuth } from '../stores/auth.store.js';
+import { language } from '../stores/language.store.js';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
 
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
@@ -14,6 +15,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const { skipAuth = false, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers);
+  headers.set('Accept-Language', get(language));
 
   if (!headers.has('Content-Type') && fetchOptions.body) {
     headers.set('Content-Type', 'application/json');

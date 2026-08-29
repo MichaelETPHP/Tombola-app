@@ -1,38 +1,60 @@
 import { sql } from '../client.js';
 
-export interface DbDraw {
+export type DrawTriggerStatus = 'pending' | 'clicked' | 'expired';
+
+/**
+ * The "pull the lever" link sent to a randomly selected participant.
+ * A raffle can have several of these over time (attempt_number increments)
+ * if earlier ones expire unclicked.
+ */
+export interface DbDrawTrigger {
   id: string;
   raffleId: string;
-  triggerUserId: string;
-  triggerToken: string;
-  triggerExpiresAt: Date;
-  triggerClickedAt: Date | null;
-  clientSeed: string | null;
-  serverSeed: string | null;
-  combinedHash: string | null;
-  winnerTicketNumber: number | null;
-  winnerUserId: string | null;
-  status: 'pending_trigger' | 'triggered' | 'completed' | 'expired';
-  createdAt: Date;
-  updatedAt: Date;
+  selectedUserId: string;
+  attemptNumber: number;
+  linkToken: string;
+  status: DrawTriggerStatus;
+  sentAt: Date;
+  expiresAt: Date;
+  clickedAt: Date | null;
+  clickedIp: string | null;
 }
 
 /**
- * Create a draw record with a trigger token for the selected participant.
+ * The provably-fair outcome, recorded once a trigger link is clicked.
+ * Only exists after a draw_trigger exists — see draws.service.ts for why
+ * the server seed is generated here rather than pre-committed earlier.
  */
-export async function createDraw(data: {
+export interface DbDrawResult {
+  id: string;
   raffleId: string;
-  triggerUserId: string;
-  triggerToken: string;
-  triggerExpiresAt: Date;
-}): Promise<DbDraw> {
-  const rows = await sql<DbDraw[]>`
-    INSERT INTO draws (
-      raffle_id, trigger_user_id, trigger_token,
-      trigger_expires_at, status
+  drawTriggerId: string;
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  finalSeedHash: string;
+  winningTicketNumber: number;
+  winnerUserId: string;
+  drawnAt: Date;
+  createdAt: Date;
+}
+
+/**
+ * Create a new trigger link for a randomly selected participant.
+ */
+export async function createDrawTrigger(data: {
+  raffleId: string;
+  selectedUserId: string;
+  attemptNumber: number;
+  linkToken: string;
+  expiresAt: Date;
+}): Promise<DbDrawTrigger> {
+  const rows = await sql<DbDrawTrigger[]>`
+    INSERT INTO draw_triggers (
+      raffle_id, selected_user_id, attempt_number, link_token, status, expires_at
     ) VALUES (
-      ${data.raffleId}, ${data.triggerUserId},
-      ${data.triggerToken}, ${data.triggerExpiresAt}, 'pending_trigger'
+      ${data.raffleId}, ${data.selectedUserId}, ${data.attemptNumber},
+      ${data.linkToken}, 'pending', ${data.expiresAt}
     )
     RETURNING *
   `;
@@ -40,52 +62,25 @@ export async function createDraw(data: {
 }
 
 /**
- * Find a draw by trigger token.
+ * Find a trigger by its link token (the trigger-link landing page).
  */
-export async function findDrawByToken(token: string): Promise<DbDraw | null> {
-  const rows = await sql<DbDraw[]>`
-    SELECT * FROM draws WHERE trigger_token = ${token} LIMIT 1
+export async function findDrawTriggerByToken(token: string): Promise<DbDrawTrigger | null> {
+  const rows = await sql<DbDrawTrigger[]>`
+    SELECT * FROM draw_triggers WHERE link_token = ${token} LIMIT 1
   `;
   return rows[0] ?? null;
 }
 
 /**
- * Find a draw by raffle ID.
+ * Mark a trigger as clicked (about to be resolved into a draw result).
  */
-export async function findDrawByRaffleId(raffleId: string): Promise<DbDraw | null> {
-  const rows = await sql<DbDraw[]>`
-    SELECT * FROM draws
-    WHERE raffle_id = ${raffleId}
-    ORDER BY created_at DESC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
-/**
- * Record the trigger click and complete the draw.
- */
-export async function completeDraw(
+export async function markDrawTriggerClicked(
   id: string,
-  data: {
-    clientSeed: string;
-    serverSeed: string;
-    combinedHash: string;
-    winnerTicketNumber: number;
-    winnerUserId: string;
-  }
-): Promise<DbDraw | null> {
-  const rows = await sql<DbDraw[]>`
-    UPDATE draws
-    SET
-      trigger_clicked_at = NOW(),
-      client_seed = ${data.clientSeed},
-      server_seed = ${data.serverSeed},
-      combined_hash = ${data.combinedHash},
-      winner_ticket_number = ${data.winnerTicketNumber},
-      winner_user_id = ${data.winnerUserId},
-      status = 'completed',
-      updated_at = NOW()
+  clickedIp: string | null
+): Promise<DbDrawTrigger | null> {
+  const rows = await sql<DbDrawTrigger[]>`
+    UPDATE draw_triggers
+    SET status = 'clicked', clicked_at = NOW(), clicked_ip = ${clickedIp}
     WHERE id = ${id}
     RETURNING *
   `;
@@ -93,12 +88,12 @@ export async function completeDraw(
 }
 
 /**
- * Mark a draw as expired (trigger link not clicked in time).
+ * Mark a trigger as expired (link not clicked in time).
  */
-export async function expireDraw(id: string): Promise<DbDraw | null> {
-  const rows = await sql<DbDraw[]>`
-    UPDATE draws
-    SET status = 'expired', updated_at = NOW()
+export async function expireDrawTrigger(id: string): Promise<DbDrawTrigger | null> {
+  const rows = await sql<DbDrawTrigger[]>`
+    UPDATE draw_triggers
+    SET status = 'expired'
     WHERE id = ${id}
     RETURNING *
   `;
@@ -106,12 +101,49 @@ export async function expireDraw(id: string): Promise<DbDraw | null> {
 }
 
 /**
- * Find draws with expired trigger links that need re-selection.
+ * Find pending triggers whose link has expired (need re-selection).
  */
-export async function findExpiredPendingDraws(): Promise<DbDraw[]> {
-  return sql<DbDraw[]>`
-    SELECT * FROM draws
-    WHERE status = 'pending_trigger'
-      AND trigger_expires_at < NOW()
+export async function findExpiredPendingTriggers(): Promise<DbDrawTrigger[]> {
+  return sql<DbDrawTrigger[]>`
+    SELECT * FROM draw_triggers
+    WHERE status = 'pending'
+      AND expires_at < NOW()
   `;
+}
+
+/**
+ * Record the provably-fair outcome once a trigger is clicked and the
+ * winner is computed.
+ */
+export async function createDrawResult(data: {
+  raffleId: string;
+  drawTriggerId: string;
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  finalSeedHash: string;
+  winningTicketNumber: number;
+  winnerUserId: string;
+}): Promise<DbDrawResult> {
+  const rows = await sql<DbDrawResult[]>`
+    INSERT INTO draw_results (
+      raffle_id, draw_trigger_id, server_seed, server_seed_hash,
+      client_seed, final_seed_hash, winning_ticket_number, winner_user_id
+    ) VALUES (
+      ${data.raffleId}, ${data.drawTriggerId}, ${data.serverSeed}, ${data.serverSeedHash},
+      ${data.clientSeed}, ${data.finalSeedHash}, ${data.winningTicketNumber}, ${data.winnerUserId}
+    )
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+/**
+ * Find the draw result for a raffle (public verification lookup).
+ */
+export async function findDrawResultByRaffleId(raffleId: string): Promise<DbDrawResult | null> {
+  const rows = await sql<DbDrawResult[]>`
+    SELECT * FROM draw_results WHERE raffle_id = ${raffleId} LIMIT 1
+  `;
+  return rows[0] ?? null;
 }

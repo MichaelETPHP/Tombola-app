@@ -1,19 +1,18 @@
 import { sql } from '../client.js';
+import type { DbRaffle } from './raffles.queries.js';
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
-export type PaymentGateway = 'chapa' | 'telebirr';
+export type PaymentGateway = 'chapa' | 'telebirr' | 'manual';
 
 export interface DbPayment {
   id: string;
   userId: string;
   raffleId: string;
-  amount: number;
-  currency: string;
-  status: PaymentStatus;
-  gateway: PaymentGateway;
-  gatewayTxRef: string;
-  gatewayResponse: Record<string, unknown> | null;
   ticketCount: number;
+  amount: number;
+  gateway: PaymentGateway;
+  gatewayRef: string | null;
+  status: PaymentStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,32 +24,111 @@ export async function createPayment(data: {
   userId: string;
   raffleId: string;
   amount: number;
-  currency: string;
   gateway: PaymentGateway;
-  gatewayTxRef: string;
+  gatewayRef: string;
   ticketCount: number;
 }): Promise<DbPayment> {
   const rows = await sql<DbPayment[]>`
     INSERT INTO payments (
-      user_id, raffle_id, amount, currency, status,
-      gateway, gateway_tx_ref, ticket_count
+      user_id, raffle_id, amount, status, gateway, gateway_ref, ticket_count
     ) VALUES (
-      ${data.userId}, ${data.raffleId}, ${data.amount}, ${data.currency},
-      'pending', ${data.gateway}, ${data.gatewayTxRef}, ${data.ticketCount}
+      ${data.userId}, ${data.raffleId}, ${data.amount}, 'pending',
+      ${data.gateway}, ${data.gatewayRef}, ${data.ticketCount}
     )
     RETURNING *
   `;
   return rows[0];
 }
 
+export type PaymentReservationResult =
+  | { ok: true; payment: DbPayment; raffle: DbRaffle }
+  | { ok: false; reason: 'not_found' | 'closed' | 'raffle_limit' | 'user_limit'; available?: number };
+
+/**
+ * Atomically reserves checkout capacity for 15 minutes. The raffle row lock
+ * serializes concurrent buyers, preventing pending checkouts from overselling
+ * the quota before gateway webhooks create the actual tickets.
+ */
+export async function reservePayment(data: {
+  userId: string;
+  raffleId: string;
+  gateway: PaymentGateway;
+  gatewayRef: string;
+  ticketCount: number;
+}): Promise<PaymentReservationResult> {
+  return sql.begin(async (tx) => {
+    await tx`
+      UPDATE payments SET status = 'failed', updated_at = NOW()
+      WHERE status = 'pending' AND created_at < NOW() - INTERVAL '15 minutes'
+    `;
+
+    const [raffle] = await tx<DbRaffle[]>`
+      SELECT r.*, (SELECT COUNT(*)::int FROM tickets t WHERE t.raffle_id = r.id) AS tickets_sold
+      FROM raffles r WHERE r.id = ${data.raffleId} FOR UPDATE
+    `;
+    if (!raffle) return { ok: false as const, reason: 'not_found' as const };
+    if (raffle.status !== 'open' || raffle.deadlineAt <= new Date()) {
+      return { ok: false as const, reason: 'closed' as const };
+    }
+
+    const [reserved] = await tx<{ raffleReserved: number; userReserved: number; userOwned: number }[]>`
+      SELECT
+        COALESCE(SUM(ticket_count) FILTER (WHERE raffle_id = ${data.raffleId}), 0)::int AS raffle_reserved,
+        COALESCE(SUM(ticket_count) FILTER (WHERE raffle_id = ${data.raffleId} AND user_id = ${data.userId}), 0)::int AS user_reserved,
+        (SELECT COUNT(*)::int FROM tickets WHERE raffle_id = ${data.raffleId} AND user_id = ${data.userId}) AS user_owned
+      FROM payments
+      WHERE status = 'pending' AND created_at >= NOW() - INTERVAL '15 minutes'
+    `;
+
+    const raffleAvailable = raffle.ticketCap - raffle.ticketsSold - reserved.raffleReserved;
+    if (data.ticketCount > raffleAvailable) {
+      return { ok: false as const, reason: 'raffle_limit' as const, available: Math.max(0, raffleAvailable) };
+    }
+    const userAvailable = raffle.maxTicketsPerUser - reserved.userOwned - reserved.userReserved;
+    if (data.ticketCount > userAvailable) {
+      return { ok: false as const, reason: 'user_limit' as const, available: Math.max(0, userAvailable) };
+    }
+
+    const [payment] = await tx<DbPayment[]>`
+      INSERT INTO payments (user_id, raffle_id, amount, status, gateway, gateway_ref, ticket_count)
+      VALUES (${data.userId}, ${data.raffleId}, ${raffle.ticketPrice * data.ticketCount}, 'pending', ${data.gateway}, ${data.gatewayRef}, ${data.ticketCount})
+      RETURNING *
+    `;
+    return { ok: true as const, payment, raffle };
+  });
+}
+
+export async function completePaymentAndIssueTickets(gatewayRef: string): Promise<'completed' | 'already_processed' | 'not_found'> {
+  return sql.begin(async (tx) => {
+    const [payment] = await tx<DbPayment[]>`
+      SELECT * FROM payments WHERE gateway_ref = ${gatewayRef} FOR UPDATE
+    `;
+    if (!payment) return 'not_found' as const;
+    if (payment.status !== 'pending') return 'already_processed' as const;
+
+    await tx`SELECT id FROM raffles WHERE id = ${payment.raffleId} FOR UPDATE`;
+    const [next] = await tx<{ nextNumber: number }[]>`
+      SELECT COALESCE(MAX(ticket_number), 0)::int + 1 AS next_number
+      FROM tickets WHERE raffle_id = ${payment.raffleId}
+    `;
+    await tx`
+      INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id)
+      SELECT ${payment.raffleId}, ${payment.userId}, ${next.nextNumber} + series.n, ${payment.id}
+      FROM generate_series(0, ${payment.ticketCount - 1}) AS series(n)
+    `;
+    await tx`UPDATE payments SET status = 'completed', updated_at = NOW() WHERE id = ${payment.id}`;
+    return 'completed' as const;
+  });
+}
+
 /**
  * Find a payment by gateway transaction reference.
  * Used for idempotent webhook processing.
  */
-export async function findPaymentByTxRef(gatewayTxRef: string): Promise<DbPayment | null> {
+export async function findPaymentByTxRef(gatewayRef: string): Promise<DbPayment | null> {
   const rows = await sql<DbPayment[]>`
     SELECT * FROM payments
-    WHERE gateway_tx_ref = ${gatewayTxRef}
+    WHERE gateway_ref = ${gatewayRef}
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -66,38 +144,92 @@ export async function findPaymentById(id: string): Promise<DbPayment | null> {
   return rows[0] ?? null;
 }
 
+export interface DbPaymentReceipt extends DbPayment {
+  raffleTitle: string;
+  ticketNumbers: number[];
+}
+
+/** Payment status plus the receipt data shown after confirmation. */
+export async function findPaymentReceiptById(id: string): Promise<DbPaymentReceipt | null> {
+  const rows = await sql<DbPaymentReceipt[]>`
+    SELECT
+      p.*,
+      r.title AS raffle_title,
+      COALESCE(
+        array_agg(t.ticket_number ORDER BY t.ticket_number)
+          FILTER (WHERE t.ticket_number IS NOT NULL),
+        ARRAY[]::int[]
+      ) AS ticket_numbers
+    FROM payments p
+    JOIN raffles r ON r.id = p.raffle_id
+    LEFT JOIN tickets t ON t.payment_id = p.id
+    WHERE p.id = ${id}
+    GROUP BY p.id, r.title
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 /**
- * Update payment status and store gateway response.
+ * Update payment status.
  */
 export async function updatePaymentStatus(
   id: string,
-  status: PaymentStatus,
-  gatewayResponse?: Record<string, unknown>
+  status: PaymentStatus
 ): Promise<DbPayment | null> {
   const rows = await sql<DbPayment[]>`
     UPDATE payments
-    SET
-      status = ${status},
-      gateway_response = ${gatewayResponse ? JSON.stringify(gatewayResponse) : null},
-      updated_at = NOW()
+    SET status = ${status}, updated_at = NOW()
     WHERE id = ${id}
     RETURNING *
   `;
   return rows[0] ?? null;
 }
 
+export interface DbPaymentWithDetails {
+  id: string;
+  raffleId: string;
+  raffleTitle: string;
+  amount: number;
+  ticketCount: number;
+  /** The actual ticket numbers issued for this payment — empty until the webhook lands. */
+  ticketNumbers: number[];
+  status: PaymentStatus;
+  gateway: PaymentGateway;
+  createdAt: Date;
+}
+
 /**
- * List payments for a user.
+ * List a user's payments, each with its raffle title and the actual ticket
+ * numbers it issued (empty array for pending/failed payments, since no
+ * tickets exist yet). One query rather than N+1 — aggregates tickets per
+ * payment via array_agg.
  */
 export async function listUserPayments(
   userId: string,
   limit: number,
   offset: number
-): Promise<DbPayment[]> {
-  return sql<DbPayment[]>`
-    SELECT * FROM payments
-    WHERE user_id = ${userId}
-    ORDER BY created_at DESC
+): Promise<DbPaymentWithDetails[]> {
+  return sql<DbPaymentWithDetails[]>`
+    SELECT
+      p.id,
+      p.raffle_id,
+      r.title AS raffle_title,
+      p.amount,
+      p.ticket_count,
+      p.status,
+      p.gateway,
+      p.created_at,
+      COALESCE(
+        array_agg(t.ticket_number ORDER BY t.ticket_number) FILTER (WHERE t.ticket_number IS NOT NULL),
+        ARRAY[]::int[]
+      ) AS ticket_numbers
+    FROM payments p
+    JOIN raffles r ON r.id = p.raffle_id
+    LEFT JOIN tickets t ON t.payment_id = p.id
+    WHERE p.user_id = ${userId}
+    GROUP BY p.id, r.title
+    ORDER BY p.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
 }

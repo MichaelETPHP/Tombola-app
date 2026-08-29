@@ -28,6 +28,16 @@ export const verifyOtpSchema = z.object({
     .string()
     .length(6, 'OTP must be exactly 6 digits')
     .regex(/^[0-9]{6}$/, 'OTP must contain only digits'),
+  telegramLinkToken: z.string().min(20).optional(),
+});
+
+export const telegramMiniAppSchema = z.object({
+  initData: z.string().min(20).max(16_000),
+});
+
+export const telegramOidcSchema = z.object({
+  idToken: z.string().min(100),
+  nonceToken: z.string().min(20),
 });
 
 export const refreshTokenSchema = z.object({

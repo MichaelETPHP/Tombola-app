@@ -6,6 +6,10 @@ interface AuthState {
     id: string;
     phone: string;
     fullName: string | null;
+    preferredLanguage?: 'en' | 'am';
+    telegramLinked?: boolean;
+    telegramUsername?: string | null;
+    telegramPhotoUrl?: string | null;
   } | null;
   isAuthenticated: boolean;
   isLoading: boolean;

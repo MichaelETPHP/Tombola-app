@@ -1,13 +1,6 @@
 <script lang="ts" generics="T">
-  /**
-   * Generic sortable/filterable table. Columns are declared by the caller;
-   * cell rendering is done via a named slot per row so callers stay in
-   * control of formatting (badges, links, etc.) without this component
-   * knowing about any particular domain. `T` is inferred from `rows`, so
-   * the `row` value handed to the cell slot keeps the caller's concrete
-   * row type instead of collapsing to `unknown` — column keys stay plain
-   * strings (unconstrained `T` can't guarantee an index signature).
-   */
+  import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-svelte';
+
   export let columns: { key: string; label: string; sortable?: boolean }[];
   export let rows: T[];
   export let emptyMessage = 'No results.';
@@ -36,19 +29,25 @@
     : rows;
 </script>
 
-<div class="table-wrap">
-  <table>
-    <thead>
+<div class="overflow-auto rounded-card border border-border bg-card shadow-[0_18px_45px_-38px_rgba(23,32,30,0.35)]">
+  <table class="w-full min-w-[760px] border-collapse text-sm">
+    <thead class="bg-bg/70">
       <tr>
         {#each columns as col (col.key)}
           <th
-            class:sortable={col.sortable}
+            class="whitespace-nowrap border-b border-border px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-[0.09em] text-muted {col.sortable
+              ? 'cursor-pointer select-none'
+              : ''}"
             on:click={() => toggleSort(col.key, col.sortable)}
           >
-            {col.label}
-            {#if col.sortable && sortKey === col.key}
-              <span class="sort-indicator">{sortDir === 'asc' ? '▲' : '▼'}</span>
-            {/if}
+            <span class="inline-flex items-center gap-1.5">
+              {col.label}
+              {#if col.sortable && sortKey === col.key}
+                {#if sortDir === 'asc'}<ChevronUp size={12} />{:else}<ChevronDown size={12} />{/if}
+              {:else if col.sortable}
+                <ArrowUpDown size={11} class="text-faint" />
+              {/if}
+            </span>
           </th>
         {/each}
       </tr>
@@ -56,13 +55,13 @@
     <tbody>
       {#if sortedRows.length === 0}
         <tr>
-          <td class="empty" colspan={columns.length}>{emptyMessage}</td>
+          <td class="px-5 py-12 text-center text-sm text-faint" colspan={columns.length}>{emptyMessage}</td>
         </tr>
       {:else}
         {#each sortedRows as row, i ((row as { id?: unknown }).id ?? i)}
-          <tr>
+          <tr class="transition-colors duration-200 hover:bg-bg/70">
             {#each columns as col (col.key)}
-              <td>
+              <td class="px-5 py-4 text-[13px] text-ink {i === sortedRows.length - 1 ? '' : 'border-b border-border'}">
                 <slot name="cell" {row} column={col.key}>
                   {(row as Record<string, unknown>)[col.key]}
                 </slot>
@@ -74,56 +73,3 @@
     </tbody>
   </table>
 </div>
-
-<style>
-  .table-wrap {
-    background: var(--color-card-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    overflow: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-  }
-
-  th {
-    text-align: left;
-    padding: var(--space-12) var(--space-16);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--color-text-secondary);
-    border-bottom: 1px solid var(--color-border);
-    white-space: nowrap;
-  }
-
-  th.sortable {
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .sort-indicator {
-    font-size: 9px;
-    margin-left: 4px;
-  }
-
-  td {
-    padding: var(--space-12) var(--space-16);
-    border-bottom: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-  }
-
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  .empty {
-    text-align: center;
-    color: var(--color-text-muted);
-    padding: var(--space-32);
-  }
-</style>

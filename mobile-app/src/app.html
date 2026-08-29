@@ -5,13 +5,113 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
     <meta name="description" content="Tombola — Ethiopia's premier raffle platform. Win amazing prizes with transparent, provably-fair draws." />
     <meta name="theme-color" content="#00D3A0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Tombola" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&display=swap"
+      rel="stylesheet"
+    />
     <title>Tombola</title>
+    <!-- Official Telegram Mini App bridge. Outside Telegram it is inert; in
+         the bot WebView it exposes signed initData for server-side login. -->
+    <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
+    <style>
+      /* Boot splash — bridges the gap between the native SplashScreen
+         handoff (Android) and Svelte hydration finishing. Pure CSS/HTML so
+         it paints before any JS runs; same background as the native splash
+         (see capacitor.config.ts) so the transition reads as one continuous
+         screen rather than two different ones. Removed by the root layout
+         once the app is actually ready to show content.
+
+         Two full-bleed illustrations crossfade in a loop (CSS-only —
+         predetermined, not data-driven, so no JS timer needed) with a
+         bottom scrim for spinner legibility over either image. */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        overflow: hidden;
+        background: linear-gradient(135deg, #e3f9ef 0%, #b9eeda 100%);
+        transition: opacity 320ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      #boot-splash.boot-splash--hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-splash__slide {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        animation: boot-splash-crossfade 4.8s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+      }
+      .boot-splash__slide--second {
+        animation-delay: -2.4s;
+      }
+      @keyframes boot-splash-crossfade {
+        0%,
+        41.6% {
+          opacity: 1;
+        }
+        50%,
+        100% {
+          opacity: 0;
+        }
+      }
+      .boot-splash__scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(10, 8, 20, 0.55) 0%, transparent 32%);
+        pointer-events: none;
+      }
+      .boot-splash__spinner {
+        position: absolute;
+        left: 50%;
+        bottom: 56px;
+        width: 28px;
+        height: 28px;
+        margin-left: -14px;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #fff;
+        animation: boot-splash-spin 0.75s linear infinite;
+      }
+      @keyframes boot-splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-splash__slide {
+          animation: none;
+        }
+        .boot-splash__slide:first-child {
+          opacity: 1;
+        }
+        .boot-splash__spinner {
+          animation: none;
+          border-top-color: rgba(255, 255, 255, 0.3);
+        }
+      }
+    </style>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>
+    <div id="boot-splash" aria-hidden="true">
+      <img src="/images/splash-screen-1.jpg" alt="" class="boot-splash__slide" fetchpriority="high" />
+      <img src="/images/splash-screen-2.jpg" alt="" class="boot-splash__slide boot-splash__slide--second" />
+      <div class="boot-splash__scrim"></div>
+      <span class="boot-splash__spinner"></span>
+    </div>
   </body>
 </html>

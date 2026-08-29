@@ -11,6 +11,7 @@ export const drawsRoutes = new Hono<AppEnv>();
  */
 drawsRoutes.get('/:token', async (c) => {
   const token = c.req.param('token');
-  const result = await executeDraw(token);
+  const clickedIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? null;
+  const result = await executeDraw(token, clickedIp);
   return c.json(result);
 });

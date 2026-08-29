@@ -6,7 +6,12 @@ import { z } from 'zod';
 // are ready for it; wire it up once docs/schema.sql defines admin accounts.
 
 export const adminLoginSchema = z.object({
-  email: z.string().email(),
+  phone: z.string().trim().transform((value) => {
+    if (value.startsWith('+251')) return value;
+    if (value.startsWith('0')) return `+251${value.slice(1)}`;
+    if (value.startsWith('9')) return `+251${value}`;
+    return value;
+  }).pipe(z.string().regex(/^\+251[0-9]{9}$/, 'Enter a valid Ethiopian phone number')),
   password: z.string().min(8),
 });
 
@@ -32,7 +37,7 @@ export const createRaffleSchema = z.object({
   prizeValue: z.number().positive(),
   ticketPrice: z.number().positive(),
   ticketCap: z.number().int().positive().min(10),
-  maxTicketsPerUser: z.number().int().positive().min(1).max(100),
+  maxTicketsPerUser: z.number().int().min(1).max(5),
   deadlineDays: z.number().int().positive().min(1).max(90),
 });
 
@@ -47,29 +52,39 @@ export const raffleSchema = z.object({
   ticketCap: z.number(),
   ticketsSold: z.number(),
   maxTicketsPerUser: z.number(),
-  status: z.enum(['open', 'locked', 'drawing', 'completed', 'cancelled']),
+  status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
   currentDeadline: z.string(),
+  opensAt: z.string().optional(),
+  deadlineDays: z.number().optional(),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
 });
 
 // ── Payout Schemas ───────────────────────────────────────
+// Mirrors api/src/modules/payouts/payouts.schema.ts. There's no column to
+// record which admin acted or free-text notes, so that capability doesn't
+// exist here — see docs/README.md for the schema mismatch notes.
 
 export const updatePayoutStatusSchema = z.object({
   status: z.enum(['verified', 'fulfilled', 'rejected']),
-  notes: z.string().max(1000).optional(),
 });
 
 export const payoutSchema = z.object({
   id: z.string(),
-  drawId: z.string(),
   raffleId: z.string(),
+  drawResultId: z.string(),
   winnerUserId: z.string(),
-  status: z.enum(['pending_claim', 'claimed', 'verified', 'fulfilled', 'expired', 'rejected']),
-  claimDeadline: z.string(),
+  status: z.enum(['pending_claim', 'id_submitted', 'verified', 'rejected', 'fulfilled', 'expired']),
+  grossPrizeValue: z.number(),
+  taxWithheld: z.number(),
+  netValue: z.number(),
   idDocumentUrl: z.string().nullable(),
+  deliveryMethod: z.enum(['pickup', 'delivery']).nullable(),
   deliveryAddress: z.string().nullable(),
-  deliveryPhone: z.string().nullable(),
-  adminNotes: z.string().nullable(),
+  fulfillmentStatus: z.enum(['processing', 'shipped', 'delivered', 'failed']),
+  claimDeadline: z.string(),
+  claimedAt: z.string().nullable(),
+  fulfilledAt: z.string().nullable(),
   createdAt: z.string(),
 });
 

@@ -11,7 +11,6 @@
   // to the API if the payouts volume ever makes that too slow.
   let payout: Payout | null = null;
   let loading = true;
-  let notes = '';
   let updating = false;
   let error = '';
 
@@ -34,7 +33,7 @@
     error = '';
     updating = true;
     try {
-      const data = updatePayoutStatusSchema.parse({ status, notes: notes || undefined });
+      const data = updatePayoutStatusSchema.parse({ status });
       const res = await api.patch<{ payout: Payout }>(`/admin/payouts/${payout.id}`, data);
       payout = res.payout;
     } catch (err) {
@@ -48,67 +47,75 @@
 </script>
 
 {#if loading}
-  <p class="hint">Loading…</p>
+  <p class="text-[13px] text-muted">Loading…</p>
 {:else if !payout}
-  <p class="hint">Payout not found.</p>
+  <p class="text-[13px] text-muted">Payout not found.</p>
 {:else}
-  <div class="header">
-    <h1>Payout {payout.id.slice(0, 8)}…</h1>
+  <div class="mb-6 flex items-center gap-3">
+    <h1 class="text-[22px] font-bold text-ink">Payout {payout.id.slice(0, 8)}…</h1>
     <StatusBadge status={payout.status} />
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h2>Claim details</h2>
-      <dl>
-        <dt>Raffle</dt>
-        <dd>{payout.raffleId}</dd>
-        <dt>Winner</dt>
-        <dd>{payout.winnerUserId}</dd>
-        <dt>Claim deadline</dt>
-        <dd class:overdue={deadlinePassed}>{new Date(payout.claimDeadline).toLocaleString()}</dd>
-        <dt>Delivery address</dt>
-        <dd>{payout.deliveryAddress ?? '—'}</dd>
-        <dt>Delivery phone</dt>
-        <dd>{payout.deliveryPhone ?? '—'}</dd>
+  <div class="grid grid-cols-2 gap-5">
+    <div class="rounded-card border border-border bg-card p-5">
+      <h2 class="mb-4 text-[15px] font-bold text-ink">Claim details</h2>
+      <dl class="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <dt class="text-muted">Raffle</dt>
+        <dd class="break-all font-semibold text-ink">{payout.raffleId}</dd>
+        <dt class="text-muted">Winner</dt>
+        <dd class="break-all font-semibold text-ink">{payout.winnerUserId}</dd>
+        <dt class="text-muted">Claim deadline</dt>
+        <dd class="font-semibold {deadlinePassed ? 'text-danger' : 'text-ink'}">
+          {new Date(payout.claimDeadline).toLocaleString()}
+        </dd>
+        <dt class="text-muted">Gross prize value</dt>
+        <dd class="font-semibold text-ink">{payout.grossPrizeValue} ETB</dd>
+        <dt class="text-muted">Tax withheld</dt>
+        <dd class="font-semibold text-ink">{payout.taxWithheld} ETB</dd>
+        <dt class="text-muted">Net value</dt>
+        <dd class="font-semibold text-ink">{payout.netValue} ETB</dd>
+        <dt class="text-muted">Delivery method</dt>
+        <dd class="font-semibold text-ink">{payout.deliveryMethod ?? '—'}</dd>
+        <dt class="text-muted">Delivery address</dt>
+        <dd class="font-semibold text-ink">{payout.deliveryAddress ?? '—'}</dd>
+        <dt class="text-muted">Fulfillment</dt>
+        <dd class="font-semibold text-ink">{payout.fulfillmentStatus}</dd>
       </dl>
 
       {#if payout.idDocumentUrl}
-        <a class="id-doc" href={payout.idDocumentUrl} target="_blank" rel="noreferrer">
+        <a class="text-[13px] font-semibold text-primary" href={payout.idDocumentUrl} target="_blank" rel="noreferrer">
           View submitted ID document ↗
         </a>
       {:else}
-        <p class="hint">No ID document submitted yet.</p>
+        <p class="text-[13px] text-muted">No ID document submitted yet.</p>
       {/if}
     </div>
 
-    <div class="panel">
-      <h2>Review</h2>
-      <label for="notes">Admin notes</label>
-      <textarea id="notes" rows="3" bind:value={notes} placeholder="Optional notes for this decision"></textarea>
+    <div class="rounded-card border border-border bg-card p-5">
+      <h2 class="mb-4 text-[15px] font-bold text-ink">Review</h2>
 
       {#if error}
-        <p class="error">{error}</p>
+        <p class="mb-3 text-[13px] text-danger">{error}</p>
       {/if}
 
-      <div class="actions">
+      <div class="flex gap-2">
         <button
-          class="verify"
-          disabled={updating || payout.status !== 'claimed'}
+          class="flex-1 rounded-button bg-primary-bg px-3 py-2 text-[13px] font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={updating || payout.status !== 'id_submitted'}
           on:click={() => updateStatus('verified')}
         >
           Verify
         </button>
         <button
-          class="fulfill"
+          class="flex-1 rounded-button bg-success-bg px-3 py-2 text-[13px] font-semibold text-success disabled:cursor-not-allowed disabled:opacity-50"
           disabled={updating || payout.status !== 'verified'}
           on:click={() => updateStatus('fulfilled')}
         >
           Mark fulfilled
         </button>
         <button
-          class="reject"
-          disabled={updating || !['claimed', 'verified'].includes(payout.status)}
+          class="flex-1 rounded-button bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={updating || !['id_submitted', 'verified'].includes(payout.status)}
           on:click={() => updateStatus('rejected')}
         >
           Reject
@@ -117,127 +124,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  .header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-12);
-    margin-bottom: var(--space-24);
-  }
-
-  h1 {
-    font-size: 22px;
-    font-weight: 700;
-  }
-
-  h2 {
-    font-size: 15px;
-    font-weight: 700;
-    margin-bottom: var(--space-16);
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-20);
-  }
-
-  .panel {
-    background: var(--color-card-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    padding: var(--space-20);
-  }
-
-  dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-8) var(--space-16);
-    font-size: 14px;
-    margin-bottom: var(--space-16);
-  }
-
-  dt {
-    color: var(--color-text-secondary);
-  }
-
-  dd {
-    font-weight: 600;
-    word-break: break-all;
-  }
-
-  .overdue {
-    color: var(--color-danger);
-  }
-
-  .id-doc {
-    color: var(--color-primary);
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    margin-bottom: var(--space-8);
-  }
-
-  textarea {
-    width: 100%;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-button);
-    padding: var(--space-8) var(--space-12);
-    font-size: 14px;
-    font-family: var(--font-family);
-    margin-bottom: var(--space-16);
-  }
-
-  .error {
-    font-size: 13px;
-    color: var(--color-danger);
-    margin-bottom: var(--space-12);
-  }
-
-  .actions {
-    display: flex;
-    gap: var(--space-8);
-  }
-
-  .actions button {
-    flex: 1;
-    border: none;
-    border-radius: var(--radius-button);
-    padding: var(--space-8) var(--space-12);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .actions button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .verify {
-    background: var(--color-primary-bg);
-    color: var(--color-primary);
-  }
-
-  .fulfill {
-    background: var(--color-success-bg);
-    color: var(--color-success);
-  }
-
-  .reject {
-    background: var(--color-danger-bg);
-    color: var(--color-danger);
-  }
-
-  .hint {
-    color: var(--color-text-secondary);
-    font-size: 13px;
-  }
-</style>

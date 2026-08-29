@@ -15,6 +15,12 @@ export interface ChapaInitPayload {
     title?: string;
     description?: string;
   };
+  /** Local checkout presentation data. Removed before requests to Chapa. */
+  mock?: {
+    raffleTitle: string;
+    ticketCount: number;
+    unitPrice: number;
+  };
 }
 
 export interface ChapaInitResponse {
@@ -27,19 +33,46 @@ export interface ChapaInitResponse {
 
 /**
  * Initialize a Chapa payment transaction.
+ *
+ * In MOCK_PAYMENTS mode, skips the real Chapa API entirely and points the
+ * user at a fake checkout page in the mobile app instead. That page still
+ * calls the real callback_url (the webhook), so ticket issuance and the
+ * payment-status polling page get exercised for real — only the "actually
+ * charge a card" part is faked.
  */
 export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaInitResponse> {
+  if (env.MOCK_PAYMENTS) {
+    const mockParams = new URLSearchParams({
+      tx_ref: payload.tx_ref,
+      amount: String(payload.amount),
+      callback_url: payload.callback_url,
+      return_url: payload.return_url ?? '',
+      title: payload.customization?.title ?? 'Tombola',
+      raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? 'Tombola raffle',
+      ticket_count: String(payload.mock?.ticketCount ?? 1),
+      unit_price: String(payload.mock?.unitPrice ?? payload.amount),
+    });
+    return {
+      status: 'success',
+      message: 'Mock checkout (MOCK_PAYMENTS=true)',
+      data: {
+        checkout_url: `${env.MOBILE_APP_URL}/mock-checkout?${mockParams.toString()}`,
+      },
+    };
+  }
+
   if (!env.CHAPA_SECRET_KEY) {
     throw new Error('CHAPA_SECRET_KEY not configured');
   }
 
+  const { mock: _mock, ...gatewayPayload } = payload;
   const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${env.CHAPA_SECRET_KEY}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(gatewayPayload),
   });
 
   const data = await response.json() as ChapaInitResponse;

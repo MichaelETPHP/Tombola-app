@@ -6,7 +6,7 @@ REST API serving both the mobile app and admin dashboard. Built with Hono.js on 
 
 - [Bun](https://bun.sh) ≥ 1.1
 - PostgreSQL database (via Supabase)
-- Database schema applied (see `../docs/schema.sql`)
+- Database schema applied (see [`src/db/Migration`](./src/db/Migration))
 
 ## Environment Variables
 
@@ -19,6 +19,7 @@ cp .env.example .env
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | ✅ | Supabase PostgreSQL connection string |
+| `DB_SCHEMA` | ❌ | Schema all tables/types/views live in (default: `Tombola_DB`) — must match the schema created by `src/db/Migration/001_first_schema.sql` |
 | `JWT_ACCESS_SECRET` | ✅ | Secret for signing access tokens (min 32 chars) |
 | `JWT_REFRESH_SECRET` | ✅ | Secret for signing refresh tokens (min 32 chars) |
 | `SMS_API_URL` | ❌ | SMS gateway URL (dev mode logs OTP to console) |
@@ -26,7 +27,7 @@ cp .env.example .env
 | `CHAPA_SECRET_KEY` | ❌ | Chapa payment gateway secret |
 | `CHAPA_WEBHOOK_SECRET` | ❌ | Chapa webhook verification secret |
 | `CORS_ORIGINS` | ❌ | Comma-separated allowed origins (default: localhost) |
-| `PORT` | ❌ | Server port (default: 3000) |
+| `PORT` | ❌ | Server port (default: 3435) |
 
 ## Getting Started
 

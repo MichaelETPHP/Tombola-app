@@ -24,6 +24,19 @@ export interface RefreshTokenPayload {
   type: 'refresh';
 }
 
+export interface TelegramLinkPayload {
+  type: 'telegram_link';
+  telegramUserId: string;
+  username?: string;
+  photoUrl?: string;
+  fullName?: string;
+}
+
+export interface TelegramNoncePayload {
+  type: 'telegram_nonce';
+  nonce: string;
+}
+
 /**
  * Sign a short-lived access token (15 min).
  */
@@ -78,4 +91,42 @@ export async function verifyRefreshToken(token: string): Promise<RefreshTokenPay
   }
 
   return payload as unknown as RefreshTokenPayload;
+}
+
+export async function signTelegramLinkToken(
+  identity: Omit<TelegramLinkPayload, 'type'>
+): Promise<string> {
+  return new jose.SignJWT({ ...identity, type: 'telegram_link' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('10m')
+    .setIssuer('tombola-api')
+    .sign(getSecret(env.JWT_ACCESS_SECRET));
+}
+
+export async function verifyTelegramLinkToken(token: string): Promise<TelegramLinkPayload> {
+  const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
+    issuer: 'tombola-api',
+  });
+  if (payload.type !== 'telegram_link') throw new Error('Invalid Telegram link token');
+  return payload as unknown as TelegramLinkPayload;
+}
+
+export async function createTelegramNonce(): Promise<{ nonce: string; nonceToken: string }> {
+  const nonce = crypto.randomUUID();
+  const nonceToken = await new jose.SignJWT({ nonce, type: 'telegram_nonce' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .setIssuer('tombola-api')
+    .sign(getSecret(env.JWT_ACCESS_SECRET));
+  return { nonce, nonceToken };
+}
+
+export async function verifyTelegramNonceToken(token: string): Promise<TelegramNoncePayload> {
+  const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
+    issuer: 'tombola-api',
+  });
+  if (payload.type !== 'telegram_nonce') throw new Error('Invalid Telegram nonce token');
+  return payload as unknown as TelegramNoncePayload;
 }
