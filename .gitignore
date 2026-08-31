@@ -9,6 +9,13 @@ node_modules/
 # Local security inventory (never commit)
 /Sec.md
 
+# Local planning doc — internal only, not meant for the public repo
+/SOFTWARE_REQUIREMENTS.md
+
+# Local dev scripts and notes — personal environment tooling, not app code
+*.bat
+*.txt
+
 # Build output
 dist/
 build/
