@@ -1,8 +1,14 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nanoid } from 'nanoid';
 import { env } from '../config/env.js';
 import type { ProcessedImage } from './image.js';
+
+export interface StoredUpload {
+  /** category/filename — pass back to deleteUploadedImage to remove it */
+  path: string;
+  publicUrl: string;
+}
 
 // Relative to the process cwd — that's the Docker image's WORKDIR (/app)
 // in production and the repo root locally, so this needs no separate env
@@ -18,14 +24,36 @@ const UPLOADS_DIR = 'uploads';
  * content-derived — nothing here needs de-duplication, and a random name
  * avoids leaking any information (raffle id, upload order) through it.
  */
-export async function saveUploadedImage(image: ProcessedImage, category: string): Promise<string> {
+export async function saveUploadedImage(image: ProcessedImage, category: string): Promise<StoredUpload> {
   const dir = join(UPLOADS_DIR, category);
   await mkdir(dir, { recursive: true });
 
   const filename = `${nanoid(21)}.${image.format}`;
   await Bun.write(join(dir, filename), image.buffer);
 
-  return `${env.API_BASE_URL}/uploads/${category}/${filename}`;
+  return {
+    path: `${category}/${filename}`,
+    publicUrl: `${env.API_BASE_URL}/uploads/${category}/${filename}`,
+  };
+}
+
+/** Remove a previously saved upload. Missing files are not an error. */
+export async function deleteUploadedImage(path: string): Promise<void> {
+  await unlink(join(UPLOADS_DIR, path)).catch((err) => {
+    if (err?.code !== 'ENOENT') throw err;
+  });
+}
+
+/**
+ * Map a public `${API_BASE_URL}/uploads/category/filename` URL back to the
+ * `category/filename` path deleteUploadedImage expects — used when an
+ * update replaces a raffle's image and the old one needs cleaning up.
+ */
+export function uploadedImagePathFromPublicUrl(url: string | null): string | null {
+  if (!url) return null;
+  const prefix = `${env.API_BASE_URL}/uploads/`;
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length);
 }
 
 /**

@@ -21,12 +21,6 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url('DATABASE_URL must be a valid PostgreSQL connection URL'),
   DB_SCHEMA: z.string().default('Tombola_DB'),
 
-  // Supabase Storage. The service-role key is server-only and must never be
-  // exposed through a VITE_ variable or returned by an API response.
-  SUPABASE_URL: emptyToUndefined(z.string().url().optional()),
-  SUPABASE_SERVICE_ROLE_KEY: emptyToUndefined(z.string().min(20).optional()),
-  SUPABASE_STORAGE_BUCKET: z.string().default('TOMBOLA_RAFFLE_IMAGE'),
-
   // JWT
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),

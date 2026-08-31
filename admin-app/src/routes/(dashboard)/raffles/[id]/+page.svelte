@@ -144,7 +144,7 @@
           </div>
           <div class="min-w-0 px-1 py-2">
             <p class="text-xs font-bold text-ink">Prize cover image</p>
-            <p class="mt-1 max-w-sm text-[11px] leading-5 text-faint">Photos are resized, stripped of metadata and converted to WebP before Supabase storage.</p>
+            <p class="mt-1 max-w-sm text-[11px] leading-5 text-faint">Photos are resized, stripped of metadata and converted to WebP before storage.</p>
             <label class="admin-press mt-3 inline-flex h-10 cursor-pointer items-center gap-2 rounded-button bg-sidebar px-4 text-xs font-bold text-white has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-55">
               <UploadCloud size={15} />
               {uploadingImage ? 'Uploading…' : raffle.prizeImageUrl ? 'Change photo' : 'Upload photo'}

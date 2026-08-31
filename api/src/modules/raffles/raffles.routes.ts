@@ -5,7 +5,7 @@ import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus,
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { processPrizeImage } from '../../lib/image.js';
-import { deleteRaffleImage, raffleImagePathFromPublicUrl, uploadRaffleImage } from '../../lib/supabase-storage.js';
+import { deleteUploadedImage, saveUploadedImage, uploadedImagePathFromPublicUrl } from '../../lib/uploads.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 import { generateTriggerLink, getRaffleEngine } from '../draws/draws.service.js';
@@ -114,21 +114,21 @@ adminRafflesRoutes.post(
 
     let stored;
     try {
-      stored = await uploadRaffleImage(processed);
+      stored = await saveUploadedImage(processed, 'raffles');
     } catch {
       throw new AppError(503, 'Raffle image storage is unavailable or not configured');
     }
 
     try {
       const raffle = await updateRaffle(raffleId, { prizeImageUrl: stored.publicUrl });
-      const previousPath = raffleImagePathFromPublicUrl(current.prizeImageUrl);
-      if (previousPath) deleteRaffleImage(previousPath).catch(() => undefined);
+      const previousPath = uploadedImagePathFromPublicUrl(current.prizeImageUrl);
+      if (previousPath) deleteUploadedImage(previousPath).catch(() => undefined);
       return c.json({
         raffle,
         image: { format: processed.format, width: processed.width, height: processed.height, bytes: processed.size },
       }, 201);
     } catch (error) {
-      await deleteRaffleImage(stored.path).catch(() => undefined);
+      await deleteUploadedImage(stored.path).catch(() => undefined);
       throw error;
     }
   }

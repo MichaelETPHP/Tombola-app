@@ -33,7 +33,11 @@ app.use('*', async (c, next) => {
   c.header('X-Request-Id', requestId);
   await next();
 });
-app.use('*', secureHeaders());
+// crossOriginResourcePolicy defaults to 'same-origin', which blocks the
+// admin-app and mobile-app (different origins/ports) from loading raffle
+// images via <img src> — that's a no-cors request, so CORS config below
+// doesn't apply to it, only this header does.
+app.use('*', secureHeaders({ crossOriginResourcePolicy: 'cross-origin' }));
 
 app.use(
   '*',
