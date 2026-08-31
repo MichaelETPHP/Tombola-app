@@ -65,13 +65,12 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
-  /* --native-safe-area-top is set by MainActivity.java straight from
-     Android's own WindowInsets — env(safe-area-inset-top) alone has
-     proven unreliable on some manufacturer Android skins (Samsung One UI
-     included), under-reporting the real status bar height. Whichever
-     source actually reports correctly on a given device wins. Every
-     top-safe-area usage in the app should read this, not env() directly. */
+  /* MainActivity.java supplies both native WindowInsets because Chromium's
+     env(safe-area-inset-*) can under-report system bars on manufacturer
+     Android skins. The larger native/browser value wins independently at
+     each edge. */
   --safe-top: max(env(safe-area-inset-top), var(--native-safe-area-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom), var(--native-safe-area-bottom, 0px));
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -110,6 +109,21 @@
   html {
     height: 100%;
     overflow-x: hidden;
+  }
+
+  /* Telegram owns the outer WebView. Once the signed Mini App bridge marks
+     this document, stop scroll chaining at the page edges so a content drag
+     cannot become a Telegram minimize gesture. The SDK also disables the
+     host gesture; this CSS closes the browser-side half of the interaction. */
+  html.telegram-mini-app,
+  html.telegram-mini-app body {
+    overscroll-behavior: none;
+  }
+
+  html.telegram-mini-app img,
+  html.telegram-mini-app a {
+    -webkit-user-drag: none;
+    user-drag: none;
   }
 
   html::-webkit-scrollbar,
@@ -208,7 +222,18 @@
 }
 
 .safe-area-bottom {
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-bottom: max(16px, var(--safe-bottom));
+}
+
+/* Fixed navigation must sit above Android's system navigation area rather
+   than merely adding the inset inside its own fixed-height box. */
+.native-bottom-nav-position {
+  bottom: calc(16px + var(--safe-bottom));
+}
+
+/* Keep the final page content scrollable above the raised navigation bar. */
+.native-bottom-nav-clearance {
+  padding-bottom: calc(100px + var(--safe-bottom));
 }
 
 .tappable {

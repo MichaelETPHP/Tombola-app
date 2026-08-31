@@ -24,7 +24,7 @@
 </script>
 
 <nav
-  class="safe-area-bottom bottom-nav fixed inset-x-4 bottom-4 z-10 grid h-[76px] grid-cols-4 items-center rounded-nav bg-card px-1 shadow-nav"
+  class="native-bottom-nav-position bottom-nav fixed inset-x-4 z-10 grid h-[76px] grid-cols-4 items-center rounded-nav bg-card px-1 shadow-nav"
   aria-label="Primary navigation"
 >
   {#each items as item (item.href)}
