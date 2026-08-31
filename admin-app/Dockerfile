@@ -19,12 +19,29 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN bun run build
 
+# adapter-node@5 bundles everything in devDependencies straight into the
+# compiled output via Rollup, but deliberately leaves real `dependencies`
+# external (unbundled) — and, unlike older adapter-node versions, it does
+# NOT write a package.json into build/ to declare them. Without one, the
+# runtime stage's install step below has no manifest to install from at
+# all (an isolated COPY of build/ has nothing above it to fall back to).
+# Generate a minimal one here, in the same stage that still has the real
+# package.json, listing only the actual runtime deps.
+RUN bun -e " \
+  const pkg = require('./package.json'); \
+  require('fs').writeFileSync('./build/package.json', JSON.stringify({ \
+    name: 'admin-app', \
+    version: '0.0.0', \
+    private: true, \
+    type: 'module', \
+    dependencies: pkg.dependencies, \
+  }, null, 2)); \
+  "
+
 FROM oven/bun:1.4.0-debian AS runtime
 
 WORKDIR /app
 
-# adapter-node's output carries its own (usually near-empty) package.json —
-# install whatever it declares rather than assuming it's fully self-bundled.
 COPY --from=build /app/build ./
 RUN bun install --production --no-save
 
