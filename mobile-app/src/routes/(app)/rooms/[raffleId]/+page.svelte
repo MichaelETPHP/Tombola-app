@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { hapticLight } from '$lib/native/haptics.js';
+  import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
-  import { ChevronLeft, Lock, Send } from 'lucide-svelte';
+  import { ChevronLeft, Lock, Send, Ticket } from 'lucide-svelte';
   import type { RoomMessage } from '$lib/schemas/index.js';
 
   // Chat has its own refresh mechanism (polling) — the page-wide
@@ -27,6 +30,19 @@
   let listEl: HTMLDivElement;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let cancelled = false;
+  let notificationSound: HTMLAudioElement | undefined;
+
+  /** Plays once per poll batch, not once per message — several messages
+   *  landing in the same 3s tick should still be a single ding, not a
+   *  volley of overlapping ones. */
+  function playNotificationSound() {
+    if (!notificationSound) return;
+    notificationSound.currentTime = 0;
+    notificationSound.play().catch(() => {
+      // Autoplay can be blocked before the user has interacted with the
+      // page at all — not worth surfacing, the chat still works fine.
+    });
+  }
 
   async function scrollToBottom() {
     await tick();
@@ -60,6 +76,7 @@
       if (res.messages.length > 0) {
         const wasAtBottom = listEl && listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 60;
         messages = [...messages, ...res.messages];
+        if (res.messages.some((m) => !m.isMine)) playNotificationSound();
         if (wasAtBottom) await scrollToBottom();
       }
     } catch {
@@ -69,6 +86,8 @@
   }
 
   onMount(() => {
+    notificationSound = new Audio('/ding-light-bulb-moment-jam-fx-long-1-00-02.mp3');
+    notificationSound.preload = 'auto';
     loadInitial().then(() => {
       if (!cancelled) pollTimer = setInterval(pollNewMessages, POLL_INTERVAL_MS);
     });
@@ -106,6 +125,15 @@
 
   function timeLabel(iso: string): string {
     return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  /** Messages from the same sender, sent back-to-back, group under one
+   *  name/avatar header instead of repeating it on every bubble — the
+   *  same collapsing every real group chat (Telegram, WhatsApp) does. */
+  function senderKey(m: RoomMessage): string {
+    if (m.isMine) return 'mine';
+    if (m.senderType === 'admin') return 'admin';
+    return m.senderAvatarSeed ?? 'unknown';
   }
 </script>
 
@@ -145,21 +173,50 @@
     </div>
   {:else}
     <div bind:this={listEl} class="no-scrollbar flex-1 overflow-y-auto overscroll-y-contain">
-      <div class="flex flex-col gap-2.5 pb-2">
-        {#each messages as message (message.id)}
-          <div class="flex {message.isMine ? 'justify-end' : 'justify-start'}">
-            <div
-              class="max-w-[78%] rounded-card px-3.5 py-2.5 {message.senderType === 'admin'
-                ? 'bg-gold-bg text-ink'
-                : message.isMine
-                  ? 'bg-primary text-[#0d221c]'
-                  : 'bg-card text-ink shadow-card-light'}"
-            >
-              {#if message.senderType === 'admin'}
-                <p class="mb-0.5 text-[10px] font-extrabold uppercase tracking-wide text-gold">Tombola</p>
+      <div class="flex flex-col gap-1 pb-2">
+        {#each messages as message, i (message.id)}
+          {@const isHeader = message.isMine ? false : i === 0 || senderKey(messages[i - 1]) !== senderKey(message)}
+          <div
+            class="flex items-end gap-2 {message.isMine ? 'justify-end' : 'justify-start'} {isHeader ? 'mt-2' : ''}"
+            in:fly={{ y: 8, duration: 180, easing: cubicOut }}
+          >
+            {#if !message.isMine}
+              <div class="mb-0.5 h-7 w-7 shrink-0 self-end">
+                {#if isHeader}
+                  {#if message.senderType === 'admin'}
+                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gold-bg text-gold"><Ticket size={13} /></span>
+                  {:else}
+                    <img
+                      src={message.senderTelegramPhotoUrl || (message.senderAvatarSeed ? dicebearAvatarUri(message.senderAvatarSeed) : '')}
+                      alt=""
+                      class="h-7 w-7 rounded-full border border-primary/15 bg-bg-start object-cover"
+                    />
+                  {/if}
+                {/if}
+              </div>
+            {/if}
+
+            <div class="flex max-w-[76%] flex-col {message.isMine ? 'items-end' : 'items-start'}">
+              {#if isHeader && !message.isMine}
+                <p class="mb-0.5 flex items-baseline gap-1 px-1 text-[11px]">
+                  <span class="font-bold {message.senderType === 'admin' ? 'text-gold' : 'text-ink'}">
+                    {message.senderType === 'admin' ? 'Tombola' : message.senderName}
+                  </span>
+                  {#if message.senderPhoneMasked}
+                    <span class="font-mono text-[10px] text-muted">{message.senderPhoneMasked}</span>
+                  {/if}
+                </p>
               {/if}
-              <p class="whitespace-pre-wrap break-words text-[14px] leading-snug">{message.content}</p>
-              <p class="mt-1 text-right text-[10px] opacity-60">{timeLabel(message.createdAt)}</p>
+              <div
+                class="rounded-card px-3.5 py-2.5 {message.senderType === 'admin'
+                  ? 'bg-gold-bg text-ink'
+                  : message.isMine
+                    ? 'bg-primary text-[#0d221c]'
+                    : 'bg-card text-ink shadow-card-light'}"
+              >
+                <p class="whitespace-pre-wrap break-words text-[14px] leading-snug">{message.content}</p>
+                <p class="mt-1 text-right text-[10px] opacity-60">{timeLabel(message.createdAt)}</p>
+              </div>
             </div>
           </div>
         {:else}

@@ -90,6 +90,13 @@
        modal) had this before; the main page scroll needs it too. */
     scrollbar-width: none;
     -ms-overflow-style: none;
+    /* Belt-and-suspenders against pinch/double-tap zoom alongside the
+       viewport meta tag (app.html) and the gesture-level JS guard
+       (disableZoom.ts) — some WebViews (older Android WebView especially)
+       ignore user-scalable=no on its own. pan-x/pan-y keeps normal
+       scrolling and the swipe-back/carousel gestures working; only zoom
+       is excluded. */
+    touch-action: pan-x pan-y;
   }
 
   /* `html` is the ONLY real scroll container — this is deliberate, not

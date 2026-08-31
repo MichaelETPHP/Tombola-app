@@ -8,7 +8,23 @@ export interface DbRoomMessage {
   senderAdminId: string | null;
   content: string;
   createdAt: Date;
+  /** Only populated for senderType 'user' — joined in for the group-chat
+   *  identity strip (name/phone/avatar). Admin messages stay unattributed
+   *  to an individual admin, same as before — they post as "Tombola". */
+  senderFullName: string | null;
+  senderPhoneNumber: string | null;
+  senderTelegramPhotoUrl: string | null;
 }
+
+const SENDER_JOIN = sql`
+  LEFT JOIN users su ON su.id = room_messages.sender_user_id
+`;
+const SENDER_COLUMNS = sql`
+  room_messages.*,
+  su.full_name AS "senderFullName",
+  su.phone_number AS "senderPhoneNumber",
+  su.telegram_photo_url AS "senderTelegramPhotoUrl"
+`;
 
 /** True if this user holds at least one ticket for this raffle — the whole membership model. */
 export async function hasTicketForRaffle(raffleId: string, userId: string): Promise<boolean> {
@@ -65,7 +81,8 @@ export async function listRoomMessages(
 
   if (opts.after) {
     return sql<DbRoomMessage[]>`
-      SELECT * FROM room_messages
+      SELECT ${SENDER_COLUMNS} FROM room_messages
+      ${SENDER_JOIN}
       WHERE raffle_id = ${raffleId}
         AND created_at > (SELECT created_at FROM room_messages WHERE id = ${opts.after})
       ORDER BY created_at ASC
@@ -75,7 +92,8 @@ export async function listRoomMessages(
 
   if (opts.before) {
     const rows = await sql<DbRoomMessage[]>`
-      SELECT * FROM room_messages
+      SELECT ${SENDER_COLUMNS} FROM room_messages
+      ${SENDER_JOIN}
       WHERE raffle_id = ${raffleId}
         AND created_at < (SELECT created_at FROM room_messages WHERE id = ${opts.before})
       ORDER BY created_at DESC
@@ -85,7 +103,8 @@ export async function listRoomMessages(
   }
 
   const rows = await sql<DbRoomMessage[]>`
-    SELECT * FROM room_messages
+    SELECT ${SENDER_COLUMNS} FROM room_messages
+    ${SENDER_JOIN}
     WHERE raffle_id = ${raffleId}
     ORDER BY created_at DESC
     LIMIT ${limit}

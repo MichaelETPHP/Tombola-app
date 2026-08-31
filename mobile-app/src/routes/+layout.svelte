@@ -5,6 +5,7 @@
   import { auth, setAuth, setAuthLoading } from '$lib/stores/auth.store.js';
   import { hideBootSplash } from '$lib/native/splash.js';
   import { initBackButtonHandling } from '$lib/native/backButton.js';
+  import { disableZoom } from '$lib/native/disableZoom.js';
   import BackExitToast from '$lib/components/BackExitToast.svelte';
   import Banner from '$lib/components/Banner.svelte';
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
@@ -36,6 +37,7 @@
    */
   onMount(async () => {
     initBackButtonHandling();
+    disableZoom();
     initLanguage();
 
     // Network restoration continues behind precise skeleton states; never

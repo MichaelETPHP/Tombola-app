@@ -8,8 +8,9 @@
   import Skeleton from '$lib/components/Skeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { showBanner } from '$lib/stores/banner.store.js';
-  import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
+  import { hapticLight } from '$lib/native/haptics.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
+  import PaperReceipt from '$lib/components/PaperReceipt.svelte';
   import { ArrowLeft, Check, Clock3, ReceiptText, RefreshCw, ShieldCheck, Ticket, X } from 'lucide-svelte';
 
   const pullRefresh = getPullRefreshContext();
@@ -32,6 +33,7 @@
   let checking = false;
   let timedOut = false;
   let bannerShown = false;
+  let showReceipt = false;
   const POLL_INTERVAL_MS = 1800;
   const TIMEOUT_MS = 90_000;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -46,7 +48,7 @@
       if (res.payment.status !== 'pending') stopPolling();
       if (res.payment.status === 'completed' && !bannerShown) {
         bannerShown = true;
-        hapticMedium();
+        showReceipt = true;
         showBanner('Your tickets are ready');
       }
     } catch (err) {
@@ -173,6 +175,18 @@
     </section>
   {/if}
 </div>
+
+{#if showReceipt && payment}
+  <PaperReceipt
+    raffleTitle={payment.raffleTitle}
+    ticketCodes={payment.ticketCodes}
+    amount={payment.amount}
+    gateway={payment.gateway}
+    receiptId={payment.id}
+    createdAt={payment.createdAt}
+    onDismiss={() => (showReceipt = false)}
+  />
+{/if}
 
 <style>
   .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; overflow: hidden; }

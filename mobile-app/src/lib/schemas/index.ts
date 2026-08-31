@@ -57,6 +57,10 @@ export const roomMessageSchema = z.object({
   isMine: z.boolean(),
   content: z.string(),
   createdAt: z.string(),
+  senderName: z.string().nullable(),
+  senderPhoneMasked: z.string().nullable(),
+  senderTelegramPhotoUrl: z.string().nullable(),
+  senderAvatarSeed: z.string().nullable(),
 });
 
 export const roomSummarySchema = z.object({
