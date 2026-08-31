@@ -45,6 +45,24 @@
     hapticLight();
   }
 
+  function telegramErrorMessage(err: unknown): string {
+    if (!(err instanceof ApiError)) return 'Connection problem. Check your internet and try again.';
+
+    try {
+      const response = JSON.parse(err.body) as { code?: string };
+      if (response.code === 'AUTH_TELEGRAMEXPIRED') {
+        return 'This Telegram session expired. Close Tombola and open it again from the bot menu.';
+      }
+      if (response.code === 'AUTH_TELEGRAMNOTCONFIGURED') {
+        return 'Telegram login is temporarily unavailable. The bot configuration needs attention.';
+      }
+    } catch {
+      // Fall through to the signed-session recovery message.
+    }
+
+    return 'Telegram could not verify this bot session. Reopen Tombola from the bot menu and try again.';
+  }
+
   $: returnTo = $page.url.searchParams.get('returnTo') ?? '';
   $: telegramLink = $pendingTelegramLink;
 
@@ -108,10 +126,7 @@
         pendingTelegramLink.set({ token: result.telegramLinkToken, ...result.telegramUser });
       }
     } catch (err) {
-      error =
-        err instanceof ApiError
-          ? 'Telegram could not verify this session. Reopen Tombola from the bot and try again.'
-          : 'Connection problem. Check your internet and try again.';
+      error = telegramErrorMessage(err);
     } finally {
       telegramLoading = false;
     }

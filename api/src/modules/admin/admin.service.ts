@@ -103,6 +103,10 @@ function toAdminUser(user: {
   id: string;
   phoneNumber: string;
   fullName: string | null;
+  telegramUserId: string | null;
+  telegramUsername: string | null;
+  telegramPhotoUrl: string | null;
+  telegramLinkedAt: Date | null;
   status: string;
   createdAt: Date;
 }) {
@@ -110,6 +114,10 @@ function toAdminUser(user: {
     id: user.id,
     phone: user.phoneNumber,
     fullName: user.fullName,
+    authMethod: user.telegramUserId ? 'telegram' as const : 'phone_otp' as const,
+    telegramUsername: user.telegramUsername,
+    telegramPhotoUrl: user.telegramPhotoUrl,
+    telegramLinkedAt: user.telegramLinkedAt,
     isSuspended: user.status !== 'active',
     createdAt: user.createdAt,
   };

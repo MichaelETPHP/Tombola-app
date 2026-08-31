@@ -2,26 +2,28 @@
   import { onMount } from 'svelte';
   import { scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { CircleHelp, Globe, LogIn, ShieldCheck, Ticket, Trophy } from 'lucide-svelte';
+  import { Globe, LogIn } from 'lucide-svelte';
+  import TikTokIcon from './TikTokIcon.svelte';
   import { auth } from '../stores/auth.store.js';
   import { locale, locales, initLocale, setLocale } from '../stores/locale.store.js';
   import { hapticLight } from '$lib/native/haptics.js';
+  import { openExternal } from '$lib/native/browser.js';
 
-  let helpOpen = false;
+  // TODO: replace with the real Tombola TikTok profile URL.
+  const TIKTOK_URL = 'https://www.tiktok.com/@tombola';
+
   let langOpen = false;
 
   onMount(initLocale);
 
-  function toggleHelp() {
+  function openTikTok() {
     hapticLight();
-    helpOpen = !helpOpen;
-    if (helpOpen) langOpen = false;
+    openExternal(TIKTOK_URL);
   }
 
   function toggleLang() {
     hapticLight();
     langOpen = !langOpen;
-    if (langOpen) helpOpen = false;
   }
 
   function pickLocale(code: 'en' | 'am') {
@@ -47,12 +49,6 @@
   $: profileName = $auth.user?.fullName?.trim() || 'your account';
 
   const popoverTransition = { duration: 160, start: 0.95, opacity: 0, easing: cubicOut };
-
-  const steps = [
-    { icon: Trophy, title: 'Choose a prize', detail: 'Open any live raffle.' },
-    { icon: Ticket, title: 'Pick your tickets', detail: 'Each ticket is one entry.' },
-    { icon: ShieldCheck, title: 'Pay and you’re in', detail: 'Ticket numbers appear right after payment.' },
-  ];
 </script>
 
 <header class="flex items-center justify-between gap-2">
@@ -71,47 +67,19 @@
   </a>
 
   <div class="flex shrink-0 items-center gap-0.5">
-    <!-- Help -->
-    <div class="relative">
-      <button
-        type="button"
-        on:click={toggleHelp}
-        class="tappable pressable relative z-50 flex h-9 w-9 items-center justify-center rounded-full text-ink active:bg-black/5"
-        aria-label="Help"
-        aria-expanded={helpOpen}
-      >
-        <CircleHelp size={19} strokeWidth={2} />
-      </button>
-
-      {#if helpOpen}
-        <button type="button" class="fixed inset-0 z-40 cursor-default" aria-label="Close" on:click={() => (helpOpen = false)}></button>
-        <div
-          class="absolute right-0 top-full z-50 mt-2 w-72 origin-top-right overflow-hidden rounded-card border border-black/5 bg-card shadow-card"
-          transition:scale={popoverTransition}
-        >
-          <p class="px-4 pb-2 pt-4 text-[12px] font-extrabold text-ink">How Tombola works</p>
-
-          <div class="divide-y divide-dot-inactive/70 border-t border-dot-inactive/70">
-            {#each steps as step, i (step.title)}
-              <div class="grid grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-2.5">
-                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-bg-start text-primary-dark">
-                  <svelte:component this={step.icon} size={13} strokeWidth={2} />
-                </span>
-                <div class="min-w-0">
-                  <p class="text-[11px] font-bold text-ink">{step.title}</p>
-                  <p class="text-[10px] text-muted">{step.detail}</p>
-                </div>
-                <span class="text-[10px] font-extrabold text-primary-dark">0{i + 1}</span>
-              </div>
-            {/each}
-          </div>
-
-          <p class="border-t border-dot-inactive/70 px-4 py-2.5 text-[10px] leading-snug text-muted">
-            Draws use a provably-fair random seed — verifiable, never rigged.
-          </p>
-        </div>
-      {/if}
-    </div>
+    <!-- TikTok -->
+    <button
+      type="button"
+      on:click={openTikTok}
+      class="tappable pressable relative flex h-9 w-9 items-center justify-center rounded-full text-ink active:bg-black/5"
+      aria-label="Follow Tombola on TikTok — we're live"
+    >
+      <TikTokIcon size={18} />
+      <span class="live-dot absolute right-1 top-1 flex h-2.5 w-2.5" aria-hidden="true">
+        <span class="live-dot-ping absolute inset-0 rounded-full bg-primary"></span>
+        <span class="relative h-2.5 w-2.5 rounded-full border-2 border-card bg-primary"></span>
+      </span>
+    </button>
 
     <!-- Language -->
     <div class="relative">
@@ -192,9 +160,32 @@
     transform: translate3d(0, 1px, 0) scale(0.94);
   }
 
+  /* Classic "live broadcast" indicator — a solid dot plus a ring that
+     expands and fades outward from behind it, looping. */
+  .live-dot-ping {
+    animation: live-dot-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes live-dot-ping {
+    0% {
+      transform: scale(1);
+      opacity: 0.65;
+    }
+    75%,
+    100% {
+      transform: scale(2.2);
+      opacity: 0;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .profile-avatar {
       transition-duration: 1ms;
+    }
+
+    .live-dot-ping {
+      animation: none;
+      opacity: 0;
     }
   }
 </style>

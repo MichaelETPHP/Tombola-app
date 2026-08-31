@@ -52,7 +52,7 @@ services:
       # these), but must still be passed through for it to work at all.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
-      TELEGRAM_AUTH_MAX_AGE_SECONDS: ${TELEGRAM_AUTH_MAX_AGE_SECONDS:-300}
+      TELEGRAM_AUTH_MAX_AGE_SECONDS: ${TELEGRAM_AUTH_MAX_AGE_SECONDS:-3600}
 
   mobile-app:
     build:

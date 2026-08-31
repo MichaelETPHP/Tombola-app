@@ -3,12 +3,16 @@
   import { api, ApiError } from '$lib/api/client.js';
   import DataTable from '$lib/components/DataTable.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
-  import { CircleAlert, RefreshCw, Search, ShieldAlert, Users } from 'lucide-svelte';
+  import { CircleAlert, MessageSquareText, RefreshCw, Search, Send, ShieldAlert, Users } from 'lucide-svelte';
 
   interface AppUser {
     id: string;
     phone: string;
     fullName: string | null;
+    authMethod: 'phone_otp' | 'telegram';
+    telegramUsername: string | null;
+    telegramPhotoUrl: string | null;
+    telegramLinkedAt: string | null;
     isSuspended: boolean;
     createdAt: string;
   }
@@ -19,12 +23,14 @@
   let actionError = '';
   let search = '';
   let statusFilter: 'all' | 'active' | 'suspended' = 'all';
+  let authFilter: 'all' | 'phone_otp' | 'telegram' = 'all';
   let confirmingUser: AppUser | null = null;
   let updatingId = '';
 
   const columns = [
     { key: 'phone', label: 'Account', sortable: true },
     { key: 'fullName', label: 'Name' },
+    { key: 'authMethod', label: 'Sign-in method', sortable: true },
     { key: 'isSuspended', label: 'Access status' },
     { key: 'createdAt', label: 'Registered', sortable: true },
     { key: 'actions', label: 'Management' },
@@ -35,12 +41,14 @@
     const matchesSearch =
       !normalizedSearch ||
       user.phone.toLowerCase().includes(normalizedSearch) ||
-      (user.fullName ?? '').toLowerCase().includes(normalizedSearch);
+      (user.fullName ?? '').toLowerCase().includes(normalizedSearch) ||
+      (user.telegramUsername ?? '').toLowerCase().includes(normalizedSearch);
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && !user.isSuspended) ||
       (statusFilter === 'suspended' && user.isSuspended);
-    return matchesSearch && matchesStatus;
+    const matchesAuth = authFilter === 'all' || user.authMethod === authFilter;
+    return matchesSearch && matchesStatus && matchesAuth;
   });
   $: activeCount = users.filter((user) => !user.isSuspended).length;
   $: suspendedCount = users.length - activeCount;
@@ -103,10 +111,18 @@
       <input bind:value={search} type="search" placeholder="Search by name or phone" class="h-11 w-full rounded-button border border-border bg-card pl-10 pr-4 text-[13px] text-ink outline-none transition-colors placeholder:text-faint focus:border-primary" />
     </label>
 
-    <div class="flex rounded-button border border-border bg-card p-1">
-      {#each ['all', 'active', 'suspended'] as filter (filter)}
-        <button type="button" class="admin-press min-h-9 rounded-[8px] px-3 text-[11px] font-bold capitalize {statusFilter === filter ? 'bg-primary-bg text-primary-dark' : 'text-muted'}" on:click={() => (statusFilter = filter as typeof statusFilter)}>{filter}</button>
-      {/each}
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <label class="sr-only" for="auth-filter">Filter by sign-in method</label>
+      <select id="auth-filter" bind:value={authFilter} class="h-11 rounded-button border border-border bg-card px-3 text-[11px] font-bold text-ink outline-none focus:border-primary">
+        <option value="all">All sign-in methods</option>
+        <option value="phone_otp">Phone OTP</option>
+        <option value="telegram">Telegram Bot</option>
+      </select>
+      <div class="flex rounded-button border border-border bg-card p-1">
+        {#each ['all', 'active', 'suspended'] as filter (filter)}
+          <button type="button" class="admin-press min-h-9 rounded-[8px] px-3 text-[11px] font-bold capitalize {statusFilter === filter ? 'bg-primary-bg text-primary-dark' : 'text-muted'}" on:click={() => (statusFilter = filter as typeof statusFilter)}>{filter}</button>
+        {/each}
+      </div>
     </div>
   </div>
 
@@ -129,6 +145,22 @@
           <div><p class="font-mono text-xs font-semibold text-ink">{row.phone}</p><p class="mt-1 font-mono text-[9px] text-faint">{row.id.slice(0, 8)}</p></div>
         {:else if column === 'fullName'}
           <span class={row.fullName ? 'font-semibold text-ink' : 'text-faint'}>{row.fullName ?? 'Not provided'}</span>
+        {:else if column === 'authMethod'}
+          {#if row.authMethod === 'telegram'}
+            <div class="flex items-center gap-2.5">
+              {#if row.telegramPhotoUrl}
+                <img src={row.telegramPhotoUrl} alt="" class="h-8 w-8 rounded-[10px] object-cover" />
+              {:else}
+                <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-info-bg text-info"><Send size={14} /></span>
+              {/if}
+              <div><p class="text-xs font-bold text-info">Telegram Bot</p><p class="mt-0.5 text-[10px] text-faint">{row.telegramUsername ? `@${row.telegramUsername}` : 'Linked account'}</p></div>
+            </div>
+          {:else}
+            <div class="flex items-center gap-2.5">
+              <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary-bg text-primary-dark"><MessageSquareText size={14} /></span>
+              <div><p class="text-xs font-bold text-primary-dark">Phone OTP</p><p class="mt-0.5 text-[10px] text-faint">SMS verification</p></div>
+            </div>
+          {/if}
         {:else if column === 'isSuspended'}
           <StatusBadge status={row.isSuspended ? 'suspended' : 'active'} />
         {:else if column === 'createdAt'}

@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error-handler.middleware.js';
+import { logger } from './logger.js';
 
 export interface TelegramIdentity {
   userId: string;
@@ -25,7 +26,7 @@ const telegramJwks = createRemoteJWKSet(
 
 function requireTelegramBotToken(): string {
   if (!env.TELEGRAM_BOT_TOKEN) throw new AppError(503, 'auth.telegramNotConfigured');
-  return env.TELEGRAM_BOT_TOKEN;
+  return env.TELEGRAM_BOT_TOKEN.trim();
 }
 
 function safeEqualHex(actual: string, expected: string): boolean {
@@ -41,17 +42,23 @@ export function validateMiniAppInitData(initData: string): TelegramIdentity {
   const userJson = params.get('user');
 
   if (!receivedHash || !Number.isFinite(authDate) || !userJson) {
+    logger.warn('Telegram Mini App validation rejected', { reason: 'missing_signed_fields' });
     throw new AppError(401, 'auth.telegramInvalid');
   }
 
   const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
   if (ageSeconds < -30 || ageSeconds > env.TELEGRAM_AUTH_MAX_AGE_SECONDS) {
+    logger.warn('Telegram Mini App validation rejected', {
+      reason: 'expired',
+      ageSeconds,
+      maxAgeSeconds: env.TELEGRAM_AUTH_MAX_AGE_SECONDS,
+    });
     throw new AppError(401, 'auth.telegramExpired');
   }
 
   const dataCheckString = [...params.entries()]
     .filter(([key]) => key !== 'hash')
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
 
@@ -59,15 +66,22 @@ export function validateMiniAppInitData(initData: string): TelegramIdentity {
     .update(requireTelegramBotToken())
     .digest();
   const expectedHash = createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  if (!safeEqualHex(receivedHash, expectedHash)) throw new AppError(401, 'auth.telegramInvalid');
+  if (!safeEqualHex(receivedHash, expectedHash)) {
+    logger.warn('Telegram Mini App validation rejected', { reason: 'signature_mismatch' });
+    throw new AppError(401, 'auth.telegramInvalid');
+  }
 
   let user: MiniAppUser;
   try {
     user = JSON.parse(userJson) as MiniAppUser;
   } catch {
+    logger.warn('Telegram Mini App validation rejected', { reason: 'invalid_user_json' });
     throw new AppError(401, 'auth.telegramInvalid');
   }
-  if (!user.id || !user.first_name) throw new AppError(401, 'auth.telegramInvalid');
+  if (!user.id || !user.first_name) {
+    logger.warn('Telegram Mini App validation rejected', { reason: 'invalid_user' });
+    throw new AppError(401, 'auth.telegramInvalid');
+  }
 
   return {
     userId: String(user.id),

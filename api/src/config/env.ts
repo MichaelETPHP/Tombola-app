@@ -36,7 +36,7 @@ const envSchema = z.object({
   TELEGRAM_CLIENT_ID: emptyToUndefined(z.string().regex(/^\d+$/).optional()),
   TELEGRAM_AUTH_MAX_AGE_SECONDS: z
     .string()
-    .default('300')
+    .default('3600')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().min(60).max(3600)),
 
