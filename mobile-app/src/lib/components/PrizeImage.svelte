@@ -22,6 +22,7 @@
       {src}
       alt={prizeName}
       loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={eager ? 'high' : 'low'}
       decoding="async"
       class="h-full w-full object-cover"
       on:error={() => (failed = true)}

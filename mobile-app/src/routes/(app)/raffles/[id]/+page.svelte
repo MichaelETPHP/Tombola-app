@@ -340,7 +340,7 @@
     on:click={() => (termsOpen = false)}
     transition:fade={{ duration: 160 }}
   ></button>
-  <div class="fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
+  <div class="no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
     <div class="mb-3 flex items-center justify-between">
       <p class="text-[15px] font-extrabold text-ink">Terms &amp; Conditions</p>
       <button
@@ -404,7 +404,7 @@
 
   .raffle-detail-page {
     display: flex;
-    height: calc(100dvh - max(20px, env(safe-area-inset-top)) - 120px);
+    height: calc(100dvh - max(44px, var(--safe-top)) - 120px);
     min-height: 0;
     flex-direction: column;
     gap: 12px;

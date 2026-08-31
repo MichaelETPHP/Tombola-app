@@ -80,7 +80,7 @@
     <WinnersMarquee />
   </section>
 
-  <section class="flex flex-col gap-3">
+  <section class="deferred-section flex flex-col gap-3">
     <div class="flex items-end justify-between gap-4">
       <div>
         <h2 class="text-base font-extrabold text-ink">More open raffles</h2>
@@ -103,3 +103,10 @@
     {/if}
   </section>
 </div>
+
+<style>
+  .deferred-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 520px;
+  }
+</style>

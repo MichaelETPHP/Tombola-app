@@ -46,7 +46,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       manifest: pwaManifest,
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2,ico,webmanifest}'],
         // API calls should never be served from the cache — always hit the network.
         navigateFallbackDenylist: [/^\/api/],
       },
@@ -69,5 +69,6 @@ export default defineConfig({
   ],
   server: {
     port: 4345,
+    host: '0.0.0.0',
   },
 });

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
     <meta name="description" content="Tombola — Ethiopia's premier raffle platform. Win amazing prizes with transparent, provably-fair draws." />
     <meta name="theme-color" content="#00D3A0" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -12,16 +12,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Tombola" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/images/splash-screen-1.jpg" as="image" fetchpriority="high" />
     <title>Tombola</title>
-    <!-- Official Telegram Mini App bridge. Outside Telegram it is inert; in
-         the bot WebView it exposes signed initData for server-side login. -->
-    <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
+    <!-- Load Telegram's bridge only for a real Mini App launch. The native
+         APK and installed PWA avoid this external request entirely. -->
+    <script>
+      const launchParameters = `${location.search}&${location.hash}`;
+      const isTelegramLaunch =
+        typeof window.TelegramWebviewProxy !== 'undefined' ||
+        launchParameters.includes('tgWebAppData=');
+
+      if (isTelegramLaunch) {
+        document.write('<script src="https://telegram.org/js/telegram-web-app.js?61"><\/script>');
+      }
+    </script>
     <style>
       /* Boot splash — bridges the gap between the native SplashScreen
          handoff (Android) and Svelte hydration finishing. Pure CSS/HTML so
@@ -30,9 +35,8 @@
          screen rather than two different ones. Removed by the root layout
          once the app is actually ready to show content.
 
-         Two full-bleed illustrations crossfade in a loop (CSS-only —
-         predetermined, not data-driven, so no JS timer needed) with a
-         bottom scrim for spinner legibility over either image. */
+         A locally bundled image and bottom scrim bridge the native-to-web
+         handoff without waiting on an external request. */
       #boot-splash {
         position: fixed;
         inset: 0;
@@ -40,10 +44,12 @@
         overflow: hidden;
         background: linear-gradient(135deg, #e3f9ef 0%, #b9eeda 100%);
         transition: opacity 320ms cubic-bezier(0.23, 1, 0.32, 1);
+        animation: boot-splash-auto-hide 280ms cubic-bezier(0.23, 1, 0.32, 1) 820ms forwards;
       }
       #boot-splash.boot-splash--hidden {
         opacity: 0;
         pointer-events: none;
+        animation: none;
       }
       .boot-splash__slide {
         position: absolute;
@@ -51,20 +57,13 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        opacity: 0;
-        animation: boot-splash-crossfade 4.8s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+        opacity: 1;
       }
-      .boot-splash__slide--second {
-        animation-delay: -2.4s;
-      }
-      @keyframes boot-splash-crossfade {
-        0%,
-        41.6% {
-          opacity: 1;
-        }
-        50%,
-        100% {
+
+      @keyframes boot-splash-auto-hide {
+        to {
           opacity: 0;
+          visibility: hidden;
         }
       }
       .boot-splash__scrim {
@@ -91,11 +90,8 @@
         }
       }
       @media (prefers-reduced-motion: reduce) {
-        .boot-splash__slide {
-          animation: none;
-        }
-        .boot-splash__slide:first-child {
-          opacity: 1;
+        #boot-splash {
+          animation-duration: 1ms;
         }
         .boot-splash__spinner {
           animation: none;
@@ -109,7 +105,6 @@
     <div style="display: contents">%sveltekit.body%</div>
     <div id="boot-splash" aria-hidden="true">
       <img src="/images/splash-screen-1.jpg" alt="" class="boot-splash__slide" fetchpriority="high" />
-      <img src="/images/splash-screen-2.jpg" alt="" class="boot-splash__slide boot-splash__slide--second" />
       <div class="boot-splash__scrim"></div>
       <span class="boot-splash__spinner"></span>
     </div>

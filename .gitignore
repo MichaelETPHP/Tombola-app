@@ -6,6 +6,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Local security inventory (never commit)
+/Sec.md
+
 # Build output
 dist/
 build/

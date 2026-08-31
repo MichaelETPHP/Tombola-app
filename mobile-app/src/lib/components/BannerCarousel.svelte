@@ -30,9 +30,10 @@
     <div
       bind:this={trackEl}
       on:scroll={handleScroll}
-      class="flex snap-x snap-mandatory overflow-x-auto rounded-card"
+      data-swipe-region
+      class="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-card [touch-action:pan-x]"
     >
-      {#each raffles as raffle (raffle.id)}
+      {#each raffles as raffle, index (raffle.id)}
         <a
           href="/raffles/{raffle.id}"
           class="tappable pressable relative flex h-[238px] w-full shrink-0 snap-start overflow-hidden rounded-card bg-[#202725] no-underline shadow-card"
@@ -44,7 +45,7 @@
               title={raffle.title}
               prizeName={raffle.prizeName}
               size="lg"
-              eager
+              eager={index === 0}
             />
           </div>
 

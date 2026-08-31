@@ -41,7 +41,9 @@
 
   $: text = copy[$language];
   $: isInitialCheck = !$connectivity.initialized && $connectivity.checking;
-  $: isBlocked = isInitialCheck || ($connectivity.initialized && !$connectivity.connected);
+  // Let online launches render immediately while the first health check is
+  // in flight. A confirmed offline result still blocks the app at once.
+  $: isBlocked = $connectivity.initialized && !$connectivity.connected;
   $: isServiceProblem = $connectivity.reason === 'service-unreachable';
 
   onMount(() => {

@@ -18,6 +18,8 @@ setlocal EnableDelayedExpansion
 :: ============================================================
 
 set ROOT=%~dp0
+:: Child build/sync commands inherit this development-only flag.
+set CAPACITOR_ALLOW_HTTP=true
 
 echo.
 echo  =====================================================
@@ -97,7 +99,7 @@ echo  [OK] admin-app\.env updated.
 echo  [INFO] Patching api\.env CORS_ORIGINS and MOBILE_APP_URL...
 powershell -NoProfile -Command ^
   "$content = Get-Content '%ROOT%api\.env';" ^
-  "$content = $content -replace 'CORS_ORIGINS=.*', 'CORS_ORIGINS=http://!LAN_IP!:4345,http://!LAN_IP!:5355,http://localhost:4345,http://localhost:5355';" ^
+  "$content = $content -replace 'CORS_ORIGINS=.*', 'CORS_ORIGINS=http://!LAN_IP!:4345,http://!LAN_IP!:5355,http://localhost:4345,http://localhost:5355,http://localhost,https://localhost,capacitor://localhost';" ^
   "$content = $content -replace 'MOBILE_APP_URL=.*', 'MOBILE_APP_URL=http://!LAN_IP!:4345';" ^
   "$content | Set-Content '%ROOT%api\.env'"
 echo  [OK] api\.env updated.
@@ -116,7 +118,7 @@ echo   Mobile App   http://!LAN_IP!:4345   (also localhost:4345)
 echo   Admin App    http://!LAN_IP!:5355   (also localhost:5355)
 echo.
 echo   APK test URL: http://!LAN_IP!:3435
-echo   (Use this IP when building the Capacitor APK)
+echo   Capacitor origins are enabled for this development session.
 echo  =====================================================
 echo.
 

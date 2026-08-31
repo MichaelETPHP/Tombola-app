@@ -174,7 +174,7 @@
 </div>
 
 <style>
-  .payment-page { height: calc(100dvh - max(20px, env(safe-area-inset-top)) - 120px); min-height: 0; overflow: hidden; }
+  .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; overflow: hidden; }
   .success-mark { animation: success-pop 420ms var(--ease-out) both; }
   .ticket-number { animation: ticket-in 300ms var(--ease-out) both; }
   .processing-ring::before { content: ''; position: absolute; inset: -5px; border-radius: 999px; border: 2px solid transparent; border-top-color: var(--color-primary-dark); border-right-color: var(--color-primary-dark); animation: receipt-spin 1s linear infinite; }
@@ -182,7 +182,7 @@
   @keyframes ticket-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes receipt-spin { to { transform: rotate(360deg); } }
   @media (max-height: 700px) {
-    .payment-page { height: calc(100dvh - max(20px, env(safe-area-inset-top)) - 108px); }
+    .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 108px); }
   }
   @media (prefers-reduced-motion: reduce) { .success-mark, .ticket-number, .processing-ring::before { animation: none; } }
 </style>

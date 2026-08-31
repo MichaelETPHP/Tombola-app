@@ -113,7 +113,7 @@
   {:else}
     <div class="flex flex-col gap-3">
       {#each $raffles as raffle, i (raffle.id)}
-        <RaffleCard {raffle} index={i} />
+        <RaffleCard {raffle} index={i} eager={i < 2} />
       {/each}
     </div>
   {/if}

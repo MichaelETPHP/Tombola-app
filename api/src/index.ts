@@ -16,6 +16,7 @@ import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { closeDb } from './db/client.js';
 import { logger } from './lib/logger.js';
 import { languageMiddleware } from './lib/i18n.js';
+import { runHealthChecks } from './lib/health.js';
 import type { AppEnv } from './types/hono.js';
 
 // ─── Create Hono App ─────────────────────────────────────────────
@@ -48,14 +49,67 @@ app.onError(errorHandler);
 
 // ─── Health Check ─────────────────────────────────────────────────
 
-app.get('/health', (c) => {
+/**
+ * GET /health
+ * Deep health check: DB round-trip, memory usage, and config validation.
+ * Returns 200 when status is 'ok', 207 when 'degraded', 503 when 'error'.
+ * Runs all checks in parallel — typical latency is just the DB ping.
+ */
+app.get('/health', async (c) => {
+  const report = await runHealthChecks();
+  const httpStatus =
+    report.status === 'ok'       ? 200 :
+    report.status === 'degraded' ? 207 : 503;
+
+  return c.json(
+    { ...report, requestId: c.get('requestId') },
+    httpStatus
+  );
+});
+
+/**
+ * GET /health/live
+ * Liveness probe (Docker / k8s / Render health-check path).
+ * Only checks that the process itself is responsive — does NOT hit the DB.
+ * Always returns 200 while the process is alive.
+ */
+app.get('/health/live', (c) => {
   return c.json({
     status: 'ok',
+    uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    environment: env.NODE_ENV,
-    version: '1.0.0',
-    requestId: c.get('requestId'),
   });
+});
+
+/**
+ * GET /health/db
+ * Quick DB-only probe — useful for testing the database connection
+ * without running all other checks.
+ */
+app.get('/health/db', async (c) => {
+  const start = Date.now();
+  try {
+    const rows = await import('./db/client.js').then(({ sql }) =>
+      sql<{ now: string; version: string }[]>`
+        SELECT NOW() AS now, current_setting('server_version') AS version
+      `
+    );
+    const latencyMs = Date.now() - start;
+    return c.json({
+      status: 'ok',
+      latencyMs,
+      serverTime: rows[0]?.now,
+      postgresVersion: rows[0]?.version,
+      requestId: c.get('requestId'),
+    });
+  } catch (err) {
+    return c.json({
+      status: 'error',
+      latencyMs: Date.now() - start,
+      message: err instanceof Error ? err.message : 'DB unreachable',
+      requestId: c.get('requestId'),
+    }, 503);
+  }
 });
 
 app.get('/', (c) => c.json({
@@ -63,6 +117,11 @@ app.get('/', (c) => c.json({
   version: '1.0.0',
   status: 'ready',
   languages: ['en', 'am'],
+  endpoints: {
+    health:     'GET /health        — full infrastructure health report',
+    liveness:   'GET /health/live   — liveness probe (process up)',
+    database:   'GET /health/db     — DB-only connectivity probe',
+  },
 }));
 
 // ─── Public Routes ────────────────────────────────────────────────
@@ -117,5 +176,6 @@ logger.info(`   CORS origins: ${env.CORS_ORIGINS.join(', ')}`);
 
 export default {
   port: env.PORT,
+  hostname: '0.0.0.0',
   fetch: app.fetch,
 };

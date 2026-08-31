@@ -9,6 +9,7 @@
   export let raffle: Raffle;
   export let ticketsOwned = 0;
   export let index = 0;
+  export let eager = false;
 
   $: soldPct = raffle.ticketCap > 0 ? Math.min(100, (raffle.ticketsSold / raffle.ticketCap) * 100) : 0;
   $: ticketsRemaining = Math.max(0, raffle.ticketCap - raffle.ticketsSold);
@@ -31,7 +32,7 @@
       title={raffle.title}
       prizeName={raffle.prizeName}
       size="sm"
-      eager={index < 3}
+      {eager}
     />
   </div>
 

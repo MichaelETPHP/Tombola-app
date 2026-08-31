@@ -12,7 +12,7 @@ export interface ConnectivityState {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
-const CHECK_INTERVAL_MS = 10_000;
+const CHECK_INTERVAL_MS = 30_000;
 const CHECK_TIMEOUT_MS = 4_500;
 
 const initialState: ConnectivityState = {
@@ -31,6 +31,7 @@ let connectionType: ConnectionStatus['connectionType'] = 'unknown';
 let checkInFlight: Promise<boolean> | null = null;
 let intervalId: ReturnType<typeof setInterval> | undefined;
 let nativeListener: Awaited<ReturnType<typeof Network.addListener>> | undefined;
+let lastCheckedAt = 0;
 
 function setOffline(type: ConnectionStatus['connectionType'] = connectionType): void {
   deviceConnected = false;
@@ -85,6 +86,7 @@ export async function checkConnectivity(): Promise<boolean> {
       });
       return false;
     } finally {
+      lastCheckedAt = Date.now();
       clearTimeout(timeoutId);
     }
   })();
@@ -119,9 +121,18 @@ export async function startConnectivityMonitoring(): Promise<void> {
     void checkConnectivity();
   };
   const handleOffline = () => setOffline('none');
+  const handleVisibilityChange = () => {
+    if (
+      document.visibilityState === 'visible' &&
+      Date.now() - lastCheckedAt >= CHECK_INTERVAL_MS
+    ) {
+      void checkConnectivity();
+    }
+  };
 
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   try {
     nativeListener = await Network.addListener('networkStatusChange', (status) => {
@@ -135,12 +146,15 @@ export async function startConnectivityMonitoring(): Promise<void> {
   }
 
   if (deviceConnected) await checkConnectivity();
-  intervalId = setInterval(() => void checkConnectivity(), CHECK_INTERVAL_MS);
+  intervalId = setInterval(() => {
+    if (document.visibilityState === 'visible') void checkConnectivity();
+  }, CHECK_INTERVAL_MS);
 
   // HMR can reload this module during development. Keep cleanup colocated.
   import.meta.hot?.dispose(() => {
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     if (intervalId) clearInterval(intervalId);
     void nativeListener?.remove();
     started = false;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import IosSpinner from './IosSpinner.svelte';
   import { Sparkles, ArrowRight, Dices, Trophy, ShieldCheck } from 'lucide-svelte';
@@ -25,40 +25,24 @@
   ];
 
   let currentSlide = 0;
-  let progress = 0;
-  let intervalId: any;
-  let progressIntervalId: any;
+  let intervalId: ReturnType<typeof setInterval> | undefined;
   let isNavigating = false;
 
-  function nextSlide() {
-    currentSlide = (currentSlide + 1) % slides.length;
-    progress = 0;
-  }
-
-  function prevSlide() {
-    currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-    progress = 0;
+  function selectSlide(index: number) {
+    currentSlide = index;
   }
 
   function handleStart() {
     if (isNavigating) return;
     isNavigating = true;
     clearInterval(intervalId);
-    clearInterval(progressIntervalId);
     goto('/home', { replaceState: true });
   }
 
   onMount(() => {
-    // Progress bar tick every 50ms
-    const step = 50 / (redirectDelayMs / 2);
-    progressIntervalId = setInterval(() => {
-      progress = Math.min(100, progress + step * 100);
-    }, 50);
-
     // Auto-swap slides every half of total delay
     intervalId = setInterval(() => {
       currentSlide = (currentSlide + 1) % slides.length;
-      progress = 0;
     }, redirectDelayMs / 2);
 
     // Optional auto-redirect
@@ -71,13 +55,12 @@
 
     return () => {
       clearInterval(intervalId);
-      clearInterval(progressIntervalId);
       if (timeoutId) clearTimeout(timeoutId);
     };
   });
 </script>
 
-<div class="relative flex h-screen w-full flex-col justify-between overflow-hidden bg-black text-white select-none">
+<div class="relative flex min-h-dvh w-full flex-col justify-between overflow-hidden bg-black text-white select-none">
   <!-- Background Images with Crossfade -->
   {#each slides as slide, index}
     <div
@@ -143,13 +126,17 @@
       {#each slides as _, i}
         <button
           type="button"
-          on:click={() => { currentSlide = i; progress = 0; }}
-          class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20 transition-all"
+          on:click={() => selectSlide(i)}
+          class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20"
           aria-label="Slide {i + 1}"
         >
           <div
-            class="h-full rounded-full bg-primary transition-all duration-100"
-            style="width: {currentSlide === i ? (progress + '%') : (currentSlide > i ? '100%' : '0%')}"
+            class="slide-progress h-full rounded-full bg-primary {currentSlide === i
+              ? 'is-active'
+              : currentSlide > i
+                ? 'is-complete'
+                : ''}"
+            style="--slide-duration: {redirectDelayMs / 2}ms"
           ></div>
         </button>
       {/each}
@@ -184,3 +171,31 @@
     </div>
   </div>
 </div>
+
+<style>
+  .slide-progress {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  .slide-progress.is-active {
+    animation: slide-progress var(--slide-duration) linear forwards;
+  }
+
+  .slide-progress.is-complete {
+    transform: scaleX(1);
+  }
+
+  @keyframes slide-progress {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide-progress.is-active {
+      animation: none;
+      transform: scaleX(1);
+    }
+  }
+</style>

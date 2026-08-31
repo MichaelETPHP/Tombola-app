@@ -80,7 +80,7 @@
       transform 420ms cubic-bezier(0.34, 1.42, 0.64, 1),
       box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1),
       background-color 220ms cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: transform;
+    backface-visibility: hidden;
   }
 
   .nav-glyph {

@@ -104,7 +104,7 @@
   }
 </script>
 
-<div class="relative h-60 overflow-hidden rounded-card border border-white/70 bg-card shadow-card-light">
+<div class="relative h-60 touch-pan-y overflow-hidden rounded-card border border-white/70 bg-card shadow-card-light">
   <div class="marquee-track flex flex-col">
     {#each [...entries, ...entries] as entry, i (i)}
       <div class="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-bg/50">
@@ -163,7 +163,6 @@
 <style>
   .marquee-track {
     animation: marquee-up 22s linear infinite;
-    will-change: transform;
   }
 
   .marquee-track:hover {
