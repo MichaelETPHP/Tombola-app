@@ -14,6 +14,12 @@ export interface DbRaffle {
   title: string;
   description: string | null;
   prizeName: string;
+  categoryCode: string;
+  raffleNumber: number;
+  publicCode: string;
+  drawServerSeed: string | null;
+  drawServerSeedHash: string | null;
+  scheduledDrawAt: Date | null;
   prizeValue: number;
   prizeImageUrl: string | null;
   ticketPrice: number;
@@ -45,6 +51,9 @@ export async function createRaffle(data: {
   title: string;
   description?: string;
   prizeName: string;
+  categoryCode: string;
+  drawServerSeed: string;
+  drawServerSeedHash: string;
   prizeValue: number;
   prizeImageUrl?: string;
   ticketPrice: number;
@@ -61,21 +70,32 @@ export async function createRaffle(data: {
   const deadline = data.deadlineAt ?? new Date(opensAt);
   if (!data.deadlineAt) deadline.setDate(deadline.getDate() + data.deadlineDays);
 
-  const rows = await sql<DbRaffle[]>`
+  return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`tombola:${data.categoryCode}`}))`;
+    const [sequence] = await tx<{ raffleNumber: number }[]>`
+      SELECT COALESCE(MAX(raffle_number), 0)::int + 1 AS raffle_number
+      FROM raffles WHERE category_code = ${data.categoryCode}
+    `;
+    if (sequence.raffleNumber > 999) throw new Error(`Raffle sequence exhausted for ${data.categoryCode}`);
+    const publicCode = `${data.categoryCode}-${String(sequence.raffleNumber).padStart(3, '0')}`;
+    const rows = await tx<DbRaffle[]>`
     INSERT INTO raffles (
       title, description, prize_name, prize_value, prize_image_url,
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
-      status, opens_at, deadline_at, created_by, telegram_group_link
+      status, opens_at, deadline_at, created_by, telegram_group_link,
+      category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash
     ) VALUES (
       ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
       ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
-      ${data.telegramGroupLink ?? null}
+      ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
+      ${data.drawServerSeed}, ${data.drawServerSeedHash}
     )
     RETURNING *, 0 AS tickets_sold
   `;
-  return rows[0];
+    return rows[0];
+  });
 }
 
 export async function updateRaffle(
@@ -155,7 +175,8 @@ export async function updateRaffleStatus(id: string, status: RaffleStatus): Prom
 export async function extendRaffleDeadline(
   id: string,
   newDeadline: Date,
-  reason?: string
+  reason?: string,
+  adminId?: string
 ): Promise<DbRaffle | null> {
   return sql.begin(async (tx) => {
     const [raffle] = await tx<DbRaffle[]>`
@@ -168,11 +189,17 @@ export async function extendRaffleDeadline(
 
     await tx`
       INSERT INTO raffle_extensions (
-        raffle_id, previous_deadline, new_deadline, tickets_sold_at_extension, reason
+        raffle_id, previous_deadline, new_deadline, tickets_sold_at_extension, reason, extended_by
       ) VALUES (
         ${id}, ${raffle.deadlineAt}, ${newDeadline}, ${raffle.ticketsSold},
-        ${reason ?? 'cap not reached by deadline'}
+        ${reason ?? 'cap not reached by deadline'}, ${adminId ?? null}
       )
+    `;
+
+    await tx`
+      INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES ('admin', ${adminId ?? null}, 'raffle.extended', 'raffle', ${id},
+        ${tx.json({ previousDeadline: raffle.deadlineAt.toISOString(), newDeadline: newDeadline.toISOString(), reason: reason ?? 'cap not reached by deadline', ticketsSold: raffle.ticketsSold })})
     `;
 
     const [updated] = await tx<DbRaffle[]>`
@@ -194,6 +221,22 @@ export async function findRafflesAtCap(): Promise<DbRaffle[]> {
     FROM raffles
     WHERE status = 'open'
       AND (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = raffles.id) >= ticket_cap
+  `;
+}
+
+export async function lockRaffleForScheduledDraw(id: string): Promise<void> {
+  await sql`
+    UPDATE raffles
+    SET status = 'locked', scheduled_draw_at = NOW() + INTERVAL '2 days', updated_at = NOW()
+    WHERE id = ${id} AND status = 'open'
+  `;
+}
+
+export async function findRafflesReadyForDraw(): Promise<DbRaffle[]> {
+  return sql<DbRaffle[]>`
+    SELECT raffles.*, ${TICKETS_SOLD_EXPR}
+    FROM raffles
+    WHERE status = 'locked' AND scheduled_draw_at <= NOW()
   `;
 }
 

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { executeDraw } from './draws.service.js';
+import { executeDraw, getDrawContext } from './draws.service.js';
 import type { AppEnv } from '../../types/hono.js';
 
 export const drawsRoutes = new Hono<AppEnv>();
@@ -10,6 +10,11 @@ export const drawsRoutes = new Hono<AppEnv>();
  * This is a public endpoint (no auth) because it's accessed via SMS link.
  */
 drawsRoutes.get('/:token', async (c) => {
+  const draw = await getDrawContext(c.req.param('token'));
+  return c.json({ draw });
+});
+
+drawsRoutes.post('/:token/spin', async (c) => {
   const token = c.req.param('token');
   const clickedIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? null;
   const result = await executeDraw(token, clickedIp);

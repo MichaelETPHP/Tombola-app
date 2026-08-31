@@ -11,6 +11,7 @@
  */
 
 import { sql } from './client.js';
+import { commitServerSeed, generateServerSeed } from '../lib/provably-fair.js';
 
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ async function seed() {
   // ─── 3. Create Raffles ────────────────────────────────────────
   console.log('🎰 Creating raffles...');
   
-  for (const raffle of RAFFLES) {
+  for (const [raffleIndex, raffle] of RAFFLES.entries()) {
     // Compute actual deadline based on status
     let deadlineAt: Date;
     let opensAt: Date;
@@ -228,16 +229,24 @@ async function seed() {
       insertStatus = 'open';
     }
 
+    const categoryCodes = ['PHO', 'CAR', 'TEL', 'GLD', 'LAP', 'HOM'];
+    const categoryCode = categoryCodes[raffleIndex] ?? 'RAF';
+    const raffleNumber = 1;
+    const publicCode = `${categoryCode}-${String(raffleNumber).padStart(3, '0')}`;
+    const drawServerSeed = generateServerSeed();
+    const drawServerSeedHash = await commitServerSeed(drawServerSeed);
     const [createdRaffle] = await sql<{ id: string }[]>`
       INSERT INTO raffles (
         title, description, prize_name, prize_value, prize_image_url,
         ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
-        status, opens_at, deadline_at, created_by
+        status, opens_at, deadline_at, created_by, category_code, raffle_number,
+        public_code, draw_server_seed, draw_server_seed_hash
       ) VALUES (
         ${raffle.title}, ${raffle.description}, ${raffle.prizeName},
         ${raffle.prizeValue}, ${raffle.prizeImageUrl},
         ${raffle.ticketPrice}, ${raffle.ticketCap}, ${raffle.maxTicketsPerUser},
-        ${raffle.deadlineDays}, ${insertStatus}, ${opensAt}, ${deadlineAt}, ${admin.id}
+        ${raffle.deadlineDays}, ${insertStatus}, ${opensAt}, ${deadlineAt}, ${admin.id},
+        ${categoryCode}, ${raffleNumber}, ${publicCode}, ${drawServerSeed}, ${drawServerSeedHash}
       )
       RETURNING id
     `;

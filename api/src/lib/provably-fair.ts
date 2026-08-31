@@ -64,12 +64,9 @@ export async function computeWinner(
   const combined = `${serverSeed}:${clientSeed}`;
   const combinedHash = await sha256(combined);
 
-  // Use the first 8 hex chars (32 bits) of the hash for the index
-  // This gives a range of 0 to 4,294,967,295 which is sufficient
-  // for modular arithmetic against any realistic ticket count
-  const hashSlice = combinedHash.substring(0, 8);
-  const numericValue = parseInt(hashSlice, 16);
-  const winnerIndex = numericValue % ticketCount;
+  // Use all 256 bits. The deterministic modulo is transparent and gives
+  // each issued ticket one position in the draw pool.
+  const winnerIndex = Number(BigInt(`0x${combinedHash}`) % BigInt(ticketCount));
 
   return { winnerIndex, combinedHash };
 }

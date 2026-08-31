@@ -27,12 +27,13 @@ export async function processImage(
 ): Promise<ProcessedImage> {
   const { maxWidth = 1200, maxHeight = 1200, quality = 80 } = options;
 
-  const processed = sharp(input)
+  const processed = sharp(input, { failOn: 'error', limitInputPixels: 40_000_000 })
+    .rotate()
     .resize(maxWidth, maxHeight, {
       fit: 'inside',
       withoutEnlargement: true,
     })
-    .webp({ quality });
+    .webp({ quality, effort: 5, smartSubsample: true });
 
   const buffer = await processed.toBuffer();
   const metadata = await sharp(buffer).metadata();
@@ -51,9 +52,9 @@ export async function processImage(
  */
 export async function processPrizeImage(input: Buffer | Uint8Array): Promise<ProcessedImage> {
   return processImage(input, {
-    maxWidth: 800,
-    maxHeight: 800,
-    quality: 85,
+    maxWidth: 1200,
+    maxHeight: 900,
+    quality: 82,
   });
 }
 

@@ -20,6 +20,7 @@
     raffleTitle: string;
     ticketCount: number;
     ticketNumbers: number[];
+    ticketCodes: string[];
     amount: number;
     gateway: 'chapa' | 'telebirr' | 'manual';
     createdAt: string;
@@ -128,8 +129,8 @@
         <div class="px-5 py-4">
           <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">{payment.raffleTitle}</p>
           <div class="mt-3 flex flex-wrap gap-2">
-            {#each payment.ticketNumbers as number (number)}
-              <span class="ticket-number flex h-9 items-center gap-1.5 rounded-xl border border-primary/20 bg-action-bg px-3 font-mono text-xs font-extrabold text-primary-dark"><Ticket size={13} /> #{String(number).padStart(4, '0')}</span>
+            {#each payment.ticketCodes as code (code)}
+              <span class="ticket-number flex h-9 items-center gap-1.5 rounded-xl border border-primary/20 bg-action-bg px-3 font-mono text-[11px] font-extrabold text-primary-dark"><Ticket size={13} /> {code}</span>
             {/each}
           </div>
         </div>

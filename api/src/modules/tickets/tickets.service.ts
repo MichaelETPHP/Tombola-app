@@ -29,6 +29,7 @@ export async function purchaseTickets(
     if (reservation.reason === 'not_found') throw new AppError(404, 'raffle.notFound');
     if (reservation.reason === 'closed') throw new AppError(409, 'This raffle is no longer accepting ticket purchases');
     if (reservation.reason === 'raffle_limit') throw new AppError(409, `Only ${reservation.available ?? 0} tickets remain available`);
+    if (reservation.reason === 'active_raffle_limit') throw new AppError(409, 'You can participate in up to 3 active raffles at a time');
     throw new AppError(409, `You can reserve only ${reservation.available ?? 0} more tickets for this raffle`);
   }
   const { payment, raffle } = reservation;
@@ -85,6 +86,7 @@ export async function getUserTickets(userId: string) {
     id: t.id,
     raffleId: t.raffleId,
     ticketNumber: t.ticketNumber,
+    ticketCode: t.ticketCode,
     createdAt: t.purchasedAt,
   }));
 }

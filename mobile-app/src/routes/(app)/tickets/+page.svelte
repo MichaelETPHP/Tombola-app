@@ -11,6 +11,7 @@
     id: string;
     raffleId: string;
     ticketNumber: number;
+    ticketCode?: string;
     createdAt: string;
   }
 
@@ -70,7 +71,7 @@
             href="/raffles/{ticket.raffleId}"
             class="tappable flex items-center justify-between rounded-button bg-card px-4 py-3 text-inherit no-underline shadow-card-light"
           >
-            <span class="font-bold text-primary-dark">#{ticket.ticketNumber}</span>
+            <span class="font-mono text-xs font-extrabold text-primary-dark">{ticket.ticketCode ?? `#${ticket.ticketNumber}`}</span>
             <span class="text-xs text-muted">{new Date(ticket.createdAt).toLocaleDateString()}</span>
           </a>
         {/each}

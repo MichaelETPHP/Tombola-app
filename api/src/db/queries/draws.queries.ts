@@ -18,6 +18,9 @@ export interface DbDrawTrigger {
   expiresAt: Date;
   clickedAt: Date | null;
   clickedIp: string | null;
+  tokenIsHashed: boolean;
+  generatedBy: string | null;
+  generationReason: string | null;
 }
 
 /**
@@ -48,13 +51,18 @@ export async function createDrawTrigger(data: {
   attemptNumber: number;
   linkToken: string;
   expiresAt: Date;
+  tokenIsHashed?: boolean;
+  generatedBy?: string | null;
+  generationReason?: string | null;
 }): Promise<DbDrawTrigger> {
   const rows = await sql<DbDrawTrigger[]>`
     INSERT INTO draw_triggers (
-      raffle_id, selected_user_id, attempt_number, link_token, status, expires_at
+      raffle_id, selected_user_id, attempt_number, link_token, status, expires_at,
+      token_is_hashed, generated_by, generation_reason
     ) VALUES (
       ${data.raffleId}, ${data.selectedUserId}, ${data.attemptNumber},
-      ${data.linkToken}, 'pending', ${data.expiresAt}
+      ${data.linkToken}, 'pending', ${data.expiresAt}, ${data.tokenIsHashed ?? false},
+      ${data.generatedBy ?? null}, ${data.generationReason ?? null}
     )
     RETURNING *
   `;
@@ -65,8 +73,14 @@ export async function createDrawTrigger(data: {
  * Find a trigger by its link token (the trigger-link landing page).
  */
 export async function findDrawTriggerByToken(token: string): Promise<DbDrawTrigger | null> {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(token));
+  const tokenHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
   const rows = await sql<DbDrawTrigger[]>`
-    SELECT * FROM draw_triggers WHERE link_token = ${token} LIMIT 1
+    SELECT * FROM draw_triggers
+    WHERE (token_is_hashed = true AND link_token = ${tokenHash})
+       OR (token_is_hashed = false AND link_token = ${token})
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }

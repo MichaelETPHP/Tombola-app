@@ -22,6 +22,7 @@
     amount: number | string;
     ticketCount: number;
     ticketNumbers: number[];
+    ticketCodes: string[];
     status: 'pending' | 'completed' | 'failed' | 'refunded';
     gateway: string;
     createdAt: string;
@@ -224,11 +225,11 @@
                 <span>{new Date(payment.createdAt).toLocaleDateString()}</span>
                 <span class="font-semibold text-ink">{formatEtb(payment.amount)} ETB</span>
               </div>
-              {#if payment.ticketNumbers.length > 0}
+              {#if payment.ticketCodes.length > 0}
                 <div class="flex flex-wrap gap-1.5">
-                  {#each payment.ticketNumbers as num (num)}
-                    <span class="rounded-full bg-bg-start px-2 py-0.5 text-[11px] font-semibold text-primary-dark">
-                      #{num}
+                  {#each payment.ticketCodes as code (code)}
+                    <span class="rounded-full bg-bg-start px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-dark">
+                      {code}
                     </span>
                   {/each}
                 </div>

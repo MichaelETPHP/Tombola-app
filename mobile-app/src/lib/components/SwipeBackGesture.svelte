@@ -26,9 +26,17 @@
   let wrapperEl: HTMLDivElement;
 
   $: isRootTab = ROOT_TABS.includes($page.url.pathname);
+  // Standalone full-screen flows (mock checkout, the live draw) live
+  // outside the (app)/(auth) route groups on purpose — no BottomNav, a
+  // custom immersive layout, and for checkout specifically, an accidental
+  // edge-swipe cancelling a payment mid-flow is worse than just not
+  // having the gesture there. Scoped by route group rather than a
+  // one-off path list, so any future standalone page is excluded by
+  // default without needing to remember to add it here.
+  $: inGestureScope = $page.route.id?.startsWith('/(app)') || $page.route.id?.startsWith('/(auth)');
 
   function handleTouchStart(e: TouchEvent) {
-    if (isRootTab) return;
+    if (isRootTab || !inGestureScope) return;
     if ((e.target as Element)?.closest?.('[data-swipe-region]')) return;
     const touch = e.touches[0];
     if (touch.clientX > EDGE_ZONE_PX) return;

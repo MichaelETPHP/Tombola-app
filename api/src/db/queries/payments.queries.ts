@@ -42,7 +42,7 @@ export async function createPayment(data: {
 
 export type PaymentReservationResult =
   | { ok: true; payment: DbPayment; raffle: DbRaffle }
-  | { ok: false; reason: 'not_found' | 'closed' | 'raffle_limit' | 'user_limit'; available?: number };
+  | { ok: false; reason: 'not_found' | 'closed' | 'raffle_limit' | 'user_limit' | 'active_raffle_limit'; available?: number };
 
 /**
  * Atomically reserves checkout capacity for 15 minutes. The raffle row lock
@@ -57,6 +57,7 @@ export async function reservePayment(data: {
   ticketCount: number;
 }): Promise<PaymentReservationResult> {
   return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${data.userId}`}))`;
     await tx`
       UPDATE payments SET status = 'failed', updated_at = NOW()
       WHERE status = 'pending' AND created_at < NOW() - INTERVAL '15 minutes'
@@ -69,6 +70,28 @@ export async function reservePayment(data: {
     if (!raffle) return { ok: false as const, reason: 'not_found' as const };
     if (raffle.status !== 'open' || raffle.deadlineAt <= new Date()) {
       return { ok: false as const, reason: 'closed' as const };
+    }
+
+    const [participation] = await tx<{ alreadyJoined: boolean; activeCount: number }[]>`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM tickets WHERE user_id = ${data.userId} AND raffle_id = ${data.raffleId}
+          UNION ALL
+          SELECT 1 FROM payments WHERE user_id = ${data.userId} AND raffle_id = ${data.raffleId}
+            AND status = 'pending' AND created_at >= NOW() - INTERVAL '15 minutes'
+        ) AS already_joined,
+        (SELECT COUNT(DISTINCT active.raffle_id)::int FROM (
+          SELECT t.raffle_id FROM tickets t JOIN raffles ar ON ar.id = t.raffle_id
+          WHERE t.user_id = ${data.userId} AND ar.status IN ('open', 'locked', 'awaiting_trigger', 'drawing')
+          UNION
+          SELECT p.raffle_id FROM payments p JOIN raffles ar ON ar.id = p.raffle_id
+          WHERE p.user_id = ${data.userId} AND p.status = 'pending'
+            AND p.created_at >= NOW() - INTERVAL '15 minutes'
+            AND ar.status IN ('open', 'locked', 'awaiting_trigger', 'drawing')
+        ) active) AS active_count
+    `;
+    if (!participation.alreadyJoined && participation.activeCount >= 3) {
+      return { ok: false as const, reason: 'active_raffle_limit' as const };
     }
 
     const [reserved] = await tx<{ raffleReserved: number; userReserved: number; userOwned: number }[]>`
@@ -146,6 +169,7 @@ export async function findPaymentById(id: string): Promise<DbPayment | null> {
 
 export interface DbPaymentReceipt extends DbPayment {
   raffleTitle: string;
+  raffleCode: string;
   ticketNumbers: number[];
 }
 
@@ -155,6 +179,7 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
     SELECT
       p.*,
       r.title AS raffle_title,
+      r.public_code AS raffle_code,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number)
           FILTER (WHERE t.ticket_number IS NOT NULL),
@@ -190,6 +215,7 @@ export interface DbPaymentWithDetails {
   id: string;
   raffleId: string;
   raffleTitle: string;
+  raffleCode: string;
   amount: number;
   ticketCount: number;
   /** The actual ticket numbers issued for this payment — empty until the webhook lands. */
@@ -215,6 +241,7 @@ export async function listUserPayments(
       p.id,
       p.raffle_id,
       r.title AS raffle_title,
+      r.public_code AS raffle_code,
       p.amount,
       p.ticket_count,
       p.status,

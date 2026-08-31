@@ -9,6 +9,7 @@ import {
 import { verifyChapaWebhookSignature } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { logger } from '../../lib/logger.js';
+import { env } from '../../config/env.js';
 import type { AppEnv } from '../../types/hono.js';
 
 export const paymentsRoutes = new Hono<AppEnv>();
@@ -55,7 +56,12 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
       logger.warn('Invalid Chapa webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
     }
-  } else if (process.env.NODE_ENV === 'production') {
+  } else if (env.NODE_ENV === 'production' && !env.MOCK_PAYMENTS) {
+    // In mock mode this call comes from the mock-checkout page's own
+    // client-side JS (see mobile-app/src/routes/mock-checkout), which has
+    // no real Chapa signature to send — that's expected, not an attack.
+    // Enforcing a signature here anyway is exactly what was silently
+    // breaking every mock payment once deployed with NODE_ENV=production.
     logger.warn('Missing Chapa webhook signature in production');
     return c.json({ error: 'Missing signature' }, 401);
   }

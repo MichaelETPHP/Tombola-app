@@ -8,6 +8,7 @@ import {
   type DbRaffle,
 } from '../../db/queries/raffles.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+import { commitServerSeed, generateServerSeed } from '../../lib/provably-fair.js';
 import type { CreateRaffleInput, ListRafflesInput, UpdateRaffleInput, UpdateRaffleStatusInput } from './raffles.schema.js';
 
 /**
@@ -20,6 +21,11 @@ function toApiRaffle(raffle: DbRaffle) {
     title: raffle.title,
     description: raffle.description,
     prizeName: raffle.prizeName,
+    categoryCode: raffle.categoryCode,
+    raffleNumber: raffle.raffleNumber,
+    publicCode: raffle.publicCode,
+    drawCommitment: raffle.drawServerSeedHash,
+    scheduledDrawAt: raffle.scheduledDrawAt,
     prizeValue: raffle.prizeValue,
     prizeImageUrl: raffle.prizeImageUrl,
     ticketPrice: raffle.ticketPrice,
@@ -49,7 +55,9 @@ export async function createRaffle(data: CreateRaffleInput, adminId: string) {
   if (data.status === 'open' && data.opensAt && data.opensAt > new Date()) {
     throw new AppError(400, 'A future raffle must remain in draft status');
   }
-  const raffle = await dbCreateRaffle({ ...data, createdBy: adminId });
+  const drawServerSeed = generateServerSeed();
+  const drawServerSeedHash = await commitServerSeed(drawServerSeed);
+  const raffle = await dbCreateRaffle({ ...data, createdBy: adminId, drawServerSeed, drawServerSeedHash });
   return toApiRaffle(raffle);
 }
 
@@ -89,12 +97,12 @@ export async function changeRaffleStatus(id: string, data: UpdateRaffleStatusInp
   return toApiRaffle(updated);
 }
 
-export async function changeRaffleDeadline(id: string, deadlineAt: Date, reason: string) {
+export async function changeRaffleDeadline(id: string, deadlineAt: Date, reason: string, adminId: string) {
   const current = await findRaffleById(id);
   if (!current) throw new AppError(404, 'raffle.notFound');
   if (!['draft', 'open'].includes(current.status)) throw new AppError(409, 'raffle.invalidTransition');
   if (deadlineAt <= current.deadlineAt) throw new AppError(400, 'The new deadline must extend the current deadline');
-  const updated = await extendRaffleDeadline(id, deadlineAt, reason);
+  const updated = await extendRaffleDeadline(id, deadlineAt, reason, adminId);
   if (!updated) throw new AppError(404, 'raffle.notFound');
   return toApiRaffle(updated);
 }

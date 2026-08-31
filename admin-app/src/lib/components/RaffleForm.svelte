@@ -10,6 +10,7 @@
   let title = '';
   let description = '';
   let prizeName = '';
+  let categoryCode = '';
   let prizeValue = '';
   let ticketPrice = '';
   let ticketCap = '';
@@ -24,6 +25,7 @@
       title,
       description: description || undefined,
       prizeName,
+      categoryCode,
       prizeValue: Number(prizeValue),
       ticketPrice: Number(ticketPrice),
       ticketCap: Number(ticketCap),
@@ -52,6 +54,7 @@
           <label class="flex flex-col gap-2"><span class={labelClass}>Prize name</span><input id="prizeName" type="text" bind:value={prizeName} class={inputClass} placeholder="iPhone 16 Pro Max 256GB" />{#if fieldErrors.prizeName}<span class="text-xs text-danger">{fieldErrors.prizeName}</span>{/if}</label>
           <label class="flex flex-col gap-2"><span class={labelClass}>Retail value (ETB)</span><input id="prizeValue" type="number" min="0" step="0.01" bind:value={prizeValue} class={inputClass} placeholder="120000" />{#if fieldErrors.prizeValue}<span class="text-xs text-danger">{fieldErrors.prizeValue}</span>{/if}</label>
         </div>
+        <label class="flex max-w-[220px] flex-col gap-2"><span class={labelClass}>Ticket code prefix</span><input id="categoryCode" type="text" maxlength="3" bind:value={categoryCode} on:input={() => categoryCode = categoryCode.replace(/[^a-z]/gi, '').toUpperCase()} class="{inputClass} font-mono uppercase tracking-[0.16em]" placeholder="LAP" />{#if fieldErrors.categoryCode}<span class="text-xs text-danger">{fieldErrors.categoryCode}</span>{/if}<span class="text-[11px] leading-4 text-faint">Three letters. Tickets will look like LAP-001-00021.</span></label>
         <label class="flex flex-col gap-2"><span class={labelClass}>Description <span class="font-medium text-faint">(optional)</span></span><textarea id="description" rows="4" bind:value={description} class="w-full resize-none rounded-button border border-border bg-bg/55 px-3.5 py-3 text-sm leading-6 text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" placeholder="Add the key product details and what makes this prize exciting."></textarea></label>
         <div class="flex items-start gap-3 rounded-button border border-dashed border-border bg-bg/45 p-4"><ImagePlus size={18} class="mt-0.5 shrink-0 text-faint" /><div><p class="text-xs font-bold text-ink">Prize photo upload is coming next</p><p class="mt-1 text-xs leading-5 text-muted">The current API has no raffle image-upload endpoint. Image controls will be enabled when that endpoint is connected.</p></div></div>
       </div>

@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { createRaffleSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema } from './raffles.schema.js';
+import { createRaffleSchema, generateDrawTriggerSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema } from './raffles.schema.js';
 import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline } from './raffles.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { processPrizeImage } from '../../lib/image.js';
-import { saveUploadedImage } from '../../lib/uploads.js';
+import { deleteRaffleImage, raffleImagePathFromPublicUrl, uploadRaffleImage } from '../../lib/supabase-storage.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
+import { generateTriggerLink, getRaffleEngine } from '../draws/draws.service.js';
 
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
@@ -57,6 +58,16 @@ adminRafflesRoutes.get('/:id', async (c) => {
   return c.json({ raffle });
 });
 
+adminRafflesRoutes.get('/:id/engine', async (c) => {
+  return c.json({ engine: await getRaffleEngine(c.req.param('id')) });
+});
+
+adminRafflesRoutes.post('/:id/draw-trigger', requireRole('owner'), async (c) => {
+  const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
+  const trigger = await generateTriggerLink(c.req.param('id'), c.get('admin').id, data.reason);
+  return c.json({ trigger }, 201);
+});
+
 adminRafflesRoutes.post('/', async (c) => {
   const body = await c.req.json();
   const data = createRaffleSchema.parse(body);
@@ -89,6 +100,7 @@ adminRafflesRoutes.post(
   }),
   async (c) => {
     const raffleId = c.req.param('id');
+    const current = await getRaffle(raffleId);
     const body = await c.req.parseBody();
     const file = body.image;
     if (!(file instanceof File)) throw new AppError(400, 'raffle.imageRequired');
@@ -100,9 +112,25 @@ adminRafflesRoutes.post(
       throw new AppError(400, 'raffle.invalidImage');
     }
 
-    const prizeImageUrl = await saveUploadedImage(processed, 'raffles');
-    const raffle = await updateRaffle(raffleId, { prizeImageUrl });
-    return c.json({ raffle }, 201);
+    let stored;
+    try {
+      stored = await uploadRaffleImage(processed);
+    } catch {
+      throw new AppError(503, 'Raffle image storage is unavailable or not configured');
+    }
+
+    try {
+      const raffle = await updateRaffle(raffleId, { prizeImageUrl: stored.publicUrl });
+      const previousPath = raffleImagePathFromPublicUrl(current.prizeImageUrl);
+      if (previousPath) deleteRaffleImage(previousPath).catch(() => undefined);
+      return c.json({
+        raffle,
+        image: { format: processed.format, width: processed.width, height: processed.height, bytes: processed.size },
+      }, 201);
+    } catch (error) {
+      await deleteRaffleImage(stored.path).catch(() => undefined);
+      throw error;
+    }
   }
 );
 
@@ -116,6 +144,6 @@ adminRafflesRoutes.patch('/:id/status', requireRole('owner'), async (c) => {
 /** Extend an active raffle deadline and preserve the reason in extension history. */
 adminRafflesRoutes.patch('/:id/deadline', requireRole('owner'), async (c) => {
   const data = updateRaffleDeadlineSchema.parse(await c.req.json());
-  const raffle = await changeRaffleDeadline(c.req.param('id'), data.deadlineAt, data.reason);
+  const raffle = await changeRaffleDeadline(c.req.param('id'), data.deadlineAt, data.reason, c.get('admin').id);
   return c.json({ raffle, message: c.get('t')('raffle.updated') });
 });
