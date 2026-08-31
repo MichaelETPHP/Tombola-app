@@ -1,10 +1,20 @@
 import { listUsers, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
 import { listRaffles } from '../../db/queries/raffles.queries.js';
 import { findExpiringPayouts } from '../../db/queries/payouts.queries.js';
-import { findAdminByPhone, findAdminById } from '../../db/queries/admin.queries.js';
+import {
+  findAdminByPhone,
+  findAdminById,
+  listAdmins as dbListAdmins,
+  countAdminsByRole,
+  createAdmin as dbCreateAdmin,
+  updateAdmin as dbUpdateAdmin,
+  deleteAdmin as dbDeleteAdmin,
+  type DbAdminUser,
+} from '../../db/queries/admin.queries.js';
 import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 
@@ -143,6 +153,23 @@ export async function adminSuspendUser(userId: string, suspended: boolean) {
 }
 
 /**
+ * Shape the API exposes for an admin — email stays synthesized (login is
+ * by phone, there's no real email column), but fullName is now real,
+ * stored data. The role-based generic string is only a fallback for
+ * admins created before this existed and never renamed themselves.
+ */
+function toPublicAdmin(admin: DbAdminUser) {
+  return {
+    id: admin.id,
+    phone: admin.phoneNumber,
+    email: `${admin.phoneNumber.replace('+', '')}@admin.tombola.local`,
+    fullName: admin.fullName ?? (admin.role === 'owner' ? 'Platform Owner' : 'Platform Moderator'),
+    role: admin.role,
+    createdAt: admin.createdAt,
+  };
+}
+
+/**
  * Authenticate admin with phone/email and password.
  */
 export async function adminLogin(phone?: string, password?: string) {
@@ -177,13 +204,94 @@ export async function adminLogin(phone?: string, password?: string) {
   return {
     accessToken,
     refreshToken,
-    admin: {
-      id: admin.id,
-      email: `${admin.phoneNumber.replace('+', '')}@admin.tombola.local`,
-      fullName: admin.role === 'owner' ? 'Platform Owner' : 'Platform Moderator',
-      role: admin.role,
-    },
+    admin: toPublicAdmin(admin),
   };
+}
+
+/**
+ * Self-service profile edit — name always allowed; changing the password
+ * requires confirming the current one even though the request is already
+ * authenticated (an unlocked/left-open session alone shouldn't be enough
+ * to lock the real owner out of their own account).
+ */
+export async function updateOwnAdminProfile(adminId: string, data: UpdateOwnProfileInput) {
+  const admin = await findAdminById(adminId);
+  if (!admin) throw new AppError(404, 'Admin not found');
+
+  const updates: { fullName?: string; passwordHash?: string } = {};
+  if (data.fullName !== undefined) updates.fullName = data.fullName;
+
+  if (data.newPassword) {
+    const isMatch = await Bun.password.verify(data.currentPassword ?? '', admin.passwordHash).catch(() => false);
+    if (!isMatch) throw new AppError(401, 'auth.invalidCredentials');
+    updates.passwordHash = await Bun.password.hash(data.newPassword, { algorithm: 'bcrypt', cost: 10 });
+  }
+
+  const updated = await dbUpdateAdmin(adminId, updates);
+  if (!updated) throw new AppError(404, 'Admin not found');
+  return toPublicAdmin(updated);
+}
+
+/** Owner-only: every admin account, oldest first. */
+export async function listAdminUsers() {
+  const admins = await dbListAdmins();
+  return admins.map(toPublicAdmin);
+}
+
+/** Owner-only: create a new admin account — the only way to add one until now was seeding the DB directly. */
+export async function createAdminUser(data: CreateAdminInput) {
+  const existing = await findAdminByPhone(data.phone);
+  if (existing) throw new AppError(409, 'admin.phoneTaken');
+
+  const passwordHash = await Bun.password.hash(data.password, { algorithm: 'bcrypt', cost: 10 });
+  const admin = await dbCreateAdmin({
+    phoneNumber: data.phone,
+    passwordHash,
+    fullName: data.fullName,
+    role: data.role,
+  });
+  return toPublicAdmin(admin);
+}
+
+/**
+ * Owner-only: edit another admin's name/role. Refuses to demote the last
+ * remaining owner — that would lock every owner-only action (creating
+ * admins, deleting users, viewing integration credentials) out entirely,
+ * with no account left able to undo it.
+ */
+export async function updateAdminUser(id: string, data: UpdateAdminInput) {
+  const admin = await findAdminById(id);
+  if (!admin) throw new AppError(404, 'Admin not found');
+
+  if (data.role === 'moderator' && admin.role === 'owner') {
+    const ownerCount = await countAdminsByRole('owner');
+    if (ownerCount <= 1) throw new AppError(409, 'admin.lastOwnerDemote');
+  }
+
+  const updated = await dbUpdateAdmin(id, data);
+  if (!updated) throw new AppError(404, 'Admin not found');
+  return toPublicAdmin(updated);
+}
+
+/**
+ * Owner-only: remove an admin account. Refuses self-deletion (use another
+ * owner's account for that) and refuses removing the last owner, for the
+ * same lockout reason as the demotion guard above.
+ */
+export async function deleteAdminUser(id: string, requestingAdminId: string) {
+  if (id === requestingAdminId) throw new AppError(400, 'admin.cannotDeleteSelf');
+
+  const admin = await findAdminById(id);
+  if (!admin) throw new AppError(404, 'Admin not found');
+
+  if (admin.role === 'owner') {
+    const ownerCount = await countAdminsByRole('owner');
+    if (ownerCount <= 1) throw new AppError(409, 'admin.lastOwnerDelete');
+  }
+
+  const deleted = await dbDeleteAdmin(id);
+  if (!deleted) throw new AppError(404, 'Admin not found');
+  return { id: deleted.id };
 }
 /**
  * Hard-delete a single user (admin only).
@@ -215,11 +323,6 @@ export async function getAdminProfile(adminId: string) {
   if (!admin) {
     throw new AppError(404, 'Admin not found');
   }
-  return {
-    id: admin.id,
-    email: `${admin.phoneNumber.replace('+', '')}@admin.tombola.local`,
-    fullName: admin.role === 'owner' ? 'Platform Owner' : 'Platform Moderator',
-    role: admin.role,
-  };
+  return toPublicAdmin(admin);
 }
 

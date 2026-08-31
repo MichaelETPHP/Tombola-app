@@ -27,6 +27,7 @@ function toApiRaffle(raffle: DbRaffle) {
     ticketsSold: raffle.ticketsSold,
     maxTicketsPerUser: raffle.maxTicketsPerUser,
     status: raffle.status,
+    telegramGroupLink: raffle.telegramGroupLink,
     currentDeadline: raffle.deadlineAt,
     opensAt: raffle.opensAt,
     deadlineDays: raffle.deadlineDays,

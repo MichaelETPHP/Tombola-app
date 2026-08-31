@@ -13,6 +13,13 @@ export const createRaffleSchema = z.object({
   opensAt: z.coerce.date().optional(),
   deadlineAt: z.coerce.date().optional(),
   status: z.enum(['draft', 'open']).default('draft'),
+  // Group is created manually offline (see docs) — this just stores the
+  // invite link the admin pastes in, so the app can hand it to buyers.
+  telegramGroupLink: z
+    .string()
+    .trim()
+    .regex(/^https:\/\/t\.me\//, 'Must be a Telegram invite link (https://t.me/...)')
+    .optional(),
 }).superRefine((data, ctx) => {
   if (data.opensAt && data.deadlineAt && data.deadlineAt <= data.opensAt) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['deadlineAt'], message: 'Deadline must be after opening time' });
@@ -29,6 +36,12 @@ export const updateRaffleSchema = z.object({
   ticketCap: z.number().int().min(10).optional(),
   maxTicketsPerUser: z.number().int().min(1).max(5).optional(),
   opensAt: z.coerce.date().optional(),
+  telegramGroupLink: z
+    .string()
+    .trim()
+    .regex(/^https:\/\/t\.me\//, 'Must be a Telegram invite link (https://t.me/...)')
+    .nullable()
+    .optional(),
 }).refine((data) => Object.keys(data).length > 0, 'At least one field is required');
 
 export const updateRaffleStatusSchema = z.object({

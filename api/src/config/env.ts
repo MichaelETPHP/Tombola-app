@@ -55,6 +55,10 @@ const envSchema = z.object({
   // after checkout, separate from CALLBACK_URL/webhook which is server-to-server.
   MOBILE_APP_URL: emptyToUndefined(z.string().url().default('http://localhost:4345')),
 
+  // This API's own public origin — used to build absolute URLs it hands
+  // back to callers (Chapa's webhook callback_url, uploaded image URLs).
+  API_BASE_URL: emptyToUndefined(z.string().url().default('http://localhost:3435')),
+
   // Skip the real Chapa API and send checkout through a fake payment page
   // in the mobile app instead — for local testing without live merchant
   // credentials. That page still calls the real webhook, so the rest of

@@ -11,6 +11,26 @@
   let loading = false;
   let showPassword = false;
 
+  // A 429 (too many attempts) used to get shown as "credentials could not
+  // be verified" like every other failure — genuinely confusing when the
+  // password was actually right and you just tried a few times in a row.
+  function loginErrorMessage(err: unknown): string {
+    if (!(err instanceof ApiError)) return 'Unable to reach Tombola. Check your connection and try again.';
+    if (err.status === 429) {
+      try {
+        const body = JSON.parse(err.body) as { retryAfter?: number };
+        if (body.retryAfter) {
+          const minutes = Math.ceil(body.retryAfter / 60);
+          return `Too many attempts — try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+        }
+      } catch {
+        // Fall through to the generic rate-limit message below.
+      }
+      return 'Too many attempts — wait a moment and try again.';
+    }
+    return 'Those credentials could not be verified.';
+  }
+
   async function submit() {
     error = '';
     const parsed = adminLoginSchema.safeParse({ phone, password });
@@ -25,7 +45,7 @@
       setAuth(result.accessToken, result.admin);
       goto('/', { replaceState: true });
     } catch (err) {
-      error = err instanceof ApiError ? 'Those credentials could not be verified.' : 'Unable to reach Tombola. Check your connection and try again.';
+      error = loginErrorMessage(err);
     } finally {
       loading = false;
     }

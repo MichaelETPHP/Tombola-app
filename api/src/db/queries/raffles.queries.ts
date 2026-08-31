@@ -24,6 +24,8 @@ export interface DbRaffle {
   opensAt: Date;
   deadlineAt: Date;
   status: RaffleStatus;
+  /** Invite link for a Telegram group created manually, offline, for this raffle. Optional. */
+  telegramGroupLink: string | null;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -53,6 +55,7 @@ export async function createRaffle(data: {
   opensAt?: Date;
   deadlineAt?: Date;
   status?: 'draft' | 'open';
+  telegramGroupLink?: string;
 }): Promise<DbRaffle> {
   const opensAt = data.opensAt ?? new Date();
   const deadline = data.deadlineAt ?? new Date(opensAt);
@@ -62,12 +65,13 @@ export async function createRaffle(data: {
     INSERT INTO raffles (
       title, description, prize_name, prize_value, prize_image_url,
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
-      status, opens_at, deadline_at, created_by
+      status, opens_at, deadline_at, created_by, telegram_group_link
     ) VALUES (
       ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
-      ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy}
+      ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
+      ${data.telegramGroupLink ?? null}
     )
     RETURNING *, 0 AS tickets_sold
   `;
@@ -76,7 +80,7 @@ export async function createRaffle(data: {
 
 export async function updateRaffle(
   id: string,
-  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt'>>
+  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt' | 'telegramGroupLink'>>
 ): Promise<DbRaffle | null> {
   const keys = Object.keys(updates) as (keyof typeof updates)[];
   if (keys.length === 0) return findRaffleById(id);

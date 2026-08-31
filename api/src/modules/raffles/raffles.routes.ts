@@ -1,9 +1,15 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { createRaffleSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema } from './raffles.schema.js';
 import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline } from './raffles.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
+import { processPrizeImage } from '../../lib/image.js';
+import { saveUploadedImage } from '../../lib/uploads.js';
+import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
+
+const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
 export const rafflesRoutes = new Hono<AppEnv>();
 
@@ -65,6 +71,40 @@ adminRafflesRoutes.patch('/:id', async (c) => {
   const raffle = await updateRaffle(c.req.param('id'), data);
   return c.json({ raffle });
 });
+
+/**
+ * POST /admin/raffles/:id/image
+ * Multipart upload of the prize photo — compressed and resized via sharp
+ * (processPrizeImage: max 800x800, WebP, quality 85) before it's ever
+ * written to disk, so the app never has to load a multi-megabyte photo
+ * straight from someone's camera. Attached to an existing raffle rather
+ * than at creation time — there's no id to attach to before the raffle
+ * itself exists.
+ */
+adminRafflesRoutes.post(
+  '/:id/image',
+  bodyLimit({
+    maxSize: MAX_IMAGE_UPLOAD_BYTES,
+    onError: (c) => c.json({ error: c.get('t')('raffle.imageTooLarge'), code: 'RAFFLE_IMAGETOOLARGE' }, 413),
+  }),
+  async (c) => {
+    const raffleId = c.req.param('id');
+    const body = await c.req.parseBody();
+    const file = body.image;
+    if (!(file instanceof File)) throw new AppError(400, 'raffle.imageRequired');
+
+    let processed;
+    try {
+      processed = await processPrizeImage(Buffer.from(await file.arrayBuffer()));
+    } catch {
+      throw new AppError(400, 'raffle.invalidImage');
+    }
+
+    const prizeImageUrl = await saveUploadedImage(processed, 'raffles');
+    const raffle = await updateRaffle(raffleId, { prizeImageUrl });
+    return c.json({ raffle }, 201);
+  }
+);
 
 /** Change lifecycle state. Restricted to the Platform Owner. */
 adminRafflesRoutes.patch('/:id/status', requireRole('owner'), async (c) => {

@@ -2,9 +2,11 @@ import { writable } from 'svelte/store';
 
 export interface AdminUser {
   id: string;
+  phone?: string;
   email: string;
   fullName: string | null;
   role: 'owner' | 'moderator';
+  createdAt?: string;
 }
 
 interface AuthState {
@@ -47,4 +49,9 @@ export function clearAuth(): void {
 
 export function setAuthLoading(loading: boolean): void {
   auth.update((state) => ({ ...state, isLoading: loading }));
+}
+
+/** Patch the signed-in admin's own profile in the store after a self-edit — no re-login needed. */
+export function updateOwnAdminInStore(admin: AdminUser): void {
+  auth.update((state) => ({ ...state, admin }));
 }

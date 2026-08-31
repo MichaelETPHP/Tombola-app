@@ -10,6 +10,7 @@
     Menu,
     PackageCheck,
     Plug,
+    Settings,
     ShieldCheck,
     Ticket,
     Users,
@@ -24,6 +25,7 @@
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
     // Owner-only, same gate as the API route it reads from.
     ...($auth.admin?.role === 'owner' ? [{ href: '/integrations', label: 'Integrations', icon: Plug }] : []),
+    { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
   let menuOpen = false;

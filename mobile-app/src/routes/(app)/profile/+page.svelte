@@ -9,7 +9,7 @@
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { User } from 'lucide-svelte';
+  import { User, MessageCircle, ChevronRight } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
 
@@ -178,6 +178,21 @@
 
       <Button variant="secondary" loading={saving} on:click={save}>Save changes</Button>
     </div>
+
+    <a
+      href="/rooms"
+      on:click={hapticLight}
+      class="tappable pressable flex items-center gap-3 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
+    >
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
+        <MessageCircle size={18} />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-ink">My Rooms</p>
+        <p class="text-xs text-muted">Chat with buyers in raffles you've bought tickets for</p>
+      </div>
+      <ChevronRight size={16} class="shrink-0 text-muted" />
+    </a>
 
     <section class="flex flex-col gap-3">
       <h2 class="font-display text-lg font-semibold text-ink">Payment history</h2>

@@ -23,9 +23,18 @@ services:
     restart: unless-stopped
     expose:
       - '3435'
+    volumes:
+      # Uploaded/compressed images (raffle prize photos) — the container
+      # filesystem itself is rebuilt from scratch on every deploy, same as
+      # every other image in this project, so this has to live in a named
+      # volume or every upload would vanish on the next `git push`.
+      - api_uploads:/app/uploads
     environment:
       NODE_ENV: production
       PORT: '3435'
+      # This service's own public URL — used to build absolute links back
+      # to itself (Chapa's webhook callback_url, uploaded image URLs).
+      API_BASE_URL: ${API_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
       DB_SCHEMA: ${DB_SCHEMA:-Tombola_DB}
       DB_SSL: ${DB_SSL:-false}
@@ -91,3 +100,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+volumes:
+  api_uploads:

@@ -47,6 +47,26 @@ export const raffleListResponseSchema = z.object({
   raffles: z.array(raffleSchema),
 });
 
+// ── Room Schemas ─────────────────────────────────────────
+// A room is just the chat attached to a raffle — membership is implicit
+// (holding a ticket), not a separate thing to fetch/join.
+
+export const roomMessageSchema = z.object({
+  id: z.string(),
+  senderType: z.enum(['user', 'admin']),
+  isMine: z.boolean(),
+  content: z.string(),
+  createdAt: z.string(),
+});
+
+export const roomSummarySchema = z.object({
+  raffleId: z.string(),
+  title: z.string(),
+  status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
+  lastMessageAt: z.string().nullable(),
+  lastMessagePreview: z.string().nullable(),
+});
+
 // ── Ticket Schemas ───────────────────────────────────────
 
 export const purchaseTicketsSchema = z.object({
@@ -61,3 +81,5 @@ export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 export type Raffle = z.infer<typeof raffleSchema>;
 export type PurchaseTicketsInput = z.infer<typeof purchaseTicketsSchema>;
+export type RoomMessage = z.infer<typeof roomMessageSchema>;
+export type RoomSummary = z.infer<typeof roomSummarySchema>;

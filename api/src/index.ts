@@ -11,6 +11,8 @@ import { paymentsRoutes } from './modules/payments/payments.routes.js';
 import { drawsRoutes } from './modules/draws/draws.routes.js';
 import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/rooms.routes.js';
+import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { closeDb } from './db/client.js';
@@ -127,6 +129,7 @@ app.get('/', (c) => c.json({
 // ─── Public Routes ────────────────────────────────────────────────
 
 app.route('/auth', authRoutes);
+app.route('/uploads', uploadsRoutes);
 app.route('/raffles', rafflesRoutes);
 app.route('/draws', drawsRoutes);
 app.route('/payments', paymentsRoutes);
@@ -136,12 +139,15 @@ app.route('/payments', paymentsRoutes);
 app.route('/users', usersRoutes);
 app.route('/raffles', ticketsRoutes);  // POST /raffles/:id/tickets
 app.route('/tickets', myTicketsRoutes);  // GET /tickets — separate mount, see tickets.routes.ts
+app.route('/raffles', roomsRoutes);  // GET/POST /raffles/:id/room/messages
+app.route('/rooms', myRoomsRoutes);  // GET /rooms — every raffle room the user has access to
 app.route('/payouts', payoutsRoutes);
 
 // ─── Admin Routes ─────────────────────────────────────────────────
 
 app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
+app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
 
 app.notFound((c) => c.json({

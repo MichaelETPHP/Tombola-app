@@ -15,6 +15,7 @@
   import { formatEtb } from '$lib/utils/currency.js';
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
   import { openExternal } from '$lib/native/browser.js';
+  import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { Minus, Plus, Phone, ChevronLeft, Check, X } from 'lucide-svelte';
 
@@ -22,14 +23,7 @@
 
   function goBack() {
     hapticLight();
-    // Prefer real back navigation (preserves scroll position on the list,
-    // filter state, etc.) — only fall back to Home if there's no history,
-    // e.g. this page was opened directly via a deep link.
-    if (window.history.length > 1) {
-      history.back();
-    } else {
-      goto('/home');
-    }
+    navigateBack();
   }
 
   let raffle: Raffle | null = null;

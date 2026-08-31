@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { CircleDollarSign, Gift, ImagePlus, Settings2 } from 'lucide-svelte';
+  import { CircleDollarSign, Gift, ImagePlus, Send, Settings2 } from 'lucide-svelte';
   import { createRaffleSchema, type CreateRaffleInput } from '../schemas/index.js';
 
   const dispatch = createEventDispatcher<{ submit: CreateRaffleInput }>();
@@ -15,6 +15,7 @@
   let ticketCap = '';
   let maxTicketsPerUser = '5';
   let deadlineDays = '2';
+  let telegramGroupLink = '';
   let fieldErrors: Record<string, string> = {};
 
   function handleSubmit() {
@@ -28,6 +29,7 @@
       ticketCap: Number(ticketCap),
       maxTicketsPerUser: Number(maxTicketsPerUser),
       deadlineDays: Number(deadlineDays),
+      telegramGroupLink: telegramGroupLink || undefined,
     });
     if (!parsed.success) {
       for (const issue of parsed.error.issues) fieldErrors[issue.path[0] as string] = issue.message;
@@ -71,6 +73,16 @@
         <label class="flex flex-col gap-2"><span class={labelClass}>Maximum per participant</span><input id="maxTicketsPerUser" type="number" min="1" max="5" step="1" bind:value={maxTicketsPerUser} class={inputClass} />{#if fieldErrors.maxTicketsPerUser}<span class="text-xs text-danger">{fieldErrors.maxTicketsPerUser}</span>{/if}<span class="text-[11px] leading-4 text-faint">Participants purchase at least 1 and never more than 5 tickets per raffle.</span></label>
         <label class="flex flex-col gap-2"><span class={labelClass}>Sales deadline (days)</span><input id="deadlineDays" type="number" min="1" max="90" step="1" bind:value={deadlineDays} class={inputClass} />{#if fieldErrors.deadlineDays}<span class="text-xs text-danger">{fieldErrors.deadlineDays}</span>{/if}</label>
       </div>
+    </section>
+
+    <section class="rounded-card border border-border bg-card p-5">
+      <div class="mb-5 flex items-center gap-2.5"><Send size={16} class="text-primary" /><h2 class="text-sm font-bold text-ink">Telegram group <span class="font-medium text-faint">(optional)</span></h2></div>
+      <label class="flex flex-col gap-2">
+        <span class={labelClass}>Invite link</span>
+        <input id="telegramGroupLink" type="url" bind:value={telegramGroupLink} class={inputClass} placeholder="https://t.me/+AbCdEfGhIjK" />
+        {#if fieldErrors.telegramGroupLink}<span class="text-xs text-danger">{fieldErrors.telegramGroupLink}</span>{/if}
+        <span class="text-[11px] leading-4 text-faint">Create the group in Telegram yourself first, then paste its invite link here — this is shared with ticket buyers, not auto-created.</span>
+      </label>
     </section>
 
     <section class="rounded-card bg-sidebar p-5 text-white">

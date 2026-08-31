@@ -2,11 +2,11 @@ import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { get } from 'svelte/store';
 import { page } from '$app/stores';
-import { goto } from '$app/navigation';
 import { showExitHint } from '../stores/backExit.store.js';
+import { navigateBack } from './navigateBack.js';
 
 /** The screens BottomNav links to — everything else is a "detail" screen reachable by going back. */
-const ROOT_TABS = ['/home', '/raffles', '/wins', '/profile'];
+export const ROOT_TABS = ['/home', '/raffles', '/wins', '/profile'];
 const EXIT_PRESS_WINDOW_MS = 2000;
 
 let lastBackPressAt = 0;
@@ -30,11 +30,7 @@ export function initBackButtonHandling(): void {
     const path = get(page).url.pathname;
 
     if (!ROOT_TABS.includes(path)) {
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        goto('/home');
-      }
+      navigateBack();
       return;
     }
 

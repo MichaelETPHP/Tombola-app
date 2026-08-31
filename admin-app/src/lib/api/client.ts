@@ -17,7 +17,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   const headers = new Headers(fetchOptions.headers);
 
-  if (!headers.has('Content-Type') && fetchOptions.body) {
+  // FormData bodies (file uploads) must NOT get a manual Content-Type —
+  // the browser sets one itself, including the multipart boundary, which
+  // is impossible to replicate by hand.
+  if (!headers.has('Content-Type') && fetchOptions.body && !(fetchOptions.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -128,5 +131,13 @@ export const api = {
       ...options,
       method: 'DELETE',
       body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  /** POST a FormData body (file uploads) — not JSON-stringified, unlike post(). */
+  upload: <T>(path: string, formData: FormData, options?: FetchOptions) =>
+    apiFetch<T>(path, {
+      ...options,
+      method: 'POST',
+      body: formData,
     }),
 };

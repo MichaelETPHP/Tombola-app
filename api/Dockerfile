@@ -17,6 +17,12 @@ RUN bun install --production --frozen-lockfile
 COPY api/tsconfig.json ./
 COPY api/src ./src
 
+# Pre-create the uploads mount point so it's owned by the app user before
+# the named volume (docker-compose.yml) mounts over it — a volume mounted
+# onto a path that doesn't exist yet in the image gets created as root,
+# which the non-root user below couldn't then write into.
+RUN mkdir -p uploads
+
 # Run as a non-root user rather than trust the base image's default —
 # created explicitly so this doesn't depend on oven/bun's own image
 # happening to ship one.

@@ -40,7 +40,7 @@ export async function purchaseTickets(
       currency: 'ETB',
       phone_number: userPhone,
       tx_ref: txRef,
-      callback_url: `${process.env.API_BASE_URL || 'http://localhost:3435'}/payments/webhook/chapa`,
+      callback_url: `${env.API_BASE_URL}/payments/webhook/chapa`,
       // Where Chapa sends the user's browser after they finish paying —
       // separate from callback_url, which is the server-to-server webhook
       // that actually issues the tickets (see payments.service.ts).

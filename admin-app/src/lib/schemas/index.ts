@@ -1,25 +1,47 @@
 import { z } from 'zod';
 
 // ── Auth Schemas ─────────────────────────────────────────
-// NOTE: POST /admin/auth/login does not exist on the API yet — there is no
-// admins table in the schema to authenticate against. This form and schema
-// are ready for it; wire it up once docs/schema.sql defines admin accounts.
+
+const adminPhoneField = z.string().trim().transform((value) => {
+  if (value.startsWith('+251')) return value;
+  if (value.startsWith('0')) return `+251${value.slice(1)}`;
+  if (value.startsWith('9')) return `+251${value}`;
+  return value;
+}).pipe(z.string().regex(/^\+251[0-9]{9}$/, 'Enter a valid Ethiopian phone number'));
 
 export const adminLoginSchema = z.object({
-  phone: z.string().trim().transform((value) => {
-    if (value.startsWith('+251')) return value;
-    if (value.startsWith('0')) return `+251${value.slice(1)}`;
-    if (value.startsWith('9')) return `+251${value}`;
-    return value;
-  }).pipe(z.string().regex(/^\+251[0-9]{9}$/, 'Enter a valid Ethiopian phone number')),
+  phone: adminPhoneField,
   password: z.string().min(8),
+});
+
+export const updateOwnProfileSchema = z.object({
+  fullName: z.string().trim().min(1).max(255).optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8).optional(),
+}).refine(
+  (data) => !data.newPassword || Boolean(data.currentPassword),
+  { message: 'Enter your current password to set a new one', path: ['currentPassword'] }
+);
+
+export const createAdminSchema = z.object({
+  phone: adminPhoneField,
+  password: z.string().min(8),
+  fullName: z.string().trim().min(1).max(255).optional(),
+  role: z.enum(['owner', 'moderator']).default('moderator'),
+});
+
+export const updateAdminSchema = z.object({
+  fullName: z.string().trim().min(1).max(255).optional(),
+  role: z.enum(['owner', 'moderator']).optional(),
 });
 
 export const adminSchema = z.object({
   id: z.string(),
+  phone: z.string().optional(),
   email: z.string().email(),
   fullName: z.string().nullable(),
   role: z.enum(['owner', 'moderator']),
+  createdAt: z.string().optional(),
 });
 
 export const adminAuthResponseSchema = z.object({
@@ -39,6 +61,11 @@ export const createRaffleSchema = z.object({
   ticketCap: z.number().int().positive().min(10),
   maxTicketsPerUser: z.number().int().min(1).max(5),
   deadlineDays: z.number().int().positive().min(1).max(90),
+  telegramGroupLink: z
+    .string()
+    .trim()
+    .regex(/^https:\/\/t\.me\//, 'Must be a Telegram invite link (https://t.me/...)')
+    .optional(),
 });
 
 export const raffleSchema = z.object({
@@ -53,6 +80,7 @@ export const raffleSchema = z.object({
   ticketsSold: z.number(),
   maxTicketsPerUser: z.number(),
   status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
+  telegramGroupLink: z.string().nullable().optional(),
   currentDeadline: z.string(),
   opensAt: z.string().optional(),
   deadlineDays: z.number().optional(),
@@ -94,6 +122,15 @@ export const suspendUserSchema = z.object({
   suspended: z.boolean(),
 });
 
+// ── Room Schemas ─────────────────────────────────────────
+
+export const roomMessageSchema = z.object({
+  id: z.string(),
+  senderType: z.enum(['user', 'admin']),
+  content: z.string(),
+  createdAt: z.string(),
+});
+
 // ── Inferred Types ───────────────────────────────────────
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
@@ -104,3 +141,7 @@ export type Raffle = z.infer<typeof raffleSchema>;
 export type UpdatePayoutStatusInput = z.infer<typeof updatePayoutStatusSchema>;
 export type Payout = z.infer<typeof payoutSchema>;
 export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
+export type RoomMessage = z.infer<typeof roomMessageSchema>;
+export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileSchema>;
+export type CreateAdminInput = z.infer<typeof createAdminSchema>;
+export type UpdateAdminInput = z.infer<typeof updateAdminSchema>;

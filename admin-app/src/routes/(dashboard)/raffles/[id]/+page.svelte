@@ -5,7 +5,7 @@
   import { auth } from '$lib/stores/auth.store.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { ArrowLeft, CalendarClock, Check, Save, ShieldAlert } from 'lucide-svelte';
+  import { ArrowLeft, CalendarClock, Check, ImagePlus, MessageCircle, Save, ShieldAlert } from 'lucide-svelte';
 
   let raffle: Raffle | null = null;
   let loading = true;
@@ -45,6 +45,28 @@
       hydrate(res.raffle);
     } catch { error = 'Could not load this raffle.'; }
     finally { loading = false; }
+  }
+
+  let uploadingImage = false;
+  let imageError = '';
+
+  async function uploadImage(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !raffle) return;
+    imageError = '';
+    uploadingImage = true;
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await api.upload<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/image`, formData);
+      hydrate(res.raffle);
+    } catch (err) {
+      imageError = err instanceof ApiError ? 'Could not upload that image — try a different file.' : 'Network error.';
+    } finally {
+      uploadingImage = false;
+      input.value = '';
+    }
   }
 
   async function saveDetails() {
@@ -98,6 +120,7 @@
     <a href="/raffles" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to raffles</a>
     <header class="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div><div class="mb-2 flex items-center gap-2"><p class="text-xs font-bold uppercase tracking-[0.15em] text-primary">Raffle management</p><StatusBadge status={raffle.status} /></div><h1 class="max-w-3xl text-[28px] font-bold tracking-[-0.03em] text-ink">{raffle.title}</h1><p class="mt-2 text-sm text-muted">{raffle.ticketsSold} of {raffle.ticketCap} tickets sold · Deadline {new Date(raffle.currentDeadline).toLocaleString()}</p></div>
+      <a href="/raffles/{raffle.id}/room" class="admin-press inline-flex h-11 shrink-0 items-center gap-2 rounded-button border border-border bg-card px-5 text-xs font-bold text-ink"><MessageCircle size={15} class="text-primary" /> View room</a>
     </header>
 
     {#if error}<p class="mb-4 rounded-button bg-danger-bg px-4 py-3 text-xs font-medium text-danger" role="alert">{error}</p>{/if}
@@ -106,6 +129,25 @@
     <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <form class="rounded-card border border-border bg-card p-5 sm:p-6" on:submit|preventDefault={saveDetails}>
         <div class="mb-6"><h2 class="text-sm font-bold text-ink">Prize and ticket information</h2><p class="mt-1 text-xs text-faint">Ticket economics lock automatically after the first successful sale.</p></div>
+
+        <div class="mb-6 flex items-center gap-4">
+          <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-button border border-dashed border-border bg-bg/45">
+            {#if raffle.prizeImageUrl}
+              <img src={raffle.prizeImageUrl} alt="" class="h-full w-full object-cover" />
+            {:else}
+              <ImagePlus size={20} class="text-faint" />
+            {/if}
+          </div>
+          <div class="min-w-0">
+            <label class="admin-press inline-flex h-9 cursor-pointer items-center gap-2 rounded-button border border-border bg-card px-4 text-xs font-bold text-ink">
+              {uploadingImage ? 'Uploading…' : raffle.prizeImageUrl ? 'Change photo' : 'Upload photo'}
+              <input type="file" accept="image/*" class="hidden" disabled={uploadingImage} on:change={uploadImage} />
+            </label>
+            <p class="mt-1.5 text-[11px] leading-4 text-faint">Compressed and resized automatically. JPG, PNG or WebP, up to 8MB.</p>
+            {#if imageError}<p class="mt-1 text-[11px] font-medium text-danger">{imageError}</p>{/if}
+          </div>
+        </div>
+
         <div class="grid gap-5 sm:grid-cols-2">
           <label class="sm:col-span-2 {labelClass}">Raffle title<input bind:value={title} class={inputClass} /></label>
           <label class={labelClass}>Prize name<input bind:value={prizeName} class={inputClass} /></label>

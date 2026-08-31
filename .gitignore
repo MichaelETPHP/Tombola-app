@@ -19,6 +19,10 @@ node_modules/
 # Build output
 dist/
 build/
+
+# Local uploads (api/uploads/) — production uploads live in a Docker
+# volume instead, see docker-compose.yml.
+api/uploads/
 .svelte-kit/
 dev-dist/
 

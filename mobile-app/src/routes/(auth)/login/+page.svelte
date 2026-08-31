@@ -8,6 +8,7 @@
   import Button from '$lib/components/Button.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { hapticLight } from '$lib/native/haptics.js';
+  import { navigateBack } from '$lib/native/navigateBack.js';
   import {
     authenticateTelegramMiniApp,
     getTelegramMiniApp,
@@ -94,7 +95,7 @@
 
   function backToHome() {
     hapticLight();
-    goto('/home');
+    navigateBack();
   }
 
   async function submit() {

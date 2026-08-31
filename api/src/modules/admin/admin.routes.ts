@@ -1,8 +1,29 @@
 import { Hono } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { listUsersSchema, suspendUserSchema, adminLoginSchema } from './admin.schema.js';
-import { getDashboardStats, adminListUsers, adminSuspendUser, adminLogin, getIntegrationsStatus, adminDeleteUser, adminBulkDeleteUsers, getAdminProfile } from './admin.service.js';
+import {
+  listUsersSchema,
+  suspendUserSchema,
+  adminLoginSchema,
+  updateOwnProfileSchema,
+  createAdminSchema,
+  updateAdminSchema,
+} from './admin.schema.js';
+import {
+  getDashboardStats,
+  adminListUsers,
+  adminSuspendUser,
+  adminLogin,
+  getIntegrationsStatus,
+  adminDeleteUser,
+  adminBulkDeleteUsers,
+  getAdminProfile,
+  updateOwnAdminProfile,
+  listAdminUsers,
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+} from './admin.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
@@ -47,6 +68,62 @@ adminRoutes.get('/auth/me', async (c) => {
   }
   const admin = await getAdminProfile(adminCtx.id);
   return c.json({ admin });
+});
+
+/**
+ * PATCH /admin/auth/me
+ * Self-service profile edit — any admin can rename themselves or change
+ * their own password (with current-password confirmation). Role changes
+ * aren't allowed here — that's owner-only, via /admin/admins/:id below.
+ */
+adminRoutes.patch('/auth/me', async (c) => {
+  const adminCtx = c.get('admin');
+  const data = updateOwnProfileSchema.parse(await c.req.json());
+  const admin = await updateOwnAdminProfile(adminCtx.id, data);
+  return c.json({ admin });
+});
+
+/**
+ * GET /admin/admins
+ * Every admin account. Owner-only — a moderator doesn't need visibility
+ * into who else has platform access.
+ */
+adminRoutes.get('/admins', requireRole('owner'), async (c) => {
+  const admins = await listAdminUsers();
+  return c.json({ admins });
+});
+
+/**
+ * POST /admin/admins
+ * Create a new admin account. Owner-only — previously the only way to
+ * add one at all was seeding the database directly.
+ */
+adminRoutes.post('/admins', requireRole('owner'), async (c) => {
+  const data = createAdminSchema.parse(await c.req.json());
+  const admin = await createAdminUser(data);
+  return c.json({ admin }, 201);
+});
+
+/**
+ * PATCH /admin/admins/:id
+ * Edit another admin's name/role. Owner-only; refuses to demote the last
+ * remaining owner (see admin.service.ts for why).
+ */
+adminRoutes.patch('/admins/:id', requireRole('owner'), async (c) => {
+  const data = updateAdminSchema.parse(await c.req.json());
+  const admin = await updateAdminUser(c.req.param('id'), data);
+  return c.json({ admin });
+});
+
+/**
+ * DELETE /admin/admins/:id
+ * Remove an admin account. Owner-only; refuses self-deletion and refuses
+ * removing the last remaining owner.
+ */
+adminRoutes.delete('/admins/:id', requireRole('owner'), async (c) => {
+  const adminCtx = c.get('admin');
+  const result = await deleteAdminUser(c.req.param('id'), adminCtx.id);
+  return c.json({ deleted: result });
 });
 
 /**
