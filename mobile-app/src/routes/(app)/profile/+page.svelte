@@ -11,6 +11,7 @@
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { User } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
+  import { dicebearAvatarUri } from '$lib/utils/avatar.js';
 
   const pullRefresh = getPullRefreshContext();
 
@@ -44,14 +45,10 @@
   let saving = false;
   let error = '';
 
-  $: initials = $auth.user?.fullName
-    ? $auth.user.fullName
-        .trim()
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((w) => w[0]?.toUpperCase())
-        .join('')
-    : '';
+  // Phone/OTP accounts have no profile photo at all — a generated
+  // cartoon avatar reads far better than plain initials. Seeded by the
+  // user's own id, so it's the same avatar every time, no storage needed.
+  $: dicebearUri = $auth.user ? dicebearAvatarUri($auth.user.id) : '';
 
   let payments: PaymentHistoryItem[] = [];
   let paymentsLoading = true;
@@ -134,10 +131,12 @@
       <div
         class="flex h-20 w-20 items-center justify-center rounded-full bg-bg-start text-2xl font-bold text-primary-dark shadow-card"
       >
-        {#if $auth.user?.telegramPhotoUrl}
-          <img src={$auth.user.telegramPhotoUrl} alt="" class="h-full w-full rounded-full object-cover" />
-        {:else if initials}
-          {initials}
+        {#if $auth.user?.telegramPhotoUrl || dicebearUri}
+          <img
+            src={$auth.user?.telegramPhotoUrl || dicebearUri}
+            alt=""
+            class="h-full w-full rounded-full object-cover"
+          />
         {:else}
           <User size={32} />
         {/if}

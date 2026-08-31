@@ -8,6 +8,7 @@
   import { locale, locales, initLocale, setLocale } from '../stores/locale.store.js';
   import { hapticLight } from '$lib/native/haptics.js';
   import { openExternal } from '$lib/native/browser.js';
+  import { dicebearAvatarUri } from '$lib/utils/avatar.js';
 
   // TODO: replace with the real Tombola TikTok profile URL.
   const TIKTOK_URL = 'https://www.tiktok.com/@tombola';
@@ -32,21 +33,11 @@
     langOpen = false;
   }
 
-  function profileInitials(): string {
-    const name = $auth.user?.fullName?.trim();
-    if (name) {
-      return name
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase())
-        .join('');
-    }
-
-    const phoneDigits = $auth.user?.phone.replace(/\D/g, '');
-    return phoneDigits?.slice(-2) || 'ME';
-  }
-
   $: profileName = $auth.user?.fullName?.trim() || 'your account';
+  // Phone/OTP accounts have no profile photo at all — a generated
+  // cartoon avatar reads far better than plain initials. Seeded by the
+  // user's own id, so it's the same avatar every time, no storage needed.
+  $: dicebearUri = $auth.user ? dicebearAvatarUri($auth.user.id) : '';
 
   const popoverTransition = { duration: 160, start: 0.95, opacity: 0, easing: cubicOut };
 </script>
@@ -126,13 +117,11 @@
         title="Profile"
         in:scale={{ duration: 260, start: 0.78, opacity: 0, easing: cubicOut }}
       >
-        {#if $auth.user?.telegramPhotoUrl}
-          <img src={$auth.user.telegramPhotoUrl} alt="" class="h-7 w-7 rounded-full object-cover" />
-        {:else}
-          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-bg-start text-[10px] font-extrabold leading-none tracking-[-0.02em]">
-            {profileInitials()}
-          </span>
-        {/if}
+        <img
+          src={$auth.user?.telegramPhotoUrl || dicebearUri}
+          alt=""
+          class="h-7 w-7 rounded-full bg-bg-start object-cover"
+        />
         <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-primary" aria-hidden="true"></span>
       </a>
     {:else}
