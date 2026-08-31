@@ -15,8 +15,25 @@ build/
 .svelte-kit/
 dev-dist/
 
-# Capacitor native platforms (generated, large binary assets)
-mobile-app/android/
+# Capacitor native platforms (generated, large binary assets). Keep the
+# customized Android Activity visible to Git because it bridges real system
+# bar insets into the WebView; everything else remains generated/ignored.
+mobile-app/android/*
+!mobile-app/android/app/
+mobile-app/android/app/*
+!mobile-app/android/app/src/
+mobile-app/android/app/src/*
+!mobile-app/android/app/src/main/
+mobile-app/android/app/src/main/*
+!mobile-app/android/app/src/main/java/
+mobile-app/android/app/src/main/java/*
+!mobile-app/android/app/src/main/java/com/
+mobile-app/android/app/src/main/java/com/*
+!mobile-app/android/app/src/main/java/com/tombola/
+mobile-app/android/app/src/main/java/com/tombola/*
+!mobile-app/android/app/src/main/java/com/tombola/app/
+mobile-app/android/app/src/main/java/com/tombola/app/*
+!mobile-app/android/app/src/main/java/com/tombola/app/MainActivity.java
 mobile-app/ios/
 
 # OS files

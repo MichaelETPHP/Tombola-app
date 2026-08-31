@@ -57,7 +57,7 @@ Set these on the **`api`** service:
 | `DB_SCHEMA` | `Tombola_DB` |
 | `DB_SSL` | `false` (or `true` if your DB requires it) |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | `openssl rand -hex 64`, two different values |
-| `CORS_ORIGINS` | `https://app.yourdomain.com,https://admin.yourdomain.com` — both public domains from step 4 |
+| `CORS_ORIGINS` | `https://app.yourdomain.com,https://admin.yourdomain.com,https://localhost,capacitor://localhost` — public web domains plus the Capacitor native-app origins |
 | `MOBILE_APP_URL` | `https://app.yourdomain.com` — used to build the Chapa `return_url` |
 | `DEMO_OTP_ENABLED` | `true` for now — see "Mock data" below |
 | `MOCK_PAYMENTS` | `true` for now — see "Mock data" below |

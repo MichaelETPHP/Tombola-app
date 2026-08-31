@@ -6,7 +6,10 @@ interface TelegramWebApp {
   platform: string;
   ready(): void;
   expand(): void;
+  isVersionAtLeast?(version: string): boolean;
   disableVerticalSwipes?(): void;
+  enableClosingConfirmation?(): void;
+  requestFullscreen?(): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;
@@ -28,12 +31,29 @@ export function getTelegramMiniApp(): TelegramWebApp | null {
 export function prepareTelegramMiniApp(): TelegramWebApp | null {
   const webApp = getTelegramMiniApp();
   if (!webApp) return null;
+
+  // Mark the document before Telegram paints its final viewport so CSS can
+  // suppress browser-style overscroll and draggable images/links without
+  // changing the native APK or ordinary PWA experience.
+  document.documentElement.classList.add('telegram-mini-app');
+
   webApp.ready();
   webApp.expand();
   webApp.disableVerticalSwipes?.();
+  webApp.enableClosingConfirmation?.();
   webApp.setHeaderColor?.('#00D3A0');
   webApp.setBackgroundColor?.('#E3F9EF');
   webApp.setBottomBarColor?.('#FFFFFF');
+
+  // Fullscreen is available from Bot API 8.0. Keep the version guard as old
+  // Telegram clients expose a smaller bridge and throw for unknown methods.
+  if (webApp.isVersionAtLeast?.('8.0')) {
+    try {
+      webApp.requestFullscreen?.();
+    } catch {
+      // expand() above remains the safe fallback on unsupported clients.
+    }
+  }
   return webApp;
 }
 

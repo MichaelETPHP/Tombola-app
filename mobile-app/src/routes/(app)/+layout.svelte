@@ -25,7 +25,7 @@
     <Skeleton class="h-40 w-full rounded-card" />
   </main>
 {:else}
-  <main class="safe-area-top min-h-dvh px-4 pb-[100px] pt-5">
+  <main class="safe-area-top native-bottom-nav-clearance min-h-dvh px-4 pt-5">
     <PullToRefresh handler={pullRefresh}>
       <slot />
     </PullToRefresh>
