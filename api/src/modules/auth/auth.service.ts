@@ -87,7 +87,10 @@ async function attachTelegram(user: DbUser, identity: TelegramIdentity): Promise
 }
 
 export async function verifyOtp(phone: string, code: string, telegramLinkToken?: string) {
-  const allowDemoCode = env.NODE_ENV !== 'production' && env.DEMO_OTP_ENABLED && code === '123456';
+  // DEMO_OTP_ENABLED is an explicit opt-in used by deployed test stacks as
+  // well as local development. /health keeps production deployments visibly
+  // degraded until this flag is disabled and a real SMS gateway is wired.
+  const allowDemoCode = env.DEMO_OTP_ENABLED && code === '123456';
   const stored = await findLatestOtp(phone);
 
   if (!stored && !allowDemoCode) throw new AppError(400, 'auth.otpMissing');

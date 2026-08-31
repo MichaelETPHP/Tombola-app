@@ -60,6 +60,14 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
  * Send an OTP code via SMS.
  */
 export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' = 'en'): Promise<SmsGatewayResponse> {
+  // Explicit mock mode is allowed on a production-built test deployment.
+  // Do not call a missing SMS gateway and do not log the generated code;
+  // verification accepts the fixed demo code while this flag is enabled.
+  if (env.DEMO_OTP_ENABLED) {
+    logger.warn(`[SMS DEMO MODE] OTP delivery skipped for ${phone.slice(-4).padStart(phone.length, '*')}`);
+    return { success: true, messageId: 'demo-mode' };
+  }
+
   return sendSms({
     to: phone,
     message: locale === 'am'
