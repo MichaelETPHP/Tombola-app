@@ -91,6 +91,63 @@ export function validateMiniAppInitData(initData: string): TelegramIdentity {
   };
 }
 
+export interface SharedContact {
+  telegramUserId: string;
+  phone: string;
+  // Best-effort identity from the webhook's own `message.from` — no photo
+  // is available here (that needs a separate getUserProfilePhotos call);
+  // the richer identity captured from initData at Mini App launch fills
+  // that in once the poll endpoint sees this link land.
+  fullName: string;
+  username?: string;
+}
+
+interface TelegramWebhookUpdate {
+  message?: {
+    chat?: { id?: number; type?: string };
+    from?: { id?: number; first_name?: string; last_name?: string; username?: string };
+    contact?: {
+      phone_number?: string;
+      user_id?: number;
+    };
+  };
+}
+
+/**
+ * Extract a verified shared phone number from an inbound Telegram webhook
+ * update, or null if this update isn't a contact share at all (most
+ * updates the bot receives won't be — every other message type, edits,
+ * etc. all pass through here too).
+ *
+ * `WebApp.requestContact()` never exposes the phone number to the Mini
+ * App's own JavaScript (confirmed against Telegram's docs) — Telegram
+ * delivers it only here, as an ordinary message with a populated
+ * `contact` field, in the private chat between the user and the bot. The
+ * `contact.user_id === message.from.id` check matters because Telegram's
+ * classic contact-share UI (unlike requestContact, but this endpoint has
+ * no way to tell which UI produced a given update) technically allows
+ * choosing *any* contact from the phonebook, not just your own — without
+ * this check, a user could share a friend's number and claim it as their
+ * own account's identity.
+ */
+export function extractSharedContact(update: TelegramWebhookUpdate): SharedContact | null {
+  const message = update.message;
+  const contact = message?.contact;
+  if (!message || !contact || message.chat?.type !== 'private') return null;
+  if (!contact.phone_number || !contact.user_id || !message.from?.id) return null;
+  if (contact.user_id !== message.from.id) return null;
+
+  const raw = contact.phone_number.replace(/[^\d+]/g, '');
+  const phone = raw.startsWith('+') ? raw : `+${raw}`;
+
+  return {
+    telegramUserId: String(message.from.id),
+    phone,
+    fullName: [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || 'Telegram user',
+    username: message.from.username,
+  };
+}
+
 /** Verify the OIDC ID token returned by Telegram Login on the standalone app. */
 export async function validateTelegramIdToken(
   idToken: string,

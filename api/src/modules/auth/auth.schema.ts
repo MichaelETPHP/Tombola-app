@@ -40,6 +40,10 @@ export const telegramOidcSchema = z.object({
   nonceToken: z.string().min(20),
 });
 
+export const telegramMiniAppCompleteSchema = z.object({
+  telegramLinkToken: z.string().min(20),
+});
+
 export const refreshTokenSchema = z.object({
   // The refresh token comes from httpOnly cookie, not request body.
   // This schema is for any additional body params if needed.

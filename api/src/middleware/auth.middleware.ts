@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { verifyAccessToken } from '../lib/jwt.js';
+import { findUserById } from '../db/queries/users.queries.js';
 import type { AppEnv } from '../types/hono.js';
 
 /**
@@ -24,6 +25,15 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     const payload = await verifyAccessToken(token);
 
     if (payload.role === 'user') {
+      // Single-device enforcement: a newer login elsewhere bumps
+      // session_version, which immediately invalidates every token from
+      // this one — checked per-request (not just at /auth/refresh) so a
+      // superseded device is logged out right away rather than staying
+      // valid for up to the access token's remaining 15-minute lifetime.
+      const user = await findUserById(payload.sub);
+      if (!user || user.status !== 'active' || payload.sessionVersion !== user.sessionVersion) {
+        return c.json({ error: c.get('t')('auth.sessionRevoked'), code: 'AUTH_SESSION_REVOKED' }, 401);
+      }
       c.set('user', {
         id: payload.sub,
         phone: payload.phone,

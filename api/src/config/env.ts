@@ -39,6 +39,13 @@ const envSchema = z.object({
     .default('3600')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().min(60).max(3600)),
+  // Verifies inbound POSTs to /auth/telegram/webhook actually came from
+  // Telegram (sent back as the X-Telegram-Bot-Api-Secret-Token header on
+  // every request once set via setWebhook) — without this, anyone who
+  // learns the webhook URL could POST a forged "user shared this phone
+  // number" update and hijack an account. Mini App auto-phone-capture
+  // (no OTP inside the bot) stays disabled until this is configured.
+  TELEGRAM_WEBHOOK_SECRET: emptyToUndefined(z.string().min(16).optional()),
 
   // Payment - Chapa
   CHAPA_SECRET_KEY: z.string().optional(),

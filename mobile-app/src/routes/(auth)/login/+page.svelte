@@ -1,14 +1,19 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { api, ApiError } from '$lib/api/client.js';
   import Button from '$lib/components/Button.svelte';
+  import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { hapticLight } from '$lib/native/haptics.js';
-  import { authenticateTelegramMiniApp, getTelegramMiniApp } from '$lib/telegram.js';
-  import { pendingTelegramLink } from '$lib/stores/telegram.store.js';
+  import {
+    authenticateTelegramMiniApp,
+    getTelegramMiniApp,
+    requestTelegramContact,
+    completeTelegramContactLogin,
+  } from '$lib/telegram.js';
   import { setAuth } from '$lib/stores/auth.store.js';
   import { ChevronLeft, Send, ShieldCheck, Check, X } from 'lucide-svelte';
 
@@ -28,6 +33,23 @@
   let agreedToTerms = false;
   let termsOpen = false;
   let termsShake = false;
+
+  // Inside the bot there is no OTP fallback at all — Telegram supplies
+  // the phone number itself (see $lib/telegram.js), never a typed code.
+  // 'idle' -> tap the button -> 'requesting_contact' (native Telegram
+  // popup showing) -> 'polling' (waiting for the backend's webhook to
+  // finish, since the number never reaches this page directly) ->
+  // authenticated, or 'declined'/'timed_out' with a retry.
+  type TelegramStep = 'idle' | 'requesting_contact' | 'polling' | 'declined' | 'timed_out';
+  let telegramStep: TelegramStep = 'idle';
+  let telegramUser: { fullName: string; username: string | null; photoUrl: string | null } | null = null;
+  let cancelled = false;
+  onDestroy(() => {
+    cancelled = true;
+  });
+
+  const CONTACT_POLL_INTERVAL_MS = 1500;
+  const CONTACT_POLL_TIMEOUT_MS = 25_000;
 
   function toE164(raw: string): string {
     const digits = raw.replace(/\D/g, '');
@@ -64,7 +86,6 @@
   }
 
   $: returnTo = $page.url.searchParams.get('returnTo') ?? '';
-  $: telegramLink = $pendingTelegramLink;
 
   onMount(() => {
     isTelegramMiniApp = Boolean(getTelegramMiniApp());
@@ -109,6 +130,7 @@
       return;
     }
     telegramLoading = true;
+    telegramStep = 'idle';
     hapticLight();
 
     try {
@@ -122,9 +144,34 @@
       if (result.status === 'authenticated') {
         setAuth(result.accessToken, result.user);
         await goto(returnTo || '/home', { replaceState: true });
-      } else {
-        pendingTelegramLink.set({ token: result.telegramLinkToken, ...result.telegramUser });
+        return;
       }
+
+      // First time this Telegram account has opened Tombola — get the
+      // phone number the same way Telegram itself gets it: a native
+      // one-tap share, never a typed code.
+      telegramUser = result.telegramUser;
+      telegramStep = 'requesting_contact';
+      const shared = await requestTelegramContact(telegram);
+      if (cancelled) return;
+      if (!shared) {
+        telegramStep = 'declined';
+        return;
+      }
+
+      telegramStep = 'polling';
+      const deadline = Date.now() + CONTACT_POLL_TIMEOUT_MS;
+      while (Date.now() < deadline && !cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, CONTACT_POLL_INTERVAL_MS));
+        const completion = await completeTelegramContactLogin(result.telegramLinkToken);
+        if (cancelled) return;
+        if (completion.status === 'authenticated') {
+          setAuth(completion.accessToken, completion.user);
+          await goto(returnTo || '/home', { replaceState: true });
+          return;
+        }
+      }
+      if (!cancelled) telegramStep = 'timed_out';
     } catch (err) {
       error = telegramErrorMessage(err);
     } finally {
@@ -147,9 +194,9 @@
     class="flex flex-col items-center gap-3 text-center"
     in:fly={{ y: 14, duration: 320, delay: 60, easing: cubicOut }}
   >
-    {#if telegramLink?.photoUrl}
+    {#if telegramUser?.photoUrl}
       <img
-        src={telegramLink.photoUrl}
+        src={telegramUser.photoUrl}
         alt=""
         class="h-16 w-16 rounded-[20px] object-cover shadow-card"
       />
@@ -158,18 +205,18 @@
     {/if}
     <h1 class="font-display text-[26px] font-semibold text-ink">Tombola</h1>
     <p class="max-w-[300px] text-sm leading-relaxed text-muted">
-      {telegramLink
-        ? `Welcome${telegramLink.fullName ? `, ${telegramLink.fullName}` : ''}. Verify your phone once to secure your tickets.`
-        : isTelegramMiniApp
-          ? 'Continue securely with the Telegram account you used to open Tombola.'
-          : returnTo.startsWith('/raffles')
-            ? "Sign in to confirm your tickets — you'll come right back."
-            : 'Enter your phone number to start playing.'}
+      {isTelegramMiniApp
+        ? telegramUser
+          ? `Hi${telegramUser.fullName ? ` ${telegramUser.fullName}` : ''} — one tap to share your number and you're in.`
+          : 'Continue securely with the Telegram account you used to open Tombola.'
+        : returnTo.startsWith('/raffles')
+          ? "Sign in to confirm your tickets — you'll come right back."
+          : 'Enter your phone number to start playing.'}
     </p>
   </div>
 
   {#if platformReady}
-    {#if isTelegramMiniApp && !telegramLink}
+    {#if isTelegramMiniApp}
       <section
         class="flex flex-col gap-4 rounded-card bg-card p-6 shadow-card"
         in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
@@ -191,17 +238,34 @@
 
         {#if error}<p class="text-[13px] text-coral-start" role="alert">{error}</p>{/if}
 
+        {#if telegramStep === 'declined' || telegramStep === 'timed_out'}
+          <div class="rounded-button bg-coral-start/10 p-3.5 text-left">
+            <p class="text-[13px] font-semibold text-coral-start">
+              {telegramStep === 'declined'
+                ? "We need your phone number to continue — you can share it from Telegram's own prompt."
+                : "Didn't hear back from Telegram in time."}
+            </p>
+            <p class="mt-1 text-[11px] leading-relaxed text-muted">
+              Or open Tombola directly (outside the bot) to sign in with your phone number instead.
+            </p>
+          </div>
+        {/if}
+
         <button
           type="button"
           on:click={telegramLogin}
           disabled={telegramLoading}
           class="pressable tappable flex h-[52px] w-full items-center justify-center gap-3 rounded-button bg-[#229ED9] px-5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(34,158,217,0.24)] disabled:opacity-60"
         >
-          {#if telegramLoading}
-            <span
-              class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
-            ></span>
-            Connecting…
+          {#if telegramStep === 'polling'}
+            <IosSpinner size={18} color="#ffffff" />
+            Confirming your number…
+          {:else if telegramStep === 'requesting_contact'}
+            <IosSpinner size={18} color="#ffffff" />
+            Waiting for Telegram…
+          {:else if telegramStep === 'declined' || telegramStep === 'timed_out'}
+            <Send size={19} fill="currentColor" />
+            Try again
           {:else}
             <Send size={19} fill="currentColor" />
             Continue with Telegram
@@ -214,22 +278,6 @@
         in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
         on:submit|preventDefault={submit}
       >
-        {#if telegramLink}
-          <div class="flex items-start gap-3 rounded-button bg-bg-start p-3.5 text-left">
-            <span
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-primary-dark"
-            >
-              <ShieldCheck size={19} />
-            </span>
-            <div>
-              <p class="text-[13px] font-semibold text-ink">Telegram connected</p>
-              <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
-                Verify your phone once to protect the 5-ticket limit across both apps.
-              </p>
-            </div>
-          </div>
-        {/if}
-
         <label for="phone" class="text-[13px] font-semibold text-muted">Phone number</label>
         <div
           class="flex h-13 items-stretch rounded-button bg-bg-start ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] focus-within:ring-primary"
@@ -253,7 +301,7 @@
           />
         </div>
         {#if error}<p class="text-[13px] text-coral-start" role="alert">{error}</p>{/if}
-        <Button type="submit" loading={loading}>{telegramLink ? 'Verify phone' : 'Send code'}</Button>
+        <Button type="submit" loading={loading}>Send code</Button>
       </form>
     {/if}
 

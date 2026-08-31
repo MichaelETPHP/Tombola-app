@@ -112,14 +112,41 @@ real `SMS_API_*`/`CHAPA_*` credentials) once those integrations are ready —
 covered in more detail in `SOFTWARE_REQUIREMENTS.md`'s "Known gaps"
 section.
 
-## 7. Point the Android shell at the live site
+## 7. Telegram Mini App — one-time webhook setup
+
+Logging in from inside the Telegram bot never shows a typed OTP screen —
+Telegram hands the phone number to the API directly, via a webhook, the
+same way the classic "share your contact" button has always worked. That
+webhook has to be registered with Telegram once (and again any time the
+API's public domain changes):
+
+1. Generate a secret: `openssl rand -hex 32`. Set it as `TELEGRAM_WEBHOOK_SECRET`
+   in this project's env vars (step 3) and redeploy.
+2. Register it with Telegram:
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "url": "https://api.yourdomain.com/auth/telegram/webhook",
+       "secret_token": "<same value as TELEGRAM_WEBHOOK_SECRET>"
+     }'
+   ```
+   A `{"ok":true,"result":true}` response confirms it registered. Check
+   current status any time with `GET https://api.telegram.org/bot<TOKEN>/getWebhookInfo`.
+
+Without this, first-time Telegram Mini App logins will hang at "Waiting for
+Telegram…" indefinitely — `TELEGRAM_WEBHOOK_SECRET` being unset makes the
+webhook route log a warning and no-op rather than fail loudly, so this is
+easy to miss if step 2 is skipped after a redeploy.
+
+## 8. Point the Android shell at the live site
 
 Same as the bare-metal guide — see
 [`DEPLOY.md` § 4](./DEPLOY.md#4-point-the-android-shell-at-the-live-site).
 `capacitor.config.ts`'s `PRODUCTION_URL` should be `https://app.yourdomain.com`
 regardless of which deployment method served it.
 
-## 8. Shipping updates from here on
+## 9. Shipping updates from here on
 
 Push to the branch Coolify is tracking (or hit **Redeploy** in the
 dashboard) — it rebuilds all three containers from the compose file. No

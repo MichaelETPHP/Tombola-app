@@ -1,6 +1,8 @@
 import { get } from 'svelte/store';
+import { goto } from '$app/navigation';
 import { auth, setAuth, clearAuth } from '../stores/auth.store.js';
 import { language } from '../stores/language.store.js';
+import { showBanner } from '../stores/banner.store.js';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
 
@@ -37,8 +39,8 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   // Handle 401 — attempt token refresh
   if (response.status === 401 && !skipAuth) {
-    const refreshed = await attemptRefresh();
-    if (refreshed) {
+    const refreshResult = await attemptRefresh();
+    if (refreshResult.refreshed) {
       // Retry the original request with new token
       const authState = get(auth);
       headers.set('Authorization', `Bearer ${authState.accessToken}`);
@@ -53,6 +55,13 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       return retryResponse.json() as Promise<T>;
     } else {
       clearAuth();
+      // Single-device enforcement: this device's session was superseded by
+      // a newer login elsewhere. Surface that plainly rather than leaving
+      // the user stranded on a broken page wondering why requests fail.
+      if (refreshResult.code === 'AUTH_SESSION_REVOKED') {
+        showBanner("You've been logged out — this account signed in on another device.", 3000);
+        goto('/login', { replaceState: true });
+      }
       throw new ApiError(401, 'Session expired. Please log in again.');
     }
   }
@@ -68,22 +77,25 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 /**
  * Attempt to refresh the access token using the httpOnly refresh cookie.
  */
-async function attemptRefresh(): Promise<boolean> {
+async function attemptRefresh(): Promise<{ refreshed: boolean; code?: string }> {
   try {
     const response = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     });
 
-    if (!response.ok) return false;
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { code?: string } | null;
+      return { refreshed: false, code: body?.code };
+    }
 
     const data = await response.json() as { accessToken: string };
     const authState = get(auth);
 
     setAuth(data.accessToken, authState.user);
-    return true;
+    return { refreshed: true };
   } catch {
-    return false;
+    return { refreshed: false };
   }
 }
 

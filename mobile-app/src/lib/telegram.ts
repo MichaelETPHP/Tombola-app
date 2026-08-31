@@ -13,6 +13,11 @@ interface TelegramWebApp {
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;
+  // Bot API 6.9+. Shows Telegram's own native "share your phone number?"
+  // popup. Per Telegram's docs the callback receives ONLY a boolean — the
+  // actual number is never exposed here, it goes to the bot's backend
+  // instead (see api/src/lib/telegram.ts's extractSharedContact).
+  requestContact?(callback?: (shared: boolean) => void): void;
 }
 
 declare global {
@@ -60,7 +65,7 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
 export type TelegramLoginResponse =
   | ({ status: 'authenticated' } & AuthResponse)
   | {
-      status: 'phone_required';
+      status: 'contact_required';
       telegramLinkToken: string;
       telegramUser: {
         fullName: string;
@@ -73,6 +78,39 @@ export function authenticateTelegramMiniApp(webApp: TelegramWebApp): Promise<Tel
   return api.post<TelegramLoginResponse>(
     '/auth/telegram/mini-app',
     { initData: webApp.initData },
+    { skipAuth: true }
+  );
+}
+
+/**
+ * Wraps WebApp.requestContact()'s callback API in a promise. Resolves to
+ * whether the user approved sharing — never the phone number itself,
+ * which this client never sees at all (see the interface comment above).
+ */
+export function requestTelegramContact(webApp: TelegramWebApp): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!webApp.requestContact) {
+      resolve(false);
+      return;
+    }
+    webApp.requestContact((shared) => resolve(shared));
+  });
+}
+
+export type TelegramContactCompletion =
+  | ({ status: 'authenticated' } & AuthResponse)
+  | { status: 'pending' };
+
+/**
+ * Polls the backend to see whether /auth/telegram/webhook has finished
+ * processing the contact share yet — that webhook runs asynchronously,
+ * entirely outside this request's control, so there's no way to know
+ * except by asking again after a short wait.
+ */
+export function completeTelegramContactLogin(telegramLinkToken: string): Promise<TelegramContactCompletion> {
+  return api.post<TelegramContactCompletion>(
+    '/auth/telegram/mini-app/complete',
+    { telegramLinkToken },
     { skipAuth: true }
   );
 }

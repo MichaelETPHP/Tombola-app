@@ -53,6 +53,9 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
       TELEGRAM_AUTH_MAX_AGE_SECONDS: ${TELEGRAM_AUTH_MAX_AGE_SECONDS:-3600}
+      # Verifies inbound Telegram webhook calls (Mini App auto-phone-capture
+      # stays disabled without it — see auth.routes.ts /telegram/webhook).
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
 
   mobile-app:
     build:

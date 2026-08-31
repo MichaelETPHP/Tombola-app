@@ -12,6 +12,7 @@ export interface DbUser {
   telegramPhotoUrl: string | null;
   telegramLinkedAt: Date | null;
   preferredLanguage?: 'en' | 'am';
+  sessionVersion: number;
   status: UserStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -115,6 +116,21 @@ export async function updateUser(
     `;
     return rows[0] ?? null;
   }
+}
+
+/**
+ * Bump a user's session_version, invalidating every access/refresh token
+ * issued before this call — used at the start of every login so a new
+ * sign-in anywhere immediately logs out any other device. Returns the new
+ * value so the caller can sign fresh tokens with it in the same request.
+ */
+export async function bumpSessionVersion(userId: string): Promise<number> {
+  const rows = await sql<{ sessionVersion: number }[]>`
+    UPDATE users SET session_version = session_version + 1, updated_at = NOW()
+    WHERE id = ${userId}
+    RETURNING session_version
+  `;
+  return rows[0].sessionVersion;
 }
 
 /**

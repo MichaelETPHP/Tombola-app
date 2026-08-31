@@ -130,7 +130,6 @@
     }
   }
 
-  $: soldPct = raffle ? Math.min(100, (raffle.ticketsSold / raffle.ticketCap) * 100) : 0;
   $: daysLeft = raffle
     ? Math.max(0, Math.ceil((new Date(raffle.currentDeadline).getTime() - Date.now()) / 86_400_000))
     : 0;
@@ -204,18 +203,28 @@
 
     <div class="raffle-detail-card flex flex-col overflow-hidden rounded-card bg-card shadow-card">
           <div class="raffle-detail-stats flex items-center justify-around px-4 pb-3 pt-4">
+
+        <!-- Win Odds Ring — animates with glow every time quantity changes -->
         <div class="flex flex-col items-center gap-1.5">
-          <ProgressRing value={soldPct} size={58} thickness={5} color="#00D3A0" trackColor="#E3F9EF">
-            <span class="font-sans text-sm font-extrabold text-ink">{raffle.ticketsSold}</span>
+          <ProgressRing
+            value={odds}
+            size={58}
+            thickness={5}
+            color="#6366F1"
+            trackColor="#E8E8FF"
+            animate={true}
+          >
+            <span class="font-sans text-[11px] font-extrabold text-indigo-600">{oddsDisplay}</span>
           </ProgressRing>
           <div class="text-center leading-none">
-            <p class="text-[11px] font-semibold text-ink">Tickets sold</p>
-            <p class="text-[10px] text-muted">of {raffle.ticketCap}</p>
+            <p class="text-[11px] font-semibold text-ink">Win odds</p>
+            <p class="text-[10px] text-muted">with {quantity} ticket{quantity > 1 ? 's' : ''}</p>
           </div>
         </div>
 
         <div class="h-11 w-px bg-dot-inactive"></div>
 
+        <!-- Days left ring (unchanged) -->
         <div class="flex flex-col items-center gap-1.5">
           <ProgressRing value={remainingPct} size={58} thickness={5} color="#FF6B6B" trackColor="#FFE1E6">
             <span class="font-sans text-sm font-extrabold text-ink">{daysLeft}</span>
@@ -234,11 +243,8 @@
           <span class="text-muted">Price per ticket</span>
           <span class="font-sans font-bold text-primary-dark">{formatEtb(raffle.ticketPrice)} ETB</span>
         </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-muted">Win odds</span>
-          <span class="font-semibold text-blue">{oddsDisplay}</span>
-        </div>
       </div>
+
 
       {#if raffle.status === 'open'}
         <div class="ticket-perforation"></div>

@@ -16,12 +16,20 @@ export interface AccessTokenPayload {
   phone: string;
   role: 'user' | 'owner' | 'moderator';
   type: 'access';
+  // Only set for role 'user' — enforces one active session per account.
+  // Every login bumps the user's session_version in the DB and signs new
+  // tokens with that value; a token carrying an older value belongs to a
+  // device that's since been superseded by a newer login elsewhere, and
+  // gets rejected the next time it's used. Admin sessions don't carry this
+  // (no single-device policy for the dashboard).
+  sessionVersion?: number;
 }
 
 export interface RefreshTokenPayload {
   sub: string;
   role: 'user' | 'owner' | 'moderator';
   type: 'refresh';
+  sessionVersion?: number;
 }
 
 export interface TelegramLinkPayload {
