@@ -1,15 +1,34 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { setAuthLoading } from '$lib/stores/auth.store.js';
+  import { api, ApiError } from '$lib/api/client.js';
+  import { setAuth, setAuthLoading, clearAuth, type AdminUser } from '$lib/stores/auth.store.js';
   import '../app.css';
 
-  // Unlike the mobile app, we don't attempt a silent /auth/refresh here:
-  // there's no admin login endpoint yet to have set the refresh cookie in
-  // the first place (see src/lib/schemas/index.ts). Once admin login lands,
-  // mirror mobile-app's root layout and restore the session here too.
-  onMount(() => {
-    setAuthLoading(false);
+  onMount(async () => {
+    try {
+      // 1. Silent token refresh via httpOnly refresh_token cookie
+      const refreshed = await api.post<{ accessToken: string }>('/auth/refresh', undefined, {
+        skipAuth: true,
+      });
+
+      // 2. Fetch admin user profile using the refreshed accessToken
+      const res = await api.get<{ admin: AdminUser }>('/admin/auth/me', {
+        headers: {
+          Authorization: `Bearer ${refreshed.accessToken}`,
+        },
+      });
+
+      setAuth(refreshed.accessToken, res.admin);
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 401)) {
+        console.error('Admin session restore failed', err);
+      }
+      clearAuth();
+    } finally {
+      setAuthLoading(false);
+    }
   });
 </script>
 
 <slot />
+

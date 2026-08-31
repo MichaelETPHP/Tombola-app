@@ -1,7 +1,7 @@
-import { listUsers, setUserSuspended } from '../../db/queries/users.queries.js';
+import { listUsers, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
 import { listRaffles } from '../../db/queries/raffles.queries.js';
 import { findExpiringPayouts } from '../../db/queries/payouts.queries.js';
-import { findAdminByPhone } from '../../db/queries/admin.queries.js';
+import { findAdminByPhone, findAdminById } from '../../db/queries/admin.queries.js';
 import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
@@ -185,3 +185,41 @@ export async function adminLogin(phone?: string, password?: string) {
     },
   };
 }
+/**
+ * Hard-delete a single user (admin only).
+ */
+export async function adminDeleteUser(userId: string) {
+  const deleted = await deleteUser(userId);
+  if (!deleted) {
+    throw new AppError(404, 'User not found');
+  }
+  return { id: deleted.id, phone: deleted.phoneNumber };
+}
+
+/**
+ * Hard-delete multiple users in one DB round-trip.
+ * Returns an object with deletedCount and the deleted IDs.
+ */
+export async function adminBulkDeleteUsers(ids: string[]) {
+  if (!ids.length) throw new AppError(400, 'No user IDs provided');
+  if (ids.length > 200) throw new AppError(400, 'Too many IDs — maximum 200 per request');
+  const deletedIds = await bulkDeleteUsers(ids);
+  return { deletedCount: deletedIds.length, deletedIds };
+}
+
+/**
+ * Retrieve profile information for the authenticated admin.
+ */
+export async function getAdminProfile(adminId: string) {
+  const admin = await findAdminById(adminId);
+  if (!admin) {
+    throw new AppError(404, 'Admin not found');
+  }
+  return {
+    id: admin.id,
+    email: `${admin.phoneNumber.replace('+', '')}@admin.tombola.local`,
+    fullName: admin.role === 'owner' ? 'Platform Owner' : 'Platform Moderator',
+    role: admin.role,
+  };
+}
+

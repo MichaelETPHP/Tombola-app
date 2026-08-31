@@ -73,9 +73,22 @@ async function attemptRefresh(): Promise<boolean> {
 
     const data = (await response.json()) as { accessToken: string };
     const authState = get(auth);
-    if (!authState.admin) return false;
+    let admin = authState.admin;
 
-    setAuth(data.accessToken, authState.admin);
+    if (!admin) {
+      const meResponse = await fetch(`${API_BASE}/admin/auth/me`, {
+        headers: { Authorization: `Bearer ${data.accessToken}` },
+        credentials: 'include',
+      });
+      if (meResponse.ok) {
+        const meData = (await meResponse.json()) as { admin: typeof authState.admin };
+        admin = meData.admin;
+      }
+    }
+
+    if (!admin) return false;
+
+    setAuth(data.accessToken, admin);
     return true;
   } catch {
     return false;
@@ -110,6 +123,10 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  delete: <T>(path: string, options?: FetchOptions) =>
-    apiFetch<T>(path, { ...options, method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown, options?: FetchOptions) =>
+    apiFetch<T>(path, {
+      ...options,
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 };

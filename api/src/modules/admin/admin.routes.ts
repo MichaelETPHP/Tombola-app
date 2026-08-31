@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { setCookie } from 'hono/cookie';
+import { z } from 'zod';
 import { listUsersSchema, suspendUserSchema, adminLoginSchema } from './admin.schema.js';
-import { getDashboardStats, adminListUsers, adminSuspendUser, adminLogin, getIntegrationsStatus } from './admin.service.js';
+import { getDashboardStats, adminListUsers, adminSuspendUser, adminLogin, getIntegrationsStatus, adminDeleteUser, adminBulkDeleteUsers, getAdminProfile } from './admin.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
@@ -35,6 +36,18 @@ adminRoutes.post('/auth/login', rateLimit({ max: 5, windowSeconds: 900 }), async
 // All subsequent admin routes require auth + admin role
 adminRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
 
+/**
+ * GET /admin/auth/me
+ * Returns current authenticated admin user profile.
+ */
+adminRoutes.get('/auth/me', async (c) => {
+  const adminCtx = c.get('admin');
+  if (!adminCtx) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  const admin = await getAdminProfile(adminCtx.id);
+  return c.json({ admin });
+});
 
 /**
  * GET /admin/dashboard
@@ -77,4 +90,28 @@ adminRoutes.patch('/users/:id/suspend', async (c) => {
   const { suspended } = suspendUserSchema.parse(body);
   const user = await adminSuspendUser(userId, suspended);
   return c.json({ user });
+});
+
+/**
+ * DELETE /admin/users/:id
+ * Hard-delete a single user. Owner-only.
+ */
+adminRoutes.delete('/users/:id', requireRole('owner'), async (c) => {
+  const userId = c.req.param('id');
+  const result = await adminDeleteUser(userId);
+  return c.json({ deleted: result });
+});
+
+/**
+ * DELETE /admin/users
+ * Bulk-delete multiple users. Body: { ids: string[] }. Owner-only.
+ * Maximum 200 IDs per request.
+ */
+adminRoutes.delete('/users', requireRole('owner'), async (c) => {
+  const body = await c.req.json();
+  const { ids } = z.object({
+    ids: z.array(z.string().uuid()).min(1).max(200),
+  }).parse(body);
+  const result = await adminBulkDeleteUsers(ids);
+  return c.json(result);
 });

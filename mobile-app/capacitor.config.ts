@@ -1,8 +1,17 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// Installed apps use the bundled build by default. Set this only when a
-// developer intentionally wants the device to live-reload from a dev URL.
-const serverUrl = process.env.CAPACITOR_SERVER_URL;
+// The installed app always points at a live server — CAPACITOR_SERVER_URL
+// overrides this for local dev-mode live-reload; every other build (i.e.
+// every real release) falls back to the production domain. This is a
+// deliberate choice: the APK is a thin native shell around the deployed
+// site rather than a bundled snapshot, so a `git push` + Coolify deploy
+// reaches every already-installed phone immediately (a pull-to-refresh —
+// or even just reopening the app — always loads whatever's live right
+// now), and no new APK build is ever needed again for pure web/API
+// changes. The tradeoff: the app needs network to open at all, which is
+// exactly what offline.html (below) exists to handle gracefully.
+const PRODUCTION_URL = 'https://imrnjcyuifazcrr0v361sm18.187.77.12.130.sslip.io';
+const serverUrl = process.env.CAPACITOR_SERVER_URL || PRODUCTION_URL;
 const allowLocalDevelopmentHttp = process.env.CAPACITOR_ALLOW_HTTP === 'true';
 
 const config: CapacitorConfig = {
@@ -10,22 +19,19 @@ const config: CapacitorConfig = {
   appName: 'Tombola',
   webDir: 'build',
   android: {
-    // Required only for debug APKs calling a LAN API over http://.
-    // Production builds must use HTTPS and leave this flag unset.
+    // Required only for a debug build calling a LAN API over http://.
+    // Production always uses HTTPS and leaves this flag unset.
     allowMixedContent: allowLocalDevelopmentHttp,
   },
-  ...(serverUrl && {
-    server: {
-      url: serverUrl,
-      cleartext: serverUrl.startsWith('http://'),
-      // A bundled local page (ships in the APK, zero network needed) that
-      // replaces Chromium's raw "Webpage not available" error screen when
-      // the dev server can't be reached — only relevant to this live-reload
-      // dev mode, since a production build never navigates to a remote
-      // origin at all.
-      errorPath: 'offline.html',
-    },
-  }),
+  server: {
+    url: serverUrl,
+    cleartext: serverUrl.startsWith('http://'),
+    // A page bundled locally in the APK itself (zero network needed) that
+    // replaces Chromium's raw "Webpage not available" error screen when
+    // the live server can't be reached — matters in production now too,
+    // not just dev, since every page load is a real network request.
+    errorPath: 'offline.html',
+  },
   plugins: {
     SplashScreen: {
       // Dismissed by the root layout after authentication is restored.

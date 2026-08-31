@@ -158,3 +158,27 @@ export async function listUsers(limit: number, offset: number): Promise<DbUser[]
     LIMIT ${limit} OFFSET ${offset}
   `;
 }
+
+/**
+ * Hard-delete a single user by ID.
+ * Returns the deleted row, or null if the user didn't exist.
+ */
+export async function deleteUser(id: string): Promise<DbUser | null> {
+  const rows = await sql<DbUser[]>`
+    DELETE FROM users WHERE id = ${id} RETURNING *
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * Hard-delete multiple users in one statement.
+ * Returns the IDs that were actually found and deleted.
+ */
+export async function bulkDeleteUsers(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM users WHERE id = ANY(${ids}::uuid[]) RETURNING id
+  `;
+  return rows.map((r) => r.id);
+}
+
