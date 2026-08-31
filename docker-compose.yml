@@ -48,6 +48,11 @@ services:
       TELEBIRR_APP_KEY: ${TELEBIRR_APP_KEY:-your-telebirr-app-key}
       MOBILE_APP_URL: ${MOBILE_APP_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Telegram login — optional (auth route degrades gracefully without
+      # these), but must still be passed through for it to work at all.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
+      TELEGRAM_AUTH_MAX_AGE_SECONDS: ${TELEGRAM_AUTH_MAX_AGE_SECONDS:-300}
 
   mobile-app:
     build:
