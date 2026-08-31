@@ -102,7 +102,22 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
       : 'Not built yet — the payments schema reserves this gateway, but no integration code exists.',
   };
 
-  return [otp, chapa, telebirr];
+  const storageConfigured = !isPlaceholder(env.SUPABASE_URL) && !isPlaceholder(env.SUPABASE_SERVICE_ROLE_KEY);
+  const storage: IntegrationStatus = storageConfigured
+    ? {
+        key: 'storage',
+        name: 'Raffle image storage',
+        mode: 'live',
+        detail: `Optimized WebP prize images are stored in the ${env.SUPABASE_STORAGE_BUCKET} Supabase bucket.`,
+      }
+    : {
+        key: 'storage',
+        name: 'Raffle image storage',
+        mode: 'unconfigured',
+        detail: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the API service before uploading prize images.',
+      };
+
+  return [otp, chapa, storage, telebirr];
 }
 
 /**
@@ -325,4 +340,3 @@ export async function getAdminProfile(adminId: string) {
   }
   return toPublicAdmin(admin);
 }
-

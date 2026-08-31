@@ -109,6 +109,8 @@ function checkConfig(): CheckResult {
     warnings.push('MOCK_PAYMENTS=true — Chapa payments are simulated');
   if (env.DEMO_OTP_ENABLED)
     warnings.push('DEMO_OTP_ENABLED=true — code 123456 bypasses real SMS');
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY)
+    warnings.push('Supabase Storage is not configured — raffle image uploads are unavailable');
 
   const status: CheckStatus =
     issues.length > 0 ? 'error' : warnings.length > 0 ? 'degraded' : 'ok';
@@ -126,6 +128,7 @@ function checkConfig(): CheckResult {
       mockPayments: env.MOCK_PAYMENTS,
       demoOtpEnabled: env.DEMO_OTP_ENABLED,
       smsConfigured: !!env.SMS_API_URL,
+      raffleStorageConfigured: !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY,
       corsOrigins: env.CORS_ORIGINS,
     },
   };

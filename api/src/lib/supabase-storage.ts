@@ -39,7 +39,7 @@ export async function uploadRaffleImage(image: ProcessedImage): Promise<StoredOb
         'Cache-Control': 'public, max-age=31536000, immutable',
         'x-upsert': 'false',
       },
-      body: image.buffer,
+      body: new Blob([Uint8Array.from(image.buffer)], { type: 'image/webp' }),
       signal: AbortSignal.timeout(20_000),
     }
   );

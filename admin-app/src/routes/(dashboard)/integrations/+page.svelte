@@ -3,7 +3,7 @@
   import { auth } from '$lib/stores/auth.store.js';
   import { api, ApiError } from '$lib/api/client.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
-  import { CircleAlert, CreditCard, Info, MessageCircle, Plug, RefreshCw, Wallet } from 'lucide-svelte';
+  import { CircleAlert, CreditCard, Image, Info, MessageCircle, Plug, RefreshCw, Wallet } from 'lucide-svelte';
 
   type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 
@@ -17,6 +17,7 @@
   const icons: Record<string, typeof MessageCircle> = {
     otp: MessageCircle,
     chapa: CreditCard,
+    storage: Image,
     telebirr: Wallet,
   };
 
