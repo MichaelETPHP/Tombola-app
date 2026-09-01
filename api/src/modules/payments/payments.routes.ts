@@ -6,7 +6,7 @@ import {
   getPaymentStatus,
   getMyPayments,
 } from './payments.service.js';
-import { verifyChapaWebhookSignature } from '../../lib/payment-gateway.js';
+import { verifyChapaWebhookSignature, verifyMockPaymentSecret } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { logger } from '../../lib/logger.js';
 import { env } from '../../config/env.js';
@@ -66,8 +66,16 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
   // unsigned client-side call, NODE_ENV=development + MOCK_PAYMENTS=true)
   // work exactly as before.
   const isMockDeployment = env.MOCK_PAYMENTS && env.NODE_ENV !== 'production';
+  // A production deployment can ALSO be intentionally running
+  // MOCK_PAYMENTS=true pre-launch (no real Chapa credentials yet). That
+  // combination fails the check above by design, so mock-checkout's own
+  // confirmation can present a separate, deployer-only secret instead —
+  // see MOCK_PAYMENTS_SECRET in config/env.ts. Left unset, this never
+  // matches and production stays fail-closed exactly as before.
+  const mockSecret = c.req.header('x-mock-payment-secret') || '';
+  const isAuthorizedMockTest = env.MOCK_PAYMENTS && verifyMockPaymentSecret(mockSecret);
 
-  if (!isMockDeployment) {
+  if (!isMockDeployment && !isAuthorizedMockTest) {
     if (!signature) {
       logger.warn('Missing Chapa webhook signature');
       return c.json({ error: 'Missing signature' }, 401);

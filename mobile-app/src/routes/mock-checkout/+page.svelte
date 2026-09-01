@@ -14,6 +14,7 @@
   let unitPrice = 0;
   let callbackUrl = '';
   let returnUrl = '';
+  let mockSecret = '';
   let submitting = false;
   let loadError = '';
   let submitError = '';
@@ -29,6 +30,7 @@
     unitPrice = Number(params.get('unit_price') ?? amount / ticketCount);
     callbackUrl = params.get('callback_url') ?? '';
     returnUrl = params.get('return_url') ?? '';
+    mockSecret = params.get('mock_secret') ?? '';
 
     if (!txRef || !callbackUrl || !returnUrl || !Number.isFinite(amount) || amount <= 0) {
       loadError = 'This checkout request is incomplete. Return to the raffle and start again.';
@@ -55,7 +57,13 @@
     try {
       const response = await fetch(callbackUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Only present on a deployment that opted in (MOCK_PAYMENTS_SECRET
+          // set server-side) — authorizes this confirmation without a real
+          // Chapa signature. See payments.routes.ts.
+          ...(mockSecret ? { 'x-mock-payment-secret': mockSecret } : {}),
+        },
         body: JSON.stringify({
           event: status === 'success' ? 'charge.success' : 'charge.failed',
           tx_ref: txRef,

@@ -52,6 +52,10 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
       raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? 'Tombola raffle',
       ticket_count: String(payload.mock?.ticketCount ?? 1),
       unit_price: String(payload.mock?.unitPrice ?? payload.amount),
+      // Only present when the deployer has opted in — see
+      // MOCK_PAYMENTS_SECRET in config/env.ts. Lets mock-checkout's own
+      // confirmation POST authorize itself to the webhook.
+      ...(env.MOCK_PAYMENTS_SECRET ? { mock_secret: env.MOCK_PAYMENTS_SECRET } : {}),
     });
     return {
       status: 'success',
@@ -146,4 +150,19 @@ export async function verifyChapaWebhookSignature(
   const signatureBuf = Buffer.from(signature, 'utf8');
   if (computedBuf.length !== signatureBuf.length) return false;
   return timingSafeEqual(computedBuf, signatureBuf);
+}
+
+/**
+ * Authorizes the mock-checkout page's own unsigned webhook POST — see
+ * MOCK_PAYMENTS_SECRET in config/env.ts. Requires the secret to actually
+ * be configured (an unset MOCK_PAYMENTS_SECRET never matches, even
+ * against an empty provided value) and compares with the same
+ * timing-safe approach as the real Chapa signature above.
+ */
+export function verifyMockPaymentSecret(provided: string): boolean {
+  if (!env.MOCK_PAYMENTS_SECRET || !provided) return false;
+  const expectedBuf = Buffer.from(env.MOCK_PAYMENTS_SECRET, 'utf8');
+  const providedBuf = Buffer.from(provided, 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, providedBuf);
 }

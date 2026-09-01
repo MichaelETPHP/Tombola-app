@@ -115,6 +115,13 @@ function checkConfig(): CheckResult {
       issues.push('API_BASE_URL is still localhost in production — every uploaded image URL will be broken for everyone');
     if (/^https?:\/\/localhost(:|\/|$)/.test(env.MOBILE_APP_URL))
       issues.push('MOBILE_APP_URL is still localhost in production — Chapa checkout return_url will be broken for everyone');
+    // MOCK_PAYMENTS=true in production (pre-launch, no real Chapa
+    // credentials yet) is legitimate, but the webhook still requires a
+    // real Chapa signature unless MOCK_PAYMENTS_SECRET is also set — see
+    // payments.routes.ts. Without it, mock-checkout's confirmation is
+    // rejected with 401 and every single checkout attempt fails.
+    if (env.MOCK_PAYMENTS && !env.MOCK_PAYMENTS_SECRET)
+      issues.push('MOCK_PAYMENTS=true in production but MOCK_PAYMENTS_SECRET is unset — every checkout attempt will fail with a rejected confirmation');
   }
 
   const warnings: string[] = [];

@@ -69,6 +69,17 @@ const envSchema = z.object({
     .default('false')
     .transform((val) => val === 'true'),
 
+  // Lets the mock-checkout page's own unsigned browser call into the
+  // webhook succeed on a production deployment that's intentionally
+  // running MOCK_PAYMENTS=true (pre-launch, real Chapa credentials not
+  // configured yet) — without this, only a non-production NODE_ENV can
+  // complete a mock payment at all (see payments.routes.ts). Deliberately
+  // separate from CHAPA_WEBHOOK_SECRET: it authorizes "this is our own
+  // mock checkout flow," not "this really came from Chapa." Unset means
+  // the bypass simply never activates — production stays fail-closed by
+  // default even with MOCK_PAYMENTS=true.
+  MOCK_PAYMENTS_SECRET: z.string().optional(),
+
   // Payment - Telebirr
   TELEBIRR_APP_ID: z.string().optional(),
   TELEBIRR_APP_KEY: z.string().optional(),
