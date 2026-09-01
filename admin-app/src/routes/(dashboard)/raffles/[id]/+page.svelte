@@ -10,6 +10,7 @@
   import RaffleEngine from '$lib/components/RaffleEngine.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
   import { ArrowLeft, CalendarClock, Check, ImagePlus, LockKeyhole, MessageCircle, Plus, Save, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
+  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   let raffle: Raffle | null = null;
   let loading = true;
@@ -229,7 +230,7 @@
         <div class="mb-7 grid gap-4 rounded-[16px] border border-border bg-bg/40 p-3 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
           <div class="flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden rounded-[13px] border border-border bg-card">
             {#if raffle.prizeImageUrl}
-              <img src={raffle.prizeImageUrl} alt={raffle.prizeName} class="h-full w-full object-cover" />
+              <img src={resolveImageUrl(raffle.prizeImageUrl)} alt={raffle.prizeName} class="h-full w-full object-cover" />
             {:else}
               <ImagePlus size={24} class="text-faint" />
             {/if}
@@ -257,7 +258,7 @@
                 <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-card">
                   {#key grandPrizeImageUrl}
                     <div in:fade={{ duration: 200, easing: cubicOut }}>
-                      {#if grandPrizeImageUrl}<img src={grandPrizeImageUrl} alt={prizeName} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
+                      {#if grandPrizeImageUrl}<img src={resolveImageUrl(grandPrizeImageUrl)} alt={prizeName} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
                     </div>
                   {/key}
                 </div>
@@ -291,7 +292,7 @@
                   <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-card">
                     {#key row.imageUrl}
                       <div in:fade={{ duration: 200, easing: cubicOut }}>
-                        {#if row.imageUrl}<img src={row.imageUrl} alt={row.name} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
+                        {#if row.imageUrl}<img src={resolveImageUrl(row.imageUrl)} alt={row.name} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
                       </div>
                     {/key}
                   </div>

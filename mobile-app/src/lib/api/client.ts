@@ -4,7 +4,7 @@ import { auth, setAuth, clearAuth } from '../stores/auth.store.js';
 import { language } from '../stores/language.store.js';
 import { showBanner } from '../stores/banner.store.js';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
 
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean;

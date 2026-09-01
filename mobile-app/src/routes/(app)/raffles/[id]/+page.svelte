@@ -17,6 +17,7 @@
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { CalendarClock, Check, ChevronLeft, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
+  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   const pullRefresh = getPullRefreshContext();
   let raffle: Raffle | null = null;
@@ -180,7 +181,7 @@
             <div class="flex w-full shrink-0 snap-start items-center gap-3 bg-bg-start/70 px-3.5 py-2.5">
               <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full {rankBg[i] ?? 'bg-action-bg'}">
                 {#if prize.imageUrl}
-                  <img src={prize.imageUrl} alt={prize.name} class="h-full w-full object-cover" />
+                  <img src={resolveImageUrl(prize.imageUrl)} alt={prize.name} class="h-full w-full object-cover" />
                 {:else}
                   <span class="text-[10px] font-black {rankText[i] ?? 'text-primary-dark'}">{rankWord[i] ?? `${prize.tier}th`}</span>
                 {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import PrizeArt from './PrizeArt.svelte';
+  import { resolveImageUrl } from '../utils/imageUrl.js';
 
   export let src: string | null = null;
   export let title: string;
@@ -14,12 +15,13 @@
     previousSrc = src;
     failed = false;
   }
+  $: resolvedSrc = resolveImageUrl(src);
 </script>
 
 <div class="h-full w-full overflow-hidden bg-[#d9f5e9]">
-  {#if src && !failed}
+  {#if resolvedSrc && !failed}
     <img
-      {src}
+      src={resolvedSrc}
       alt={prizeName}
       loading={eager ? 'eager' : 'lazy'}
       fetchpriority={eager ? 'high' : 'low'}

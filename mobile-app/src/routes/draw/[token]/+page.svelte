@@ -4,6 +4,7 @@
   import { api, ApiError } from '$lib/api/client.js';
   import { CheckCircle2, LockKeyhole, RotateCw, ShieldCheck, Ticket, Trophy } from 'lucide-svelte';
   import { hapticMedium } from '$lib/native/haptics.js';
+  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   type DrawContext = {
     raffleName: string;
@@ -83,7 +84,7 @@
     {:else if draw}
       <section class="mt-5 overflow-hidden rounded-[30px] bg-white p-5 shadow-[0_18px_48px_rgba(28,94,78,0.10)]">
         <div class="flex items-center gap-4">
-          <div class="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[#eff8f5]">{#if draw.prizeImageUrl}<img src={draw.prizeImageUrl} alt={draw.prizeName} class="h-full w-full object-cover" />{:else}<span class="flex h-full items-center justify-center text-[#0c9f7d]"><Trophy size={23} /></span>{/if}</div>
+          <div class="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[#eff8f5]">{#if draw.prizeImageUrl}<img src={resolveImageUrl(draw.prizeImageUrl)} alt={draw.prizeName} class="h-full w-full object-cover" />{:else}<span class="flex h-full items-center justify-center text-[#0c9f7d]"><Trophy size={23} /></span>{/if}</div>
           <div class="min-w-0"><p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0c9f7d]">{draw.raffleCode}</p><h2 class="mt-1 truncate text-base font-extrabold">{draw.raffleName}</h2><p class="mt-1 flex items-center gap-1.5 text-xs text-[#60746f]"><Ticket size={13} /> {draw.ticketCount} verified tickets</p></div>
         </div>
       </section>
