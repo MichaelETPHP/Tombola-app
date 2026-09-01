@@ -254,6 +254,27 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
   return { status: 'authenticated' as const, ...(await createSession(user, isNewUser)) };
 }
 
+/**
+ * Best-effort revocation on top of the cookie deletion the route handler
+ * already does. Bumping session_version invalidates this refresh token
+ * (and any access token issued alongside it) immediately, rather than
+ * leaving it cryptographically valid for up to 30 more days if it was
+ * ever copied somewhere else before this logout — the single-session
+ * model means this can't log out a *different* legitimate device, since
+ * there isn't supposed to be one. Never throws: a missing/expired/already
+ *-invalid token just means there's nothing left to revoke, which is a
+ * successful logout either way from the caller's point of view.
+ */
+export async function logout(refreshToken: string | undefined): Promise<void> {
+  if (!refreshToken) return;
+  try {
+    const payload = await verifyRefreshToken(refreshToken);
+    if (payload.role === 'user') await bumpSessionVersion(payload.sub);
+  } catch {
+    // Already invalid/expired — nothing to revoke.
+  }
+}
+
 export async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
   const payload = await verifyRefreshToken(refreshToken);
 

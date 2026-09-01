@@ -15,6 +15,7 @@ import {
   authenticateTelegramOidc,
   completeTelegramMiniAppLogin,
   linkTelegramContact,
+  logout,
 } from './auth.service.js';
 import { getRefreshTokenFromCookie } from '../../middleware/auth.middleware.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
@@ -172,14 +173,14 @@ authRoutes.post('/refresh', rateLimit({ max: 30, windowSeconds: 300 }), async (c
 
 /**
  * POST /auth/logout
- * Clears the refresh token cookie so this browser can't silently mint a
- * new access token on its next visit. Refresh tokens are stateless JWTs
- * (no session table to revoke server-side) — this stops the cookie from
- * being *sent* again, which is what actually matters for "does reopening
- * the app sign me back in", but the token itself stays cryptographically
- * valid until it expires (30d) if it were extracted some other way.
+ * Clears the refresh token cookie (so this browser can't silently mint a
+ * new access token on its next visit) and bumps the account's
+ * session_version, which invalidates this refresh token server-side too —
+ * closing the gap where a copy of it, extracted some other way before this
+ * call, would otherwise have stayed valid for up to 30 more days.
  */
 authRoutes.post('/logout', async (c) => {
+  await logout(getRefreshTokenFromCookie(c));
   deleteCookie(c, 'refresh_token', { path: '/' });
   return c.json({ message: c.get('t')('auth.loggedOut') }, 200);
 });

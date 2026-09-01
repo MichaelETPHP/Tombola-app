@@ -16,6 +16,25 @@ interface RateLimitOptions {
 }
 
 /**
+ * `X-Forwarded-For` is a client-supplied header — trusting its first (or
+ * only) value verbatim lets anyone reset their own rate-limit bucket by
+ * sending a different fake value on every request. The reverse proxy in
+ * front of this API (Coolify/Traefik) appends the real peer address as the
+ * LAST hop on every request it forwards, overwriting nothing a client sent
+ * before it — so the last entry is the one hop a caller can't forge,
+ * regardless of what they put earlier in the chain. Falls back to
+ * `X-Real-IP` (also proxy-set) only when there's no XFF at all.
+ */
+export function clientIp(c: Parameters<MiddlewareHandler<AppEnv>>[0]): string {
+  const xff = c.req.header('x-forwarded-for');
+  if (xff) {
+    const hops = xff.split(',').map((s) => s.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+  return c.req.header('x-real-ip') || 'unknown';
+}
+
+/**
  * In-memory rate limiter middleware factory.
  * Suitable for single-instance deployments. For multi-instance,
  * replace with Redis-backed rate limiting.
@@ -38,9 +57,7 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppEnv> 
   }, 60_000);
 
   return async (c, next) => {
-    const key = keyExtractor
-      ? keyExtractor(c)
-      : `${c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'}:${c.req.path}`;
+    const key = keyExtractor ? keyExtractor(c) : `${clientIp(c)}:${c.req.path}`;
 
     const now = Date.now();
     const windowMs = windowSeconds * 1000;

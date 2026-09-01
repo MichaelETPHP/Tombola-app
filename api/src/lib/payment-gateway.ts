@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
@@ -136,5 +137,13 @@ export async function verifyChapaWebhookSignature(
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 
-  return computedHash === signature;
+  // A plain `===` here leaks how many leading bytes matched through
+  // response timing — enough samples let an attacker forge a valid
+  // signature byte-by-byte without ever knowing CHAPA_WEBHOOK_SECRET,
+  // then POST a fake "payment succeeded" webhook. timingSafeEqual takes
+  // the same time regardless of where the strings first differ.
+  const computedBuf = Buffer.from(computedHash, 'utf8');
+  const signatureBuf = Buffer.from(signature, 'utf8');
+  if (computedBuf.length !== signatureBuf.length) return false;
+  return timingSafeEqual(computedBuf, signatureBuf);
 }
