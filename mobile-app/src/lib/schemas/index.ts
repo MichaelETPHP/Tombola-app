@@ -27,6 +27,14 @@ export const authResponseSchema = z.object({
 
 // ── Raffle Schemas ───────────────────────────────────────
 
+export const rafflePrizeSchema = z.object({
+  id: z.string(),
+  tier: z.number(),
+  name: z.string(),
+  value: z.number(),
+  imageUrl: z.string().nullable(),
+});
+
 export const raffleSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -34,6 +42,7 @@ export const raffleSchema = z.object({
   prizeName: z.string(),
   prizeValue: z.number(),
   prizeImageUrl: z.string().nullable(),
+  prizes: z.array(rafflePrizeSchema).optional(),
   ticketPrice: z.number(),
   ticketCap: z.number(),
   ticketsSold: z.number(),
@@ -84,6 +93,7 @@ export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 export type Raffle = z.infer<typeof raffleSchema>;
+export type RafflePrize = z.infer<typeof rafflePrizeSchema>;
 export type PurchaseTicketsInput = z.infer<typeof purchaseTicketsSchema>;
 export type RoomMessage = z.infer<typeof roomMessageSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;

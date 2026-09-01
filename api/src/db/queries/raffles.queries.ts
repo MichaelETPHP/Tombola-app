@@ -43,9 +43,9 @@ export interface DbRaffle {
 const TICKETS_SOLD_EXPR = sql`(SELECT COUNT(*)::int FROM tickets t WHERE t.raffle_id = raffles.id) AS tickets_sold`;
 
 /**
- * Create a new raffle. Opens immediately; the provably-fair seed is
- * generated later, at draw execution time (see draws.service.ts) — the
- * schema has no column to pre-commit a hash before then.
+ * Create a new raffle. The provably-fair server seed is committed right
+ * here, before the raffle even opens — see raffles.service.ts, which
+ * generates it and passes it in as drawServerSeed/drawServerSeedHash.
  */
 export async function createRaffle(data: {
   title: string;
@@ -56,6 +56,7 @@ export async function createRaffle(data: {
   drawServerSeedHash: string;
   prizeValue: number;
   prizeImageUrl?: string;
+  additionalPrizes?: { name: string; value: number }[];
   ticketPrice: number;
   ticketCap: number;
   maxTicketsPerUser: number;
@@ -94,7 +95,81 @@ export async function createRaffle(data: {
     )
     RETURNING *, 0 AS tickets_sold
   `;
+    // Every raffle needs at least a tier-1 prize row for the draw to run —
+    // name/value stay synced with prizeName/prizeValue below (the admin
+    // form's "grand prize" fields ARE tier 1, one shared source of truth).
+    // image_url deliberately starts NULL and is never synced from
+    // raffles.prize_image_url — the raffle's main cover photo and tier 1's
+    // own prize photo are two independent images, same as tiers 2 and 3.
+    await tx`
+      INSERT INTO raffle_prizes (raffle_id, tier, name, value)
+      VALUES (${rows[0].id}, 1, ${data.prizeName}, ${data.prizeValue})
+    `;
+    for (const [index, prize] of (data.additionalPrizes ?? []).entries()) {
+      await tx`
+        INSERT INTO raffle_prizes (raffle_id, tier, name, value)
+        VALUES (${rows[0].id}, ${index + 2}, ${prize.name}, ${prize.value})
+      `;
+    }
     return rows[0];
+  });
+}
+
+export interface DbRafflePrize {
+  id: string;
+  tier: number;
+  name: string;
+  value: number;
+  imageUrl: string | null;
+}
+
+export async function listRafflePrizes(raffleId: string): Promise<DbRafflePrize[]> {
+  return sql<DbRafflePrize[]>`
+    SELECT id, tier, name, value, image_url AS "imageUrl"
+    FROM raffle_prizes WHERE raffle_id = ${raffleId} ORDER BY tier ASC
+  `;
+}
+
+export async function findRafflePrize(raffleId: string, prizeId: string): Promise<DbRafflePrize | null> {
+  const rows = await sql<DbRafflePrize[]>`
+    SELECT id, tier, name, value, image_url AS "imageUrl"
+    FROM raffle_prizes WHERE id = ${prizeId} AND raffle_id = ${raffleId} LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+export async function updateRafflePrizeImage(prizeId: string, imageUrl: string): Promise<DbRafflePrize | null> {
+  const rows = await sql<DbRafflePrize[]>`
+    UPDATE raffle_prizes SET image_url = ${imageUrl} WHERE id = ${prizeId}
+    RETURNING id, tier, name, value, image_url AS "imageUrl"
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * Reconciles the tier-2+ prize set for a raffle (tier 1 stays owned by
+ * updateRaffle's prizeName/prizeValue sync below) — UPSERTS by tier number
+ * rather than delete-then-recreate, so an existing tier's id and uploaded
+ * image_url survive a save that only changed its name/value. Only tiers
+ * beyond the new count get deleted (e.g. the admin removed the 3rd prize).
+ * Passing an empty array removes every additional tier, dropping the
+ * raffle back to a single prize.
+ */
+export async function setAdditionalRafflePrizes(
+  raffleId: string,
+  additionalPrizes: { name: string; value: number }[]
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const maxTier = additionalPrizes.length + 1;
+    await tx`DELETE FROM raffle_prizes WHERE raffle_id = ${raffleId} AND tier > ${maxTier}`;
+    for (const [index, prize] of additionalPrizes.entries()) {
+      await tx`
+        INSERT INTO raffle_prizes (raffle_id, tier, name, value)
+        VALUES (${raffleId}, ${index + 2}, ${prize.name}, ${prize.value})
+        ON CONFLICT (raffle_id, tier) DO UPDATE
+          SET name = EXCLUDED.name, value = EXCLUDED.value
+      `;
+    }
   });
 }
 
@@ -110,7 +185,23 @@ export async function updateRaffle(
     WHERE id = ${id}
     RETURNING *, ${TICKETS_SOLD_EXPR}
   `;
-  return rows[0] ?? null;
+  const updated = rows[0];
+  // Keep the tier-1 raffle_prizes row's name/value in sync with the
+  // single-prize fields the admin form still edits — but NOT image_url.
+  // Tier 1's own prize photo (uploaded via setAdditionalRafflePrizes'
+  // sibling, the per-tier image route) is a separate image from the
+  // raffle's main cover photo, same as tiers 2 and 3 — syncing it here
+  // would silently overwrite tier 1's dedicated photo every time the main
+  // cover changes, which is exactly the bug this comment replaced.
+  if (updated && (keys.includes('prizeName') || keys.includes('prizeValue'))) {
+    await sql`
+      INSERT INTO raffle_prizes (raffle_id, tier, name, value)
+      VALUES (${updated.id}, 1, ${updated.prizeName}, ${updated.prizeValue})
+      ON CONFLICT (raffle_id, tier) DO UPDATE
+        SET name = EXCLUDED.name, value = EXCLUDED.value
+    `;
+  }
+  return updated ?? null;
 }
 
 /**

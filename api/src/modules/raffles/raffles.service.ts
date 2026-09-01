@@ -5,6 +5,8 @@ import {
   updateRaffle as dbUpdateRaffle,
   updateRaffleStatus as dbUpdateRaffleStatus,
   extendRaffleDeadline,
+  listRafflePrizes,
+  setAdditionalRafflePrizes,
   type DbRaffle,
 } from '../../db/queries/raffles.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -42,13 +44,16 @@ function toApiRaffle(raffle: DbRaffle) {
   };
 }
 
+async function withPrizes(raffle: DbRaffle) {
+  const prizes = await listRafflePrizes(raffle.id);
+  return { ...toApiRaffle(raffle), prizes };
+}
+
 /**
- * Create a new raffle (admin only).
- *
- * The provably-fair server seed is NOT generated here — the schema only
- * has a place to store it on `draw_results`, which can't exist until the
- * raffle locks and a trigger is created. See draws.service.ts for where
- * it's actually generated (at draw execution time).
+ * Create a new raffle (admin only). The provably-fair server seed is
+ * committed up front, before the raffle even opens for sales — see
+ * provably-fair.ts for why that timing is what makes the commitment
+ * independently verifiable rather than just trusted after the fact.
  */
 export async function createRaffle(data: CreateRaffleInput, adminId: string) {
   if (data.deadlineAt && data.deadlineAt <= new Date()) throw new AppError(400, 'Deadline must be in the future');
@@ -58,7 +63,7 @@ export async function createRaffle(data: CreateRaffleInput, adminId: string) {
   const drawServerSeed = generateServerSeed();
   const drawServerSeedHash = await commitServerSeed(drawServerSeed);
   const raffle = await dbCreateRaffle({ ...data, createdBy: adminId, drawServerSeed, drawServerSeedHash });
-  return toApiRaffle(raffle);
+  return withPrizes(raffle);
 }
 
 export async function updateRaffle(id: string, data: UpdateRaffleInput) {
@@ -71,9 +76,11 @@ export async function updateRaffle(id: string, data: UpdateRaffleInput) {
   if (data.ticketCap !== undefined && data.ticketCap < current.ticketsSold) throw new AppError(400, 'Ticket cap cannot be below tickets already sold');
   if (data.opensAt !== undefined && current.status !== 'draft') throw new AppError(409, 'Opening time can only be changed while the raffle is a draft');
 
-  const updated = await dbUpdateRaffle(id, data);
+  const { additionalPrizes, ...raffleFields } = data;
+  const updated = await dbUpdateRaffle(id, raffleFields);
   if (!updated) throw new AppError(404, 'raffle.notFound');
-  return toApiRaffle(updated);
+  if (additionalPrizes !== undefined) await setAdditionalRafflePrizes(id, additionalPrizes);
+  return withPrizes(updated);
 }
 
 const allowedTransitions: Record<DbRaffle['status'], DbRaffle['status'][]> = {
@@ -115,7 +122,7 @@ export async function getRaffle(id: string) {
   if (!raffle) {
     throw new AppError(404, 'raffle.notFound');
   }
-  return toApiRaffle(raffle);
+  return withPrizes(raffle);
 }
 
 /**

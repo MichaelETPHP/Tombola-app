@@ -11,7 +11,7 @@
     participants: { id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number }[];
     triggers: { id: string; attemptNumber: number; status: string; sentAt: string; expiresAt: string; clickedAt: string | null; phone: string }[];
     extensions: { id: string; previousDeadline: string; newDeadline: string; reason: string; extendedAt: string; ticketsSoldAtExtension: number }[];
-    draw: { winningTicketCode: string; winnerName: string | null; drawnAt: string; finalSeedHash: string } | null;
+    draws: { tier: number; prizeName: string; winningTicketCode: string; winnerName: string | null; drawnAt: string; finalSeedHash: string }[];
   };
   type TriggerResponse = { trigger: { link: string; delivery: 'sent' | 'demo' | 'failed'; expiresAt: string; selectedParticipant: { phone: string } | null; attemptNumber: number } };
 
@@ -78,11 +78,19 @@
     <div class="mt-6 grid gap-3 sm:grid-cols-3">
       <div class="rounded-button bg-bg/65 p-4"><div class="flex items-center gap-2 text-faint"><Ticket size={14} /><span class="text-[11px] font-bold uppercase tracking-[0.1em]">Issued tickets</span></div><p class="mt-3 text-2xl font-bold tracking-[-0.03em] text-ink">{engine.raffle.ticketsSold}<span class="text-sm text-faint"> / {engine.raffle.ticketCap}</span></p><p class="mt-1 font-mono text-xs font-bold text-primary">{engine.raffle.code}</p></div>
       <div class="rounded-button bg-bg/65 p-4"><div class="flex items-center gap-2 text-faint"><Users size={14} /><span class="text-[11px] font-bold uppercase tracking-[0.1em]">Participants</span></div><p class="mt-3 text-2xl font-bold tracking-[-0.03em] text-ink">{engine.participants.length}</p><p class="mt-1 text-xs text-faint">Distinct verified accounts</p></div>
-      <div class="rounded-button bg-bg/65 p-4"><div class="flex items-center gap-2 text-faint"><ShieldCheck size={14} /><span class="text-[11px] font-bold uppercase tracking-[0.1em]">Draw proof</span></div><p class="mt-3 text-sm font-bold text-ink">{engine.draw ? 'Finalized' : engine.raffle.drawCommitment ? 'Committed' : 'Legacy raffle'}</p><p class="mt-1 truncate font-mono text-[10px] text-faint">{engine.draw?.finalSeedHash ?? engine.raffle.drawCommitment ?? 'No pre-commitment'}</p></div>
+      <div class="rounded-button bg-bg/65 p-4"><div class="flex items-center gap-2 text-faint"><ShieldCheck size={14} /><span class="text-[11px] font-bold uppercase tracking-[0.1em]">Draw proof</span></div><p class="mt-3 text-sm font-bold text-ink">{engine.draws.length > 0 ? 'Finalized' : engine.raffle.drawCommitment ? 'Committed' : 'Legacy raffle'}</p><p class="mt-1 truncate font-mono text-[10px] text-faint">{engine.draws[0]?.finalSeedHash ?? engine.raffle.drawCommitment ?? 'No pre-commitment'}</p></div>
     </div>
 
-    {#if engine.draw}
-      <div class="mt-5 flex flex-col justify-between gap-4 rounded-button border border-success/20 bg-success-bg p-5 sm:flex-row sm:items-center"><div><p class="text-[11px] font-bold uppercase tracking-[0.12em] text-success">Winning ticket</p><p class="mt-1 text-2xl font-black tracking-[-0.03em] text-ink">{engine.draw.winningTicketCode}</p><p class="mt-1 text-xs text-muted">{engine.draw.winnerName ?? 'Verified participant'} · {new Date(engine.draw.drawnAt).toLocaleString()}</p></div><ShieldCheck size={30} class="text-success" /></div>
+    {#if engine.draws.length > 0}
+      <div class="mt-5 grid gap-3 {engine.draws.length > 1 ? 'sm:grid-cols-3' : ''}">
+        {#each engine.draws as draw (draw.tier)}
+          <div class="flex flex-col gap-3 rounded-button border border-success/20 bg-success-bg p-5">
+            <div class="flex items-center justify-between"><span class="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-success">{draw.tier === 1 ? '1st place' : draw.tier === 2 ? '2nd place' : `${draw.tier}rd place`}</span><ShieldCheck size={18} class="text-success" /></div>
+            <div><p class="truncate text-xs font-bold text-ink">{draw.prizeName}</p><p class="mt-1 text-xl font-black tracking-[-0.03em] text-ink">{draw.winningTicketCode}</p></div>
+            <p class="text-xs text-muted">{draw.winnerName ?? 'Verified participant'} · {new Date(draw.drawnAt).toLocaleString()}</p>
+          </div>
+        {/each}
+      </div>
     {:else if $auth.admin?.role === 'owner'}
       <div class="mt-5 grid gap-4 rounded-button border border-border bg-bg/35 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <label class="flex flex-col gap-2 text-xs font-bold text-ink">Generation reason<input bind:value={reason} maxlength="500" class="h-11 rounded-button border border-border bg-card px-3.5 text-sm font-medium text-ink focus:border-primary focus:outline-none" /></label>

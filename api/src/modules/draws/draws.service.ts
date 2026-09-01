@@ -23,17 +23,39 @@ function maskPhone(phone: string): string {
   return `${phone.slice(0, 4)}${'*'.repeat(Math.max(0, phone.length - 7))}${phone.slice(-3)}`;
 }
 
+interface PrizeTier {
+  id: string;
+  tier: number;
+  name: string;
+  value: number;
+  imageUrl: string | null;
+}
+
+async function listPrizeTiers(raffleId: string): Promise<PrizeTier[]> {
+  return sql<PrizeTier[]>`
+    SELECT id, tier, name, value, image_url AS "imageUrl"
+    FROM raffle_prizes WHERE raffle_id = ${raffleId} ORDER BY tier ASC
+  `;
+}
+
 export async function getDrawContext(token: string) {
   const trigger = await findDrawTriggerByToken(token);
   if (!trigger) throw new AppError(404, 'Invalid draw link');
   const raffle = await findRaffleById(trigger.raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
+  const prizes = await listPrizeTiers(raffle.id);
+  // Tier 1 mirrored to the top level too — every existing client only
+  // knows about a single prize; the `prizes` array is additive so a
+  // future multi-tier reveal UI has the full breakdown without an API
+  // version bump.
+  const headline = prizes.find((p) => p.tier === 1);
   return {
     raffleId: raffle.id,
     raffleName: raffle.title,
     raffleCode: raffle.publicCode,
-    prizeName: raffle.prizeName,
-    prizeImageUrl: raffle.prizeImageUrl,
+    prizeName: headline?.name ?? raffle.prizeName,
+    prizeImageUrl: headline?.imageUrl ?? raffle.prizeImageUrl,
+    prizes,
     ticketCount: raffle.ticketsSold,
     drawCommitment: raffle.drawServerSeedHash,
     status: trigger.status,
@@ -59,7 +81,21 @@ export async function generateTriggerLink(raffleId: string, adminId: string | nu
   const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
 
   const trigger = await sql.begin(async (tx) => {
-    await tx`SELECT id FROM raffles WHERE id = ${raffleId} FOR UPDATE`;
+    const [current] = await tx<{ drawServerSeedHash: string | null }[]>`
+      SELECT draw_server_seed_hash FROM raffles WHERE id = ${raffleId} FOR UPDATE
+    `;
+    // Commit the provably-fair seed the FIRST time a trigger is ever
+    // generated for this raffle — not lazily at click time. Publishing the
+    // hash now, before anyone (including the platform) could know the
+    // ticket pool's final shape or which participant gets selected, is
+    // what makes the commitment actually independently verifiable rather
+    // than just trusted after the fact. Stays fixed across re-attempts
+    // (expired links, resends) — only the trigger token/recipient changes.
+    if (!current.drawServerSeedHash) {
+      const serverSeed = generateServerSeed();
+      const serverSeedHash = await commitServerSeed(serverSeed);
+      await tx`UPDATE raffles SET draw_server_seed = ${serverSeed}, draw_server_seed_hash = ${serverSeedHash} WHERE id = ${raffleId}`;
+    }
     await tx`UPDATE draw_triggers SET status = 'expired' WHERE raffle_id = ${raffleId} AND status = 'pending'`;
     const [attempt] = await tx<{ next: number }[]>`
       SELECT COALESCE(MAX(attempt_number), 0)::int + 1 AS next FROM draw_triggers WHERE raffle_id = ${raffleId}
@@ -130,58 +166,120 @@ export async function executeDraw(token: string, clickedIp: string | null = null
     let serverSeed = raffle.drawServerSeed;
     let serverSeedHash = raffle.drawServerSeedHash;
     if (!serverSeed || !serverSeedHash) {
+      // Safety net only — generateTriggerLink commits this up front for
+      // every new raffle. This covers a raffle that reached awaiting_trigger
+      // before that commit-at-lock-time behavior existed.
       serverSeed = generateServerSeed();
       serverSeedHash = await commitServerSeed(serverSeed);
       await tx`UPDATE raffles SET draw_server_seed = ${serverSeed}, draw_server_seed_hash = ${serverSeedHash} WHERE id = ${raffle.id}`;
     }
-    const tickets = await tx<{ ticketNumber: number; userId: string }[]>`
+
+    const prizes = await tx<{ id: string; tier: number; name: string; value: number }[]>`
+      SELECT id, tier, name, value FROM raffle_prizes WHERE raffle_id = ${raffle.id} ORDER BY tier ASC
+    `;
+    if (prizes.length === 0) throw new AppError(409, 'This raffle has no configured prizes');
+
+    let pool: { ticketNumber: number; userId: string }[] = await tx<{ ticketNumber: number; userId: string }[]>`
       SELECT ticket_number, user_id FROM tickets WHERE raffle_id = ${raffle.id} ORDER BY ticket_number
     `;
-    if (tickets.length === 0) throw new AppError(409, 'This raffle has no tickets');
+    if (pool.length === 0) throw new AppError(409, 'This raffle has no tickets');
+    const totalTickets = pool.length;
+    const distinctParticipants = new Set(pool.map((t) => t.userId)).size;
+    if (distinctParticipants < prizes.length) {
+      throw new AppError(
+        409,
+        `This raffle has ${prizes.length} prize tiers but only ${distinctParticipants} distinct participants — a person can't win the same raffle twice`
+      );
+    }
 
     const clickedAt = new Date();
-    const clientSeed = `${clickedAt.toISOString()}:${tokenHash}`;
-    const { winnerIndex, combinedHash } = await computeWinner(serverSeed, clientSeed, tickets.length);
-    const winningTicket = tickets[winnerIndex];
-    const [draw] = await tx<{ id: string }[]>`
-      INSERT INTO draw_results (
-        raffle_id, draw_trigger_id, server_seed, server_seed_hash, client_seed,
-        final_seed_hash, winning_ticket_number, winner_user_id
-      ) VALUES (
-        ${raffle.id}, ${trigger.id}, ${serverSeed}, ${serverSeedHash}, ${clientSeed},
-        ${combinedHash}, ${winningTicket.ticketNumber}, ${winningTicket.userId}
-      ) RETURNING id
-    `;
+    const clientSeedBase = `${clickedAt.toISOString()}:${tokenHash}`;
+
+    // One winner per tier, drawn in rank order from the SAME committed
+    // server seed (a per-tier salt on the client seed keeps each tier's
+    // index independently derivable and verifiable). A tier's winner and
+    // every other ticket that same person holds are removed from the pool
+    // before the next tier draws, so one raffle always produces as many
+    // distinct winners as it has prize tiers.
+    const results: {
+      tier: number;
+      prizeId: string;
+      prizeName: string;
+      winnerUserId: string;
+      winnerTicketNumber: number;
+      winnerTicketCode: string;
+      clientSeed: string;
+      combinedHash: string;
+    }[] = [];
+
+    for (const prize of prizes) {
+      const tierClientSeed = `${clientSeedBase}:tier${prize.tier}`;
+      const { winnerIndex, combinedHash } = await computeWinner(serverSeed, tierClientSeed, pool.length);
+      const winningTicket = pool[winnerIndex];
+
+      const [draw] = await tx<{ id: string }[]>`
+        INSERT INTO draw_results (
+          raffle_id, draw_trigger_id, tier, prize_id, server_seed, server_seed_hash, client_seed,
+          final_seed_hash, winning_ticket_number, winner_user_id
+        ) VALUES (
+          ${raffle.id}, ${trigger.id}, ${prize.tier}, ${prize.id}, ${serverSeed}, ${serverSeedHash}, ${tierClientSeed},
+          ${combinedHash}, ${winningTicket.ticketNumber}, ${winningTicket.userId}
+        ) RETURNING id
+      `;
+
+      const claimDeadline = new Date(clickedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const taxWithheld = Number(prize.value) * 0.15;
+      await tx`
+        INSERT INTO payouts (
+          raffle_id, draw_result_id, winner_user_id, gross_prize_value, tax_rate,
+          tax_withheld, net_value, claim_deadline
+        ) VALUES (
+          ${raffle.id}, ${draw.id}, ${winningTicket.userId}, ${prize.value}, 15,
+          ${taxWithheld}, ${Number(prize.value) - taxWithheld}, ${claimDeadline}
+        )
+      `;
+
+      results.push({
+        tier: prize.tier,
+        prizeId: prize.id,
+        prizeName: prize.name,
+        winnerUserId: winningTicket.userId,
+        winnerTicketNumber: winningTicket.ticketNumber,
+        winnerTicketCode: `${raffle.publicCode}-${String(winningTicket.ticketNumber).padStart(5, '0')}`,
+        clientSeed: tierClientSeed,
+        combinedHash,
+      });
+
+      pool = pool.filter((t) => t.userId !== winningTicket.userId);
+    }
+
     await tx`UPDATE draw_triggers SET status = 'clicked', clicked_at = ${clickedAt}, clicked_ip = ${clickedIp} WHERE id = ${trigger.id}`;
     await tx`UPDATE raffles SET status = 'completed', draw_server_seed = NULL, updated_at = NOW() WHERE id = ${raffle.id}`;
-    const claimDeadline = new Date(clickedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const taxWithheld = Number(raffle.prizeValue) * 0.15;
-    await tx`
-      INSERT INTO payouts (
-        raffle_id, draw_result_id, winner_user_id, gross_prize_value, tax_rate,
-        tax_withheld, net_value, claim_deadline
-      ) VALUES (
-        ${raffle.id}, ${draw.id}, ${winningTicket.userId}, ${raffle.prizeValue}, 15,
-        ${taxWithheld}, ${Number(raffle.prizeValue) - taxWithheld}, ${claimDeadline}
-      )
-    `;
     await tx`
       INSERT INTO audit_log (actor_type, action, entity_type, entity_id, metadata)
       VALUES ('user', 'draw.completed', 'raffle', ${raffle.id},
-        ${tx.json({ triggerId: trigger.id, winningTicketNumber: winningTicket.ticketNumber, finalSeedHash: combinedHash })})
+        ${tx.json({ triggerId: trigger.id, results, serverSeedHash })})
     `;
+
+    const winner = results[0];
     return {
       raffleId: raffle.id,
       raffleName: raffle.title,
       raffleCode: raffle.publicCode,
-      winnerTicketNumber: winningTicket.ticketNumber,
-      winnerTicketCode: `${raffle.publicCode}-${String(winningTicket.ticketNumber).padStart(5, '0')}`,
-      totalTickets: tickets.length,
+      // Mirrors tier 1 at the top level for any client that only knows
+      // about a single winner yet — `results` carries the full breakdown.
+      winnerTicketNumber: winner.winnerTicketNumber,
+      winnerTicketCode: winner.winnerTicketCode,
+      totalTickets,
       serverSeed,
-      clientSeed,
-      combinedHash,
+      clientSeed: winner.clientSeed,
+      combinedHash: winner.combinedHash,
       serverSeedHash,
-      message: 'Draw completed. The winning ticket is now final.',
+      results,
+      message:
+        results.length > 1
+          ? `Draw completed. All ${results.length} prize tiers are now final.`
+          : 'Draw completed. The winning ticket is now final.',
     };
   });
   logger.info(`Draw completed for raffle ${result.raffleId}: ${result.winnerTicketCode}`);
@@ -207,9 +305,13 @@ export async function getRaffleEngine(raffleId: string) {
       SELECT id, previous_deadline, new_deadline, reason, extended_at, tickets_sold_at_extension
       FROM raffle_extensions WHERE raffle_id = ${raffleId} ORDER BY extended_at DESC
     `,
-    sql<{ winningTicketNumber: number; winnerName: string | null; drawnAt: Date; finalSeedHash: string }[]>`
-      SELECT dr.winning_ticket_number, u.full_name AS winner_name, dr.drawn_at, dr.final_seed_hash
-      FROM draw_results dr JOIN users u ON u.id = dr.winner_user_id WHERE dr.raffle_id = ${raffleId}
+    sql<{ tier: number; prizeName: string; winningTicketNumber: number; winnerName: string | null; drawnAt: Date; finalSeedHash: string }[]>`
+      SELECT dr.tier, rp.name AS prize_name, dr.winning_ticket_number, u.full_name AS winner_name, dr.drawn_at, dr.final_seed_hash
+      FROM draw_results dr
+      JOIN users u ON u.id = dr.winner_user_id
+      JOIN raffle_prizes rp ON rp.id = dr.prize_id
+      WHERE dr.raffle_id = ${raffleId}
+      ORDER BY dr.tier ASC
     `,
   ]);
   return {
@@ -221,6 +323,6 @@ export async function getRaffleEngine(raffleId: string) {
     participants: participants.map((participant) => ({ ...participant, phone: maskPhone(participant.phone) })),
     triggers: triggers.map((trigger) => ({ ...trigger, phone: maskPhone(trigger.phone) })),
     extensions,
-    draw: draw[0] ? { ...draw[0], winningTicketCode: `${raffle.publicCode}-${String(draw[0].winningTicketNumber).padStart(5, '0')}` } : null,
+    draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${String(d.winningTicketNumber).padStart(5, '0')}` })),
   };
 }

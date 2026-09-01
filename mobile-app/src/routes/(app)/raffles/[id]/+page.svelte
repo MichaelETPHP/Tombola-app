@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { page } from '$app/stores';
@@ -29,6 +29,37 @@
   let termsOpen = false;
   let termsShake = false;
 
+  const rankBg = ['bg-gold-bg', 'bg-blue-bg', 'bg-pink-bg'];
+  const rankText = ['text-gold', 'text-blue', 'text-pink'];
+  const rankWord = ['1st', '2nd', '3rd'];
+
+  // Prize carousel — auto-advances like a marquee for passive viewing, but
+  // hands control to the user the instant they touch it (never fights a
+  // manual swipe mid-gesture).
+  let carouselEl: HTMLDivElement;
+  let carouselIndex = 0;
+  let autoAdvanceTimer: ReturnType<typeof setInterval> | undefined;
+
+  function handleCarouselScroll() {
+    if (!carouselEl) return;
+    const w = carouselEl.clientWidth;
+    if (w === 0) return;
+    carouselIndex = Math.round(carouselEl.scrollLeft / w);
+  }
+  function goToCarousel(i: number) {
+    carouselEl?.scrollTo({ left: i * carouselEl.clientWidth, behavior: 'smooth' });
+  }
+  function stopAutoAdvance() {
+    clearInterval(autoAdvanceTimer);
+    autoAdvanceTimer = undefined;
+  }
+  function startAutoAdvance() {
+    stopAutoAdvance();
+    if (rankedPrizes.length <= 1) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    autoAdvanceTimer = setInterval(() => goToCarousel((carouselIndex + 1) % rankedPrizes.length), 2800);
+  }
+
   function goBack() {
     hapticLight();
     navigateBack();
@@ -53,7 +84,10 @@
     }
     loading = false;
     pullRefresh.set(fetchRaffle);
+    startAutoAdvance();
   });
+
+  onDestroy(stopAutoAdvance);
 
   function handleBuyClick() {
     if (!agreedToTerms) {
@@ -100,12 +134,13 @@
     }
   }
 
-  $: daysLeft = raffle ? Math.max(0, Math.ceil((new Date(raffle.currentDeadline).getTime() - Date.now()) / 86_400_000)) : 0;
+  // Ticket availability still gates purchasing internally — just never
+  // rendered as a "N left" figure per the no-scarcity-numbers direction.
   $: ticketsRemaining = raffle ? Math.max(0, raffle.ticketCap - raffle.ticketsSold) : 0;
-  $: soldPercent = raffle ? Math.min(100, (raffle.ticketsSold / raffle.ticketCap) * 100) : 0;
   $: maxAllowed = raffle ? Math.max(1, Math.min(5, raffle.maxTicketsPerUser, ticketsRemaining || 1)) : 5;
   $: odds = raffle && raffle.ticketsSold + quantity > 0 ? (quantity / (raffle.ticketsSold + quantity)) * 100 : 0;
   $: oddsDisplay = odds === 0 ? '0%' : odds < 0.1 ? '<0.1%' : `${odds.toFixed(1)}%`;
+  $: rankedPrizes = raffle?.prizes && raffle.prizes.length > 1 ? [...raffle.prizes].sort((a, b) => a.tier - b.tier) : [];
 </script>
 
 <svelte:head><title>{raffle?.title ?? 'Raffle'} · Tombola</title></svelte:head>
@@ -123,27 +158,59 @@
       <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" eager />
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
       <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-[#172c27]/55 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"><ChevronLeft size={19} /></button>
-      <div class="absolute bottom-3 left-3 rounded-full border border-white/30 bg-white/82 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-md">{ticketsRemaining} tickets left</div>
     </section>
 
     <header class="min-w-0 px-0.5">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0"><h1 class="truncate text-[19px] font-extrabold leading-tight tracking-[-0.03em] text-ink">{raffle.title}</h1><p class="mt-1 truncate text-[11px] text-muted">{raffle.prizeName}</p></div>
-        <div class="shrink-0 text-right"><p class="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">Prize value</p><p class="mt-0.5 text-[13px] font-extrabold text-primary-dark">{formatEtb(raffle.prizeValue)} ETB</p></div>
-      </div>
+      <h1 class="truncate text-[19px] font-extrabold leading-tight tracking-[-0.03em] text-ink">{raffle.title}</h1>
+      {#if rankedPrizes.length <= 1}<p class="mt-1 truncate text-[11px] text-muted">{raffle.prizeName}</p>{/if}
       {#if raffle.description}<p class="raffle-description mt-2 line-clamp-2 text-[11px] leading-[1.55] text-ink/75">{raffle.description}</p>{/if}
     </header>
+
+    {#if rankedPrizes.length > 1}
+      <div class="prize-carousel shrink-0">
+        <div
+          bind:this={carouselEl}
+          on:scroll={handleCarouselScroll}
+          on:touchstart={stopAutoAdvance}
+          data-swipe-region
+          role="presentation"
+          class="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-2xl [touch-action:pan-x]"
+        >
+          {#each rankedPrizes as prize, i (prize.id)}
+            <div class="flex w-full shrink-0 snap-start items-center gap-3 bg-bg-start/70 px-3.5 py-2.5">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full {rankBg[i] ?? 'bg-action-bg'}">
+                {#if prize.imageUrl}
+                  <img src={prize.imageUrl} alt={prize.name} class="h-full w-full object-cover" />
+                {:else}
+                  <span class="text-[10px] font-black {rankText[i] ?? 'text-primary-dark'}">{rankWord[i] ?? `${prize.tier}th`}</span>
+                {/if}
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-[9px] font-bold uppercase tracking-[0.07em] text-muted">{rankWord[i] ?? `${prize.tier}th`} place</p>
+                <p class="truncate text-[13.5px] font-bold text-ink">{prize.name}</p>
+              </div>
+            </div>
+          {/each}
+        </div>
+        <div class="mt-1.5 flex items-center justify-center gap-1.5" aria-label="Prize pages">
+          {#each rankedPrizes as prize, i (prize.id)}
+            <button
+              type="button"
+              class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === carouselIndex ? 'w-5 bg-primary-dark' : 'w-1.5 bg-dot-inactive'}"
+              aria-label="Show {rankWord[i] ?? `${prize.tier}th`} place prize"
+              aria-current={i === carouselIndex ? 'true' : undefined}
+              on:click={() => { stopAutoAdvance(); goToCarousel(i); }}
+            ></button>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <section class="ticket-sheet overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(24,95,77,0.08)]">
       <div class="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3.5">
         <div><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">Price</p><p class="mt-1 text-sm font-extrabold text-ink">{formatEtb(raffle.ticketPrice)} <span class="text-[10px] text-muted">ETB</span></p></div>
         <div class="h-8 w-px bg-dot-inactive"></div>
         <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">Chance with {quantity}</p><p class="mt-1 text-sm font-extrabold text-primary-dark">{oddsDisplay}</p></div>
-      </div>
-
-      <div class="px-4 pb-3">
-        <div class="mb-1.5 flex items-center justify-between text-[9px] font-semibold text-muted"><span>{raffle.ticketsSold} sold</span><span>{raffle.ticketCap} total</span></div>
-        <div class="h-1.5 overflow-hidden rounded-full bg-action-bg"><div class="h-full rounded-full bg-primary transition-transform duration-300" style={`transform: scaleX(${soldPercent / 100}); transform-origin: left;`}></div></div>
       </div>
 
       <div class="ticket-perforation"></div>
@@ -186,10 +253,11 @@
 <style>
   .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; }
   .raffle-cover { flex: 1 1 32%; }
+  .prize-carousel { flex: 0 0 auto; }
   .ticket-sheet { flex: 0 0 auto; }
   .terms-shake { animation: terms-shake 380ms var(--ease-out); }
   @keyframes terms-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
   @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-cover { flex-basis: 25%; } .raffle-description { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
-  @media (max-height: 630px) { .raffle-cover { min-height: 82px; } .raffle-screen header p { display: none; } }
+  @media (max-height: 630px) { .raffle-cover { min-height: 82px; } .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
   @media (prefers-reduced-motion: reduce) { .terms-shake { animation: none; } }
 </style>

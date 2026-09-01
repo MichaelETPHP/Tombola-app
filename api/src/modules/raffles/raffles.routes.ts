@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { createRaffleSchema, generateDrawTriggerSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema } from './raffles.schema.js';
 import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline } from './raffles.service.js';
+import { findRafflePrize, updateRafflePrizeImage } from '../../db/queries/raffles.queries.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { processPrizeImage } from '../../lib/image.js';
@@ -122,6 +123,58 @@ adminRafflesRoutes.post(
     try {
       const raffle = await updateRaffle(raffleId, { prizeImageUrl: stored.publicUrl });
       const previousPath = uploadedImagePathFromPublicUrl(current.prizeImageUrl);
+      if (previousPath) deleteUploadedImage(previousPath).catch(() => undefined);
+      return c.json({
+        raffle,
+        image: { format: processed.format, width: processed.width, height: processed.height, bytes: processed.size },
+      }, 201);
+    } catch (error) {
+      await deleteUploadedImage(stored.path).catch(() => undefined);
+      throw error;
+    }
+  }
+);
+
+/**
+ * POST /admin/raffles/:id/prizes/:prizeId/image
+ * Same pipeline as the raffle cover photo above (processPrizeImage, WebP,
+ * old file cleanup), but for one specific prize tier — a raffle can have
+ * up to 4 photos total: the main cover plus one per prize (1st/2nd/3rd).
+ */
+adminRafflesRoutes.post(
+  '/:id/prizes/:prizeId/image',
+  bodyLimit({
+    maxSize: MAX_IMAGE_UPLOAD_BYTES,
+    onError: (c) => c.json({ error: c.get('t')('raffle.imageTooLarge'), code: 'RAFFLE_IMAGETOOLARGE' }, 413),
+  }),
+  async (c) => {
+    const raffleId = c.req.param('id');
+    const prizeId = c.req.param('prizeId');
+    const currentPrize = await findRafflePrize(raffleId, prizeId);
+    if (!currentPrize) throw new AppError(404, 'Prize tier not found');
+
+    const body = await c.req.parseBody();
+    const file = body.image;
+    if (!(file instanceof File)) throw new AppError(400, 'raffle.imageRequired');
+
+    let processed;
+    try {
+      processed = await processPrizeImage(Buffer.from(await file.arrayBuffer()));
+    } catch {
+      throw new AppError(400, 'raffle.invalidImage');
+    }
+
+    let stored;
+    try {
+      stored = await saveUploadedImage(processed, 'raffles');
+    } catch {
+      throw new AppError(503, 'Raffle image storage is unavailable or not configured');
+    }
+
+    try {
+      await updateRafflePrizeImage(prizeId, stored.publicUrl);
+      const raffle = await getRaffle(raffleId);
+      const previousPath = uploadedImagePathFromPublicUrl(currentPrize.imageUrl);
       if (previousPath) deleteUploadedImage(previousPath).catch(() => undefined);
       return c.json({
         raffle,

@@ -52,12 +52,20 @@ export const adminAuthResponseSchema = z.object({
 // ── Raffle Schemas ───────────────────────────────────────
 // Mirrors api/src/modules/raffles/raffles.schema.ts::createRaffleSchema exactly.
 
+// Tier 1 is prizeName/prizeValue (below) — additionalPrizes holds tier 2
+// and/or tier 3 on top, up to three ranked prizes per raffle total.
+export const additionalPrizeSchema = z.object({
+  name: z.string().min(2).max(200),
+  value: z.number().positive(),
+});
+
 export const createRaffleSchema = z.object({
   title: z.string().min(3).max(200),
   description: z.string().max(2000).optional(),
   prizeName: z.string().min(2).max(200),
   categoryCode: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use exactly 3 letters, for example LAP'),
   prizeValue: z.number().positive(),
+  additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
   ticketPrice: z.number().positive(),
   ticketCap: z.number().int().positive().min(10),
   maxTicketsPerUser: z.number().int().min(1).max(5),
@@ -67,6 +75,14 @@ export const createRaffleSchema = z.object({
     .trim()
     .regex(/^https:\/\/t\.me\//, 'Must be a Telegram invite link (https://t.me/...)')
     .optional(),
+});
+
+export const rafflePrizeSchema = z.object({
+  id: z.string(),
+  tier: z.number(),
+  name: z.string(),
+  value: z.number(),
+  imageUrl: z.string().nullable(),
 });
 
 export const raffleSchema = z.object({
@@ -81,6 +97,7 @@ export const raffleSchema = z.object({
   scheduledDrawAt: z.string().nullable().optional(),
   prizeValue: z.number(),
   prizeImageUrl: z.string().nullable(),
+  prizes: z.array(rafflePrizeSchema).optional(),
   ticketPrice: z.number(),
   ticketCap: z.number(),
   ticketsSold: z.number(),
@@ -143,6 +160,8 @@ export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export type Admin = z.infer<typeof adminSchema>;
 export type AdminAuthResponse = z.infer<typeof adminAuthResponseSchema>;
 export type CreateRaffleInput = z.infer<typeof createRaffleSchema>;
+export type AdditionalPrize = z.infer<typeof additionalPrizeSchema>;
+export type RafflePrize = z.infer<typeof rafflePrizeSchema>;
 export type Raffle = z.infer<typeof raffleSchema>;
 export type UpdatePayoutStatusInput = z.infer<typeof updatePayoutStatusSchema>;
 export type Payout = z.infer<typeof payoutSchema>;

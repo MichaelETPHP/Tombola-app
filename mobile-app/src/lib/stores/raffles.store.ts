@@ -1,5 +1,13 @@
 import { writable } from 'svelte/store';
 
+export interface RafflePrize {
+  id: string;
+  tier: number;
+  name: string;
+  value: number;
+  imageUrl: string | null;
+}
+
 export interface Raffle {
   id: string;
   title: string;
@@ -7,6 +15,10 @@ export interface Raffle {
   prizeName: string;
   prizeValue: number;
   prizeImageUrl: string | null;
+  /** Full ranked prize breakdown when this raffle awards more than one
+   *  prize — tier 1 always mirrors prizeName/prizeValue/prizeImageUrl
+   *  above. Absent or single-entry means an ordinary one-prize raffle. */
+  prizes?: RafflePrize[];
   ticketPrice: number;
   ticketCap: number;
   ticketsSold: number;

@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+// A raffle's headline prize stays on prizeName/prizeValue/prizeImageUrl
+// (tier 1) for backward compatibility with every existing reader of those
+// fields. additionalPrizes adds tier 2 and/or tier 3 on top — up to three
+// ranked prizes per raffle total, e.g. "New Year": 1st Laptop, 2nd Power
+// bank, 3rd Flash drive. No per-tier image yet — the existing prize-image
+// upload endpoint is raffle-level (tier 1's cover photo), not per-tier.
+const additionalPrizeSchema = z.object({
+  name: z.string().min(2).max(200),
+  value: z.number().positive(),
+});
+
 export const createRaffleSchema = z.object({
   title: z.string().min(3).max(200),
   description: z.string().max(2000).optional(),
@@ -11,6 +22,7 @@ export const createRaffleSchema = z.object({
   maxTicketsPerUser: z.number().int().min(1).max(5),
   deadlineDays: z.number().int().positive().min(1).max(90),
   prizeImageUrl: z.string().url().optional(),
+  additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
   opensAt: z.coerce.date().optional(),
   deadlineAt: z.coerce.date().optional(),
   status: z.enum(['draft', 'open']).default('draft'),
@@ -33,6 +45,9 @@ export const updateRaffleSchema = z.object({
   prizeName: z.string().min(2).max(200).optional(),
   prizeValue: z.number().positive().optional(),
   prizeImageUrl: z.string().url().nullable().optional(),
+  // When present, fully replaces the tier-2/3 prize set (not a merge) —
+  // send every additional tier that should exist after this save.
+  additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
   ticketPrice: z.number().positive().optional(),
   ticketCap: z.number().int().min(10).optional(),
   maxTicketsPerUser: z.number().int().min(1).max(5).optional(),
