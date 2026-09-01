@@ -66,6 +66,44 @@
     navigateBack();
   }
 
+  // Full-image lightbox — opened by tapping a prize thumbnail. Swiping
+  // inside it pages between prizes (same snap-carousel mechanics as the
+  // thumbnail row), and closing syncs the thumbnail row back to whichever
+  // prize was last shown so the two views never disagree.
+  let lightboxEl: HTMLDivElement;
+  let lightboxIndex: number | null = null;
+
+  function scrollToIndexInstant(node: HTMLDivElement, index: number) {
+    node.scrollLeft = index * node.clientWidth;
+    return {};
+  }
+  function handleLightboxScroll() {
+    if (!lightboxEl) return;
+    const w = lightboxEl.clientWidth;
+    if (w === 0) return;
+    lightboxIndex = Math.round(lightboxEl.scrollLeft / w);
+  }
+  function openLightbox(i: number) {
+    if (!rankedPrizes[i]?.imageUrl) return;
+    hapticLight();
+    stopAutoAdvance();
+    lightboxIndex = i;
+  }
+  function closeLightbox() {
+    if (lightboxIndex !== null && carouselEl) {
+      carouselIndex = lightboxIndex;
+      carouselEl.scrollTo({ left: lightboxIndex * carouselEl.clientWidth, behavior: 'auto' });
+    }
+    lightboxIndex = null;
+  }
+  function lightboxContentParams() {
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return { duration: 220, start: reduced ? 1 : 0.95, opacity: 0, easing: cubicOut };
+  }
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (lightboxIndex !== null && e.key === 'Escape') closeLightbox();
+  }
+
   async function fetchRaffle() {
     try {
       const response = await api.get<{ raffle: Raffle }>(`/raffles/${$page.params.id}`, { skipAuth: true });
@@ -145,6 +183,7 @@
 </script>
 
 <svelte:head><title>{raffle?.title ?? 'Raffle'} · Tombola</title></svelte:head>
+<svelte:window on:keydown={handleWindowKeydown} />
 
 {#if loading}
   <RaffleDetailSkeleton />
@@ -179,13 +218,18 @@
         >
           {#each rankedPrizes as prize, i (prize.id)}
             <div class="flex w-full shrink-0 snap-start items-center gap-3 bg-bg-start/70 px-3.5 py-2.5">
-              <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full {rankBg[i] ?? 'bg-action-bg'}">
+              <button
+                type="button"
+                class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full {rankBg[i] ?? 'bg-action-bg'} {prize.imageUrl ? '' : 'cursor-default'}"
+                aria-label={prize.imageUrl ? `View full ${rankWord[i] ?? `${prize.tier}th`} place prize photo` : `${rankWord[i] ?? `${prize.tier}th`} place`}
+                on:click={() => openLightbox(i)}
+              >
                 {#if prize.imageUrl}
                   <img src={resolveImageUrl(prize.imageUrl)} alt={prize.name} class="h-full w-full object-cover" />
                 {:else}
                   <span class="text-[10px] font-black {rankText[i] ?? 'text-primary-dark'}">{rankWord[i] ?? `${prize.tier}th`}</span>
                 {/if}
-              </div>
+              </button>
               <div class="min-w-0 flex-1">
                 <p class="text-[9px] font-bold uppercase tracking-[0.07em] text-muted">{rankWord[i] ?? `${prize.tier}th`} place</p>
                 <p class="truncate text-[13.5px] font-bold text-ink">{prize.name}</p>
@@ -249,6 +293,54 @@
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>You must be 18 or older to purchase tickets.</li><li>Purchases are final after payment confirmation.</li><li>Each paid ticket is one independent chance in the draw.</li><li>The maximum is five tickets per participant in one raffle.</li><li>The published fairness proof can be verified after the draw.</li></ul>
     <div class="mt-4"><Button size="md" on:click={() => (termsOpen = false)}>Understood</Button></div>
   </section>
+{/if}
+
+{#if lightboxIndex !== null}
+  {@const activePrize = rankedPrizes[lightboxIndex]}
+  <div class="lightbox fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="{activePrize ? (rankWord[lightboxIndex] ?? `${activePrize.tier}th`) : ''} place prize photo">
+    <button type="button" aria-label="Close" class="absolute inset-0 bg-[#0b1613]/92 backdrop-blur-sm" on:click={closeLightbox} transition:fade={{ duration: 200 }}></button>
+
+    <div class="lightbox-content absolute inset-0 flex flex-col" transition:scale={lightboxContentParams()}>
+      <div
+        bind:this={lightboxEl}
+        on:scroll={handleLightboxScroll}
+        use:scrollToIndexInstant={lightboxIndex}
+        data-swipe-region
+        role="presentation"
+        class="no-scrollbar flex flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain [touch-action:pan-x]"
+      >
+        {#each rankedPrizes as prize, i (prize.id)}
+          <div class="flex h-full w-full shrink-0 snap-start items-center justify-center px-5">
+            {#if prize.imageUrl}
+              <img src={resolveImageUrl(prize.imageUrl)} alt={prize.name} class="max-h-full max-w-full rounded-2xl object-contain shadow-[0_20px_60px_rgba(0,0,0,0.45)]" />
+            {/if}
+          </div>
+        {/each}
+      </div>
+
+      <button
+        type="button"
+        aria-label="Close"
+        class="tappable pressable absolute right-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
+        style="top: max(16px, var(--safe-top));"
+        on:click={closeLightbox}
+      ><X size={19} /></button>
+
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-16 text-center bg-gradient-to-t from-[#0b1613]/85 to-transparent">
+        {#if activePrize}
+          <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">{rankWord[lightboxIndex] ?? `${activePrize.tier}th`} place</p>
+          <p class="mt-1 text-[15px] font-extrabold text-white">{activePrize.name}</p>
+        {/if}
+        {#if rankedPrizes.length > 1}
+          <div class="mt-3 flex items-center justify-center gap-1.5">
+            {#each rankedPrizes as prize, i (prize.id)}
+              <span class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === lightboxIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/35'}"></span>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
