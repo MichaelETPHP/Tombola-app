@@ -102,6 +102,21 @@ function checkConfig(): CheckResult {
   if (!env.DATABASE_URL || env.DATABASE_URL.includes('[PASSWORD]'))
     issues.push('DATABASE_URL is missing or still a template');
 
+  // API_BASE_URL/MOBILE_APP_URL both default to localhost for local dev
+  // convenience — but that default is silently wrong in production. Every
+  // uploaded-image URL is built from API_BASE_URL at upload time and baked
+  // into the database permanently; if this defaults to localhost in
+  // production, every image any admin uploads becomes unreachable for
+  // every visitor except someone on that exact machine, with no error
+  // anywhere in the flow to surface it. Same failure shape for
+  // MOBILE_APP_URL and the Chapa checkout return_url it builds.
+  if (env.NODE_ENV === 'production') {
+    if (/^https?:\/\/localhost(:|\/|$)/.test(env.API_BASE_URL))
+      issues.push('API_BASE_URL is still localhost in production — every uploaded image URL will be broken for everyone');
+    if (/^https?:\/\/localhost(:|\/|$)/.test(env.MOBILE_APP_URL))
+      issues.push('MOBILE_APP_URL is still localhost in production — Chapa checkout return_url will be broken for everyone');
+  }
+
   const warnings: string[] = [];
   if (!env.SMS_API_URL)
     warnings.push('SMS_API_URL not set — OTP will be logged to console (dev mode)');
