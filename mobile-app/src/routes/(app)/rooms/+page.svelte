@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
@@ -6,15 +7,18 @@
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { hapticLight } from '$lib/native/haptics.js';
   import { fly } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
   import { cubicOut } from 'svelte/easing';
   import { ChevronLeft, MessageCircle } from 'lucide-svelte';
   import type { RoomSummary } from '$lib/schemas/index.js';
 
   const pullRefresh = getPullRefreshContext();
+  const POLL_INTERVAL_MS = 5000;
 
   let rooms: RoomSummary[] = [];
   let loading = true;
   let hasFetched = false;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   async function loadRooms() {
     loading = true;
@@ -28,12 +32,35 @@
     }
   }
 
+  /** Same list, refreshed quietly in the background — no skeleton flash,
+   *  no loading state. The server already re-sorts by latest activity, so
+   *  a room that just got a new message naturally rises to the top; the
+   *  `animate:flip` below turns that into a visible slide instead of a
+   *  jump cut. */
+  async function pollRooms() {
+    if (!$auth.isAuthenticated) return;
+    try {
+      const res = await api.get<{ rooms: RoomSummary[] }>('/rooms');
+      rooms = res.rooms;
+    } catch {
+      // A missed poll just gets picked up on the next tick.
+    }
+  }
+
   $: if ($auth.isAuthenticated && !hasFetched) {
     hasFetched = true;
     loadRooms();
   }
 
   $: pullRefresh.set($auth.isAuthenticated ? loadRooms : null);
+
+  onMount(() => {
+    pollTimer = setInterval(pollRooms, POLL_INTERVAL_MS);
+  });
+
+  onDestroy(() => {
+    clearInterval(pollTimer);
+  });
 
   function openRoom(raffleId: string) {
     hapticLight();
@@ -94,6 +121,7 @@
           on:click={() => openRoom(room.raffleId)}
           class="tappable pressable flex w-full items-center gap-3 rounded-card bg-card p-4 text-left shadow-card-light"
           in:fly={{ y: 10, duration: 220, delay: i * 30, easing: cubicOut }}
+          animate:flip={{ duration: 260, easing: cubicOut }}
         >
           <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
             <MessageCircle size={19} />
