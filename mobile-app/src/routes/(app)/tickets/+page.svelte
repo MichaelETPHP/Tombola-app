@@ -1,22 +1,19 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
+  import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
 
   const pullRefresh = getPullRefreshContext();
 
-  interface Ticket {
-    id: string;
-    raffleId: string;
-    ticketNumber: number;
-    ticketCode?: string;
-    createdAt: string;
-  }
-
-  let tickets: Ticket[] = [];
-  let loading = true;
+  // Seeded from the session cache so returning to this tab (bottom nav,
+  // or back from a raffle) repaints the last-known list instantly instead
+  // of a skeleton every time — loadTickets() below still revalidates.
+  let tickets: Ticket[] = get(ticketsStore);
+  let loading = tickets.length === 0;
   let hasFetched = false;
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
@@ -24,10 +21,11 @@
   }
 
   async function loadTickets() {
-    loading = true;
+    if (tickets.length === 0) loading = true;
     try {
       const res = await api.get<{ tickets: Ticket[] }>('/tickets');
       tickets = res.tickets;
+      ticketsStore.set(res.tickets);
     } catch (err) {
       console.error('Failed to load tickets', err);
     } finally {

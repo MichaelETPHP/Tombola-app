@@ -2,12 +2,13 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
-  import type { Raffle } from '$lib/stores/raffles.store.js';
+  import { raffles, type Raffle } from '$lib/stores/raffles.store.js';
   import Button from '$lib/components/Button.svelte';
   import PrizeImage from '$lib/components/PrizeImage.svelte';
   import RaffleDetailSkeleton from '$lib/components/RaffleDetailSkeleton.svelte';
@@ -20,8 +21,14 @@
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   const pullRefresh = getPullRefreshContext();
-  let raffle: Raffle | null = null;
-  let loading = true;
+  // Instant paint for the single most common navigation in the app —
+  // tapping a raffle card. The Home/Raffles-list pages already fetched
+  // this exact raffle into the shared store moments ago; reuse it as the
+  // first paint instead of showing a skeleton and re-fetching from zero,
+  // then quietly refetch below to reconcile anything that changed since
+  // (ticketsSold, status) without ever flashing a loading state.
+  let raffle: Raffle | null = get(raffles).find((r) => r.id === $page.params.id) ?? null;
+  let loading = !raffle;
   let quantity = 1;
   let purchasing = false;
   let error = '';
@@ -110,20 +117,30 @@
       raffle = response.raffle;
       error = '';
     } catch {
-      error = 'Could not load this raffle.';
+      // A failed background revalidation shouldn't blow away a perfectly
+      // good cached view — only surface the error when there's nothing
+      // on screen yet.
+      if (!raffle) error = 'Could not load this raffle.';
     }
   }
 
   onMount(async () => {
-    await fetchRaffle();
+    pullRefresh.set(fetchRaffle);
+    const hadCachedRaffle = !!raffle;
+    if (hadCachedRaffle) {
+      loading = false;
+      startAutoAdvance();
+      fetchRaffle(); // silent revalidation, not awaited — content is already on screen
+    } else {
+      await fetchRaffle();
+      loading = false;
+      startAutoAdvance();
+    }
     const pending = getPendingPurchase();
     if (pending && raffle && pending.raffleId === raffle.id) {
       quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 5);
       resumedFromAuth = $auth.isAuthenticated;
     }
-    loading = false;
-    pullRefresh.set(fetchRaffle);
-    startAutoAdvance();
   });
 
   onDestroy(stopAutoAdvance);

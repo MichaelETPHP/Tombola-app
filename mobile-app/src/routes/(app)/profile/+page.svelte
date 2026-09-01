@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth, clearAuth } from '$lib/stores/auth.store.js';
@@ -12,21 +13,9 @@
   import { User, MessageCircle, ChevronRight } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
+  import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
 
   const pullRefresh = getPullRefreshContext();
-
-  interface PaymentHistoryItem {
-    id: string;
-    raffleId: string;
-    raffleTitle: string;
-    amount: number | string;
-    ticketCount: number;
-    ticketNumbers: number[];
-    ticketCodes: string[];
-    status: 'pending' | 'completed' | 'failed' | 'refunded';
-    gateway: string;
-    createdAt: string;
-  }
 
   const statusLabels: Record<PaymentHistoryItem['status'], string> = {
     completed: 'Paid',
@@ -51,8 +40,9 @@
   // user's own id, so it's the same avatar every time, no storage needed.
   $: dicebearUri = $auth.user ? dicebearAvatarUri($auth.user.id) : '';
 
-  let payments: PaymentHistoryItem[] = [];
-  let paymentsLoading = true;
+  // Seeded from the session cache — same reasoning as the Tickets page.
+  let payments: PaymentHistoryItem[] = get(paymentsStore);
+  let paymentsLoading = payments.length === 0;
   let hasFetchedPayments = false;
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
@@ -60,10 +50,11 @@
   }
 
   async function loadPayments() {
-    paymentsLoading = true;
+    if (payments.length === 0) paymentsLoading = true;
     try {
       const res = await api.get<{ payments: PaymentHistoryItem[] }>('/payments/mine');
       payments = res.payments;
+      paymentsStore.set(res.payments);
     } catch (err) {
       console.error('Failed to load payment history', err);
     } finally {

@@ -1,23 +1,18 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { Trophy } from 'lucide-svelte';
+  import { payouts as payoutsStore, type Payout } from '$lib/stores/wins.store.js';
 
   const pullRefresh = getPullRefreshContext();
 
-  interface Payout {
-    id: string;
-    raffleId: string;
-    status: 'pending_claim' | 'id_submitted' | 'verified' | 'rejected' | 'fulfilled' | 'expired';
-    claimDeadline: string;
-    createdAt: string;
-  }
-
-  let payouts: Payout[] = [];
-  let loading = true;
+  // Seeded from the session cache — same reasoning as the Tickets page.
+  let payouts: Payout[] = get(payoutsStore);
+  let loading = payouts.length === 0;
   let hasFetched = false;
 
   const statusLabels: Record<Payout['status'], string> = {
@@ -34,10 +29,11 @@
   }
 
   async function loadWins() {
-    loading = true;
+    if (payouts.length === 0) loading = true;
     try {
       const res = await api.get<{ payouts: Payout[] }>('/payouts/mine');
       payouts = res.payouts;
+      payoutsStore.set(res.payouts);
     } catch (err) {
       console.error('Failed to load wins', err);
     } finally {

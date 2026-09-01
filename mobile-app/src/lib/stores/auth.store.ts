@@ -1,4 +1,7 @@
 import { writable } from 'svelte/store';
+import { tickets } from './tickets.store.js';
+import { payouts } from './wins.store.js';
+import { payments } from './payments.store.js';
 
 interface AuthState {
   accessToken: string | null;
@@ -41,7 +44,11 @@ export function setAuth(accessToken: string, user: AuthState['user']): void {
 }
 
 /**
- * Clear auth state on logout or token expiry.
+ * Clear auth state on logout or token expiry. Also wipes the per-user
+ * session caches (tickets/wins/payments) — without this, a second person
+ * logging in on the same device right after would briefly see the
+ * previous user's cached list before the background refetch overwrites
+ * it, since those stores otherwise live for the whole app session.
  */
 export function clearAuth(): void {
   auth.set({
@@ -50,6 +57,9 @@ export function clearAuth(): void {
     isAuthenticated: false,
     isLoading: false,
   });
+  tickets.set([]);
+  payouts.set([]);
+  payments.set([]);
 }
 
 /**
