@@ -1,7 +1,10 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { scale } from 'svelte/transition';
+  import { backOut } from 'svelte/easing';
   import { auth } from '../stores/auth.store.js';
   import { hapticLight } from '../native/haptics.js';
+  import { unreadRoomCount } from '../stores/unreadRooms.js';
   import { Home, Ticket, Trophy, User } from 'lucide-svelte';
 
   const items = [
@@ -50,6 +53,17 @@
               : 'fill-none text-ink'}"
           />
         </span>
+        {#if item.href === '/profile' && $unreadRoomCount > 0}
+          {#key $unreadRoomCount}
+            <span
+              class="unread-badge absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-coral-start px-1 font-mono text-[10px] font-bold leading-none text-white"
+              in:scale={{ duration: 340, easing: backOut, start: 0.4 }}
+              aria-label="{$unreadRoomCount} unread chat{$unreadRoomCount > 1 ? 's' : ''}"
+            >
+              {$unreadRoomCount > 9 ? '9+' : $unreadRoomCount}
+            </span>
+          {/key}
+        {/if}
       </span>
       <span
         class="nav-label text-[10px] font-semibold leading-none transition-colors duration-150 ease-[var(--ease-out)] {active
@@ -74,6 +88,7 @@
   }
 
   .nav-icon {
+    position: relative;
     transform: translate3d(0, 0, 0) scale(0.75);
     transform-origin: center;
     transition:
@@ -81,6 +96,13 @@
       box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1),
       background-color 220ms cubic-bezier(0.16, 1, 0.3, 1);
     backface-visibility: hidden;
+  }
+
+  .unread-badge {
+    box-shadow:
+      0 0 0 2px var(--color-card),
+      0 3px 8px -2px rgba(184, 56, 45, 0.55);
+    font-variant-numeric: tabular-nums;
   }
 
   .nav-glyph {

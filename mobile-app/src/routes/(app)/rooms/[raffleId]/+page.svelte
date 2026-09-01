@@ -12,6 +12,8 @@
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check } from 'lucide-svelte';
   import type { Raffle, RoomMessage } from '$lib/schemas/index.js';
+  import { playChatSound, isChatSoundMuted, setChatSoundMuted } from '$lib/native/chatSound.js';
+  import { markRoomSeen } from '$lib/stores/unreadRooms.js';
 
   // Chat has its own refresh mechanism (polling) — the page-wide
   // pull-to-refresh gesture would just fight scrolling through history.
@@ -19,7 +21,6 @@
 
   const raffleId = $page.params.raffleId;
   const POLL_INTERVAL_MS = 3000;
-  const SOUND_MUTE_KEY = 'tombola_chat_muted';
 
   let messages: RoomMessage[] = [];
   let loading = true;
@@ -32,8 +33,6 @@
   let bottomSentinel: HTMLDivElement;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let cancelled = false;
-  let notificationSound: HTMLAudioElement | undefined;
-  let audioUnlocked = false;
   let soundMuted = false;
   let atBottom = true;
   let unreadCount = 0;
@@ -42,48 +41,10 @@
   let roomTitle = '';
   let roomEnded = false;
 
-  /** Plays once per poll batch, not once per message — several messages
-   *  landing in the same 3s tick should still be a single ding, not a
-   *  volley of overlapping ones. */
-  function playNotificationSound() {
-    if (!notificationSound || soundMuted) return;
-    notificationSound.currentTime = 0;
-    notificationSound.play().catch(() => {
-      // Still blocked (e.g. no gesture has happened yet at all) — the
-      // unlock listener below will catch the next tap and every message
-      // after that will ring normally.
-    });
-  }
-
-  /** Mobile Safari/WebKit refuses any programmatic .play() that didn't
-   *  originate inside a real user gesture — including one fired from our
-   *  3s poll timer — UNTIL the exact same <audio> element has been played
-   *  at least once from inside an actual tap. A silent play()+pause() on
-   *  the very first tap anywhere on the page "unlocks" it permanently for
-   *  the rest of the session, so every later programmatic ring works. */
-  function unlockAudioOnce() {
-    if (audioUnlocked || !notificationSound) return;
-    audioUnlocked = true;
-    notificationSound
-      .play()
-      .then(() => {
-        notificationSound!.pause();
-        notificationSound!.currentTime = 0;
-      })
-      .catch(() => {
-        audioUnlocked = false;
-      });
-  }
-
   function toggleSound() {
     soundMuted = !soundMuted;
     hapticLight();
-    try {
-      localStorage.setItem(SOUND_MUTE_KEY, soundMuted ? '1' : '0');
-    } catch {
-      // Private-browsing / storage-disabled — mute state just won't
-      // persist across sessions, chat itself is unaffected.
-    }
+    setChatSoundMuted(soundMuted);
   }
 
   // A sentinel at the end of the list + scrollIntoView sidesteps the
@@ -120,6 +81,10 @@
     try {
       const res = await api.get<{ messages: RoomMessage[] }>(`/raffles/${raffleId}/room/messages`);
       messages = res.messages;
+      // Opening the room means everything in it is now "seen" — clears
+      // this room's contribution to the Profile tab's unread badge.
+      const last = messages[messages.length - 1];
+      if (last) markRoomSeen(raffleId, last.createdAt);
       // Flip loading off BEFORE scrolling — the message list (and its
       // bottom sentinel) doesn't exist in the DOM until this renders past
       // the loading-skeleton branch, so scrolling first was a no-op.
@@ -149,7 +114,10 @@
       const res = await api.get<{ messages: RoomMessage[] }>(url);
       if (res.messages.length > 0) {
         messages = [...messages, ...res.messages];
-        if (res.messages.some((m) => !m.isMine)) playNotificationSound();
+        // Still actively viewing this room — stays "seen" regardless of
+        // who sent it, so the global poller never re-flags it later.
+        markRoomSeen(raffleId, res.messages[res.messages.length - 1].createdAt);
+        if (res.messages.some((m) => !m.isMine)) playChatSound();
         if (atBottom) {
           await scrollToBottom();
         } else {
@@ -163,18 +131,7 @@
   }
 
   onMount(() => {
-    try {
-      soundMuted = localStorage.getItem(SOUND_MUTE_KEY) === '1';
-    } catch {
-      // Falls back to sound-on, which matches the requested default behavior.
-    }
-    notificationSound = new Audio('/ding-light-bulb-moment-jam-fx-long-1-00-02.mp3');
-    notificationSound.preload = 'auto';
-    // Capture phase + { once: true } so this fires on the very first tap
-    // anywhere on the page (the input, a bubble, the header) without
-    // getting swallowed by a child's own stopPropagation, then removes
-    // itself — one unlock is all any browser needs per session.
-    window.addEventListener('pointerdown', unlockAudioOnce, { capture: true, once: true });
+    soundMuted = isChatSoundMuted();
     document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
     loadRoomMeta();
     loadInitial().then(() => {
@@ -185,7 +142,6 @@
   onDestroy(() => {
     cancelled = true;
     clearInterval(pollTimer);
-    window.removeEventListener('pointerdown', unlockAudioOnce, true);
     document.removeEventListener('scroll', handleScroll, true);
   });
 
@@ -197,6 +153,7 @@
     try {
       const res = await api.post<{ message: RoomMessage }>(`/raffles/${raffleId}/room/messages`, { content });
       messages = [...messages, res.message];
+      markRoomSeen(raffleId, res.message.createdAt);
       draft = '';
       hapticLight();
       await scrollToBottom();
