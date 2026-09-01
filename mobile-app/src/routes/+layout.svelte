@@ -9,7 +9,6 @@
   import BackExitToast from '$lib/components/BackExitToast.svelte';
   import Banner from '$lib/components/Banner.svelte';
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
-  import SwipeBackGesture from '$lib/components/SwipeBackGesture.svelte';
   import '../app.css';
   import { initLanguage, setLanguage } from '$lib/stores/language.store.js';
   import { authenticateTelegramMiniApp, prepareTelegramMiniApp } from '$lib/telegram.js';
@@ -102,9 +101,7 @@
   });
 </script>
 
-<SwipeBackGesture>
-  <slot />
-</SwipeBackGesture>
+<slot />
 <BackExitToast />
 <Banner />
 <ConnectivityGate />

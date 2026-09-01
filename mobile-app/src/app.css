@@ -83,13 +83,12 @@
     /* Kills the browser/WebView glow-bounce at scroll edges — that glow is
        the single biggest tell that something is "a website," not a native
        app, and it visually fights our own PullToRefresh gesture at the top.
-       Both axes: without -x, dragging sideways anywhere on a page (the
-       raffle detail page in particular, which has no horizontal scroll of
-       its own) still let the WebView rubber-band the whole document
-       horizontally, flashing blank white space past the edge. `contain`
-       (not `none`) still lets our own gestures — SwipeBackGesture, the
-       prize carousel — read the same touchmove events; it only stops the
-       browser's own edge-bounce from firing underneath them. */
+       Both axes: without -x, dragging sideways anywhere on a page still let
+       the WebView rubber-band the whole document horizontally, flashing
+       blank white space past the edge. `contain` (not `none`) still lets
+       our own gestures — the prize carousel — read the same touchmove
+       events; it only stops the browser's own edge-bounce from firing
+       underneath them. */
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     /* No visible scrollbar on the page itself — a native app never shows
