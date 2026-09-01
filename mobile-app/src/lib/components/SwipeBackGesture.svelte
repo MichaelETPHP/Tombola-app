@@ -37,7 +37,13 @@
 
   function handleTouchStart(e: TouchEvent) {
     if (isRootTab || !inGestureScope) return;
-    if ((e.target as Element)?.closest?.('[data-swipe-region]')) return;
+    // `data-swipe-region` also opts a region out of PullToRefresh's
+    // vertical gesture (the prize carousel/lightbox need both). A page
+    // that wants to keep pull-to-refresh but drop just the edge-swipe-back
+    // — the raffle detail page, whose own full-width horizontal prize
+    // carousel makes an edge-swipe too easy to trigger by accident — uses
+    // this narrower attribute instead, scoped only here.
+    if ((e.target as Element)?.closest?.('[data-swipe-region], [data-no-swipe-back]')) return;
     const touch = e.touches[0];
     if (touch.clientX > EDGE_ZONE_PX) return;
 

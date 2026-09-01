@@ -193,7 +193,7 @@
     <div><h1 class="text-lg font-extrabold text-ink">Raffle unavailable</h1><p class="mt-1 text-xs text-muted">{error || 'This raffle could not be found.'}</p></div>
   </section>
 {:else}
-  <article class="raffle-screen">
+  <article class="raffle-screen" data-no-swipe-back>
     <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-card shadow-[0_12px_30px_rgba(20,89,72,0.10)]">
       <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" eager />
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
