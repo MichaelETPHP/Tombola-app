@@ -28,11 +28,12 @@
   let error = '';
   let notAMember = false;
   let readOnly = false;
-  let listEl: HTMLDivElement;
   let inputEl: HTMLInputElement;
+  let bottomSentinel: HTMLDivElement;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let cancelled = false;
   let notificationSound: HTMLAudioElement | undefined;
+  let audioUnlocked = false;
   let soundMuted = false;
   let atBottom = true;
   let unreadCount = 0;
@@ -48,9 +49,30 @@
     if (!notificationSound || soundMuted) return;
     notificationSound.currentTime = 0;
     notificationSound.play().catch(() => {
-      // Autoplay can be blocked before the user has interacted with the
-      // page at all — not worth surfacing, the chat still works fine.
+      // Still blocked (e.g. no gesture has happened yet at all) — the
+      // unlock listener below will catch the next tap and every message
+      // after that will ring normally.
     });
+  }
+
+  /** Mobile Safari/WebKit refuses any programmatic .play() that didn't
+   *  originate inside a real user gesture — including one fired from our
+   *  3s poll timer — UNTIL the exact same <audio> element has been played
+   *  at least once from inside an actual tap. A silent play()+pause() on
+   *  the very first tap anywhere on the page "unlocks" it permanently for
+   *  the rest of the session, so every later programmatic ring works. */
+  function unlockAudioOnce() {
+    if (audioUnlocked || !notificationSound) return;
+    audioUnlocked = true;
+    notificationSound
+      .play()
+      .then(() => {
+        notificationSound!.pause();
+        notificationSound!.currentTime = 0;
+      })
+      .catch(() => {
+        audioUnlocked = false;
+      });
   }
 
   function toggleSound() {
@@ -64,16 +86,21 @@
     }
   }
 
+  // A sentinel at the end of the list + scrollIntoView sidesteps the
+  // long-standing html-vs-body "which element is really the document's
+  // scroller" ambiguity entirely (document.scrollingElement disagreed with
+  // where the page actually visibly scrolled to in testing here) — the
+  // browser resolves the right scroll container on its own either way.
   async function scrollToBottom() {
     await tick();
-    listEl?.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+    bottomSentinel?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     atBottom = true;
     unreadCount = 0;
   }
 
   function handleScroll() {
-    if (!listEl) return;
-    atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 60;
+    if (!bottomSentinel) return;
+    atBottom = bottomSentinel.getBoundingClientRect().bottom <= window.innerHeight + 80;
     if (atBottom) unreadCount = 0;
   }
 
@@ -93,25 +120,33 @@
     try {
       const res = await api.get<{ messages: RoomMessage[] }>(`/raffles/${raffleId}/room/messages`);
       messages = res.messages;
+      // Flip loading off BEFORE scrolling — the message list (and its
+      // bottom sentinel) doesn't exist in the DOM until this renders past
+      // the loading-skeleton branch, so scrolling first was a no-op.
+      loading = false;
       await scrollToBottom();
     } catch (err) {
+      loading = false;
       if (err instanceof ApiError && err.body.includes('ROOM_NOTAMEMBER')) {
         notAMember = true;
       } else {
         error = 'Could not load this room.';
       }
-    } finally {
-      loading = false;
     }
   }
 
   async function pollNewMessages() {
-    if (notAMember || messages.length === 0) return;
+    if (notAMember) return;
     try {
-      const lastId = messages[messages.length - 1].id;
-      const res = await api.get<{ messages: RoomMessage[] }>(
-        `/raffles/${raffleId}/room/messages?after=${lastId}`
-      );
+      // A room with nothing in it yet has no lastId to page from — falling
+      // back to the plain (unfiltered) endpoint means the very first
+      // message anyone sends still gets picked up on the next tick instead
+      // of silently requiring a manual reload forever.
+      const lastId = messages.length > 0 ? messages[messages.length - 1].id : undefined;
+      const url = lastId
+        ? `/raffles/${raffleId}/room/messages?after=${lastId}`
+        : `/raffles/${raffleId}/room/messages`;
+      const res = await api.get<{ messages: RoomMessage[] }>(url);
       if (res.messages.length > 0) {
         messages = [...messages, ...res.messages];
         if (res.messages.some((m) => !m.isMine)) playNotificationSound();
@@ -135,6 +170,12 @@
     }
     notificationSound = new Audio('/ding-light-bulb-moment-jam-fx-long-1-00-02.mp3');
     notificationSound.preload = 'auto';
+    // Capture phase + { once: true } so this fires on the very first tap
+    // anywhere on the page (the input, a bubble, the header) without
+    // getting swallowed by a child's own stopPropagation, then removes
+    // itself — one unlock is all any browser needs per session.
+    window.addEventListener('pointerdown', unlockAudioOnce, { capture: true, once: true });
+    document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
     loadRoomMeta();
     loadInitial().then(() => {
       if (!cancelled) pollTimer = setInterval(pollNewMessages, POLL_INTERVAL_MS);
@@ -144,6 +185,8 @@
   onDestroy(() => {
     cancelled = true;
     clearInterval(pollTimer);
+    window.removeEventListener('pointerdown', unlockAudioOnce, true);
+    document.removeEventListener('scroll', handleScroll, true);
   });
 
   async function send() {
@@ -231,7 +274,7 @@
 
 <svelte:head><title>{roomTitle || 'Room'} · Tombola</title></svelte:head>
 
-<div class="relative flex min-h-[calc(100dvh-var(--safe-top,0px)-100px)] flex-col">
+<div class="relative">
   <!-- Header -->
   <div
     class="sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-3 border-b border-black/[0.04] bg-bg-start/80 px-4 pb-3 pt-1 backdrop-blur-md"
@@ -278,7 +321,7 @@
   </div>
 
   {#if loading}
-    <div class="flex flex-1 flex-col justify-end gap-3 pb-2">
+    <div class="flex flex-col gap-3 pb-4 pt-2">
       <div class="flex items-end gap-2">
         <div class="skeleton h-7 w-7 shrink-0 rounded-full"></div>
         <div class="skeleton h-9 w-40 rounded-card"></div>
@@ -292,7 +335,7 @@
       </div>
     </div>
   {:else if notAMember}
-    <div class="flex flex-1 flex-col items-center justify-center gap-3 rounded-card bg-card p-8 text-center shadow-card-light">
+    <div class="flex flex-col items-center justify-center gap-3 rounded-card bg-card p-8 text-center shadow-card-light">
       <Lock size={22} class="text-muted" />
       <p class="text-sm font-semibold text-ink">Buy a ticket to join</p>
       <p class="text-[13px] leading-relaxed text-muted">
@@ -304,14 +347,9 @@
       >View the raffle</a>
     </div>
   {:else}
-    <div class="relative flex-1 overflow-hidden">
-      <div
-        bind:this={listEl}
-        on:scroll={handleScroll}
-        class="no-scrollbar h-full overflow-y-auto overscroll-y-contain px-0.5"
-      >
-        <div class="flex flex-col gap-1 pb-2 pt-1">
-          {#each messages as message, i (message.id)}
+    <div>
+      <div class="flex flex-col gap-1 px-0.5 pt-1 pb-16">
+        {#each messages as message, i (message.id)}
             {@const groupStart = isGroupStart(i)}
             {@const groupEnd = isGroupEnd(i)}
             {@const bare = isEmojiOnly(message.content)}
@@ -388,12 +426,12 @@
               </div>
             </div>
           {:else}
-            <div class="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center">
+            <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
               <span class="text-3xl">👋</span>
               <p class="text-[13px] font-medium text-muted">No messages yet — be the first to say hi</p>
             </div>
           {/each}
-        </div>
+        <div bind:this={bottomSentinel} class="h-px w-full" aria-hidden="true"></div>
       </div>
 
       {#if unreadCount > 0}
@@ -401,7 +439,8 @@
           type="button"
           on:click={scrollToBottom}
           in:scale={{ duration: 180, easing: backOut, start: 0.8 }}
-          class="tappable pressable absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white shadow-nav"
+          class="tappable pressable sticky left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white shadow-nav"
+          style="bottom: calc(164px + var(--safe-bottom, 0px));"
         >
           <ChevronDown size={14} />
           {unreadCount} new message{unreadCount > 1 ? 's' : ''}
@@ -418,7 +457,7 @@
     {:else}
       <form
         on:submit|preventDefault={send}
-        class="sticky flex items-center gap-2 rounded-button bg-card p-2 shadow-card-light transition-shadow duration-200 {inputFocused ? 'ring-2 ring-primary/40' : ''}"
+        class="sticky z-20 flex items-center gap-2 rounded-button bg-card p-2 shadow-card-light transition-shadow duration-200 {inputFocused ? 'ring-2 ring-primary/40' : ''}"
         style="bottom: calc(92px + var(--safe-bottom, 0px));"
       >
         <input

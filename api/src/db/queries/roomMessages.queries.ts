@@ -83,9 +83,9 @@ export async function listRoomMessages(
     return sql<DbRoomMessage[]>`
       SELECT ${SENDER_COLUMNS} FROM room_messages
       ${SENDER_JOIN}
-      WHERE raffle_id = ${raffleId}
-        AND created_at > (SELECT created_at FROM room_messages WHERE id = ${opts.after})
-      ORDER BY created_at ASC
+      WHERE room_messages.raffle_id = ${raffleId}
+        AND room_messages.created_at > (SELECT created_at FROM room_messages WHERE id = ${opts.after})
+      ORDER BY room_messages.created_at ASC
       LIMIT 200
     `;
   }
@@ -94,9 +94,9 @@ export async function listRoomMessages(
     const rows = await sql<DbRoomMessage[]>`
       SELECT ${SENDER_COLUMNS} FROM room_messages
       ${SENDER_JOIN}
-      WHERE raffle_id = ${raffleId}
-        AND created_at < (SELECT created_at FROM room_messages WHERE id = ${opts.before})
-      ORDER BY created_at DESC
+      WHERE room_messages.raffle_id = ${raffleId}
+        AND room_messages.created_at < (SELECT created_at FROM room_messages WHERE id = ${opts.before})
+      ORDER BY room_messages.created_at DESC
       LIMIT ${limit}
     `;
     return rows.reverse();
@@ -105,8 +105,8 @@ export async function listRoomMessages(
   const rows = await sql<DbRoomMessage[]>`
     SELECT ${SENDER_COLUMNS} FROM room_messages
     ${SENDER_JOIN}
-    WHERE raffle_id = ${raffleId}
-    ORDER BY created_at DESC
+    WHERE room_messages.raffle_id = ${raffleId}
+    ORDER BY room_messages.created_at DESC
     LIMIT ${limit}
   `;
   return rows.reverse();

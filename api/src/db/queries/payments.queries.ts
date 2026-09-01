@@ -189,7 +189,7 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
     JOIN raffles r ON r.id = p.raffle_id
     LEFT JOIN tickets t ON t.payment_id = p.id
     WHERE p.id = ${id}
-    GROUP BY p.id, r.title
+    GROUP BY p.id, r.id
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -255,7 +255,7 @@ export async function listUserPayments(
     JOIN raffles r ON r.id = p.raffle_id
     LEFT JOIN tickets t ON t.payment_id = p.id
     WHERE p.user_id = ${userId}
-    GROUP BY p.id, r.title
+    GROUP BY p.id, r.id
     ORDER BY p.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
