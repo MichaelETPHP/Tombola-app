@@ -45,7 +45,11 @@ app.use(
     origin: env.CORS_ORIGINS,
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    // x-mock-payment-secret: the mock-checkout page's own browser-side
+    // confirmation POST to the webhook (see payments.routes.ts) — without
+    // it listed here, the preflight rejects the request before it ever
+    // reaches the route.
+    allowHeaders: ['Content-Type', 'Authorization', 'x-mock-payment-secret'],
     maxAge: 86400,
   })
 );
