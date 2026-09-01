@@ -152,6 +152,14 @@ export const roomMessageSchema = z.object({
   senderType: z.enum(['user', 'admin']),
   content: z.string(),
   createdAt: z.string(),
+  // The API's toApiMessage() (rooms.service.ts) already sends all of
+  // these on every message, for both the buyer-facing and admin-facing
+  // endpoints — only the admin dashboard's own type was never updated to
+  // declare them.
+  senderName: z.string().nullable().optional(),
+  senderPhoneMasked: z.string().nullable().optional(),
+  senderTelegramPhotoUrl: z.string().nullable().optional(),
+  senderAvatarSeed: z.string().nullable().optional(),
 });
 
 // ── Inferred Types ───────────────────────────────────────

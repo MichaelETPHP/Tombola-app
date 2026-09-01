@@ -136,6 +136,72 @@
   function timeLabel(iso: string): string {
     return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
+
+  function sameDay(a: Date, b: Date): boolean {
+    return a.toDateString() === b.toDateString();
+  }
+
+  function isNewDay(i: number): boolean {
+    if (i === 0) return true;
+    return !sameDay(new Date(messages[i - 1].createdAt), new Date(messages[i].createdAt));
+  }
+
+  function dateLabel(iso: string): string {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (sameDay(d, today)) return 'Today';
+    if (sameDay(d, yesterday)) return 'Yesterday';
+    return d.toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric',
+      year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+    });
+  }
+
+  /** Consecutive messages from the same sender collapse under one
+   *  name/avatar header instead of repeating it on every bubble — same
+   *  grouping the mobile app's room view uses. Admin messages all share
+   *  one identity ("Tombola Team") regardless of which admin is signed
+   *  in, matching how the room already treats them as one unified voice. */
+  function senderKey(m: RoomMessage): string {
+    if (m.senderType === 'admin') return 'admin';
+    return m.senderAvatarSeed ?? m.senderName ?? 'unknown';
+  }
+
+  function isGroupStart(i: number): boolean {
+    return isNewDay(i) || senderKey(messages[i - 1]) !== senderKey(messages[i]);
+  }
+
+  // A small fixed rotation, not a design-system token — this exists only
+  // to make different buyers visually distinguishable at a glance in a
+  // room with several people talking, the same trick Slack/Discord/Gmail
+  // use for avatar-color variety.
+  const AVATAR_PALETTE = [
+    { bg: '#dbeafe', fg: '#2563eb' },
+    { bg: '#fef3c7', fg: '#b45309' },
+    { bg: '#fce7f3', fg: '#be185d' },
+    { bg: '#ede9fe', fg: '#7c3aed' },
+    { bg: '#dcfce7', fg: '#15803d' },
+    { bg: '#ffe4e6', fg: '#be123c' },
+    { bg: '#e0f2fe', fg: '#0369a1' },
+  ];
+
+  function hashSeed(seed: string): number {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    return hash;
+  }
+
+  function avatarColor(seed: string) {
+    return AVATAR_PALETTE[hashSeed(seed) % AVATAR_PALETTE.length];
+  }
+
+  function initial(name: string | null | undefined): string {
+    const trimmed = (name ?? '').trim();
+    return trimmed ? trimmed[0].toUpperCase() : '?';
+  }
 </script>
 
 <svelte:head><title>Room · {raffle?.title ?? 'Raffle'} · Tombola Admin</title></svelte:head>
@@ -162,11 +228,48 @@
         {:else if !hasMore}
           <p class="flex items-center justify-center gap-1.5 py-1 text-center text-[11px] text-faint"><History size={12} /> Beginning of this room</p>
         {/if}
-        {#each messages as message (message.id)}
-          <div class="flex {message.senderType === 'admin' ? 'justify-end' : 'justify-start'}">
-            <div class="max-w-[70%] rounded-button px-3.5 py-2.5 {message.senderType === 'admin' ? 'bg-primary text-white' : 'bg-bg/70 text-ink'}">
-              <p class="whitespace-pre-wrap break-words text-sm leading-snug">{message.content}</p>
-              <p class="mt-1 text-right text-[10px] opacity-70">{timeLabel(message.createdAt)}</p>
+        {#each messages as message, i (message.id)}
+          {@const isAdmin = message.senderType === 'admin'}
+          {@const groupStart = isGroupStart(i)}
+          {@const color = avatarColor(message.senderAvatarSeed ?? message.senderName ?? 'unknown')}
+
+          {#if isNewDay(i)}
+            <div class="my-1 flex items-center justify-center">
+              <span class="rounded-full bg-bg px-3 py-1 text-[10.5px] font-semibold text-faint">{dateLabel(message.createdAt)}</span>
+            </div>
+          {/if}
+
+          <div class="flex items-end gap-2 {isAdmin ? 'justify-end' : 'justify-start'} {groupStart ? 'mt-3' : 'mt-1'}">
+            {#if !isAdmin}
+              <div class="mb-0.5 h-7 w-7 shrink-0 self-end">
+                {#if groupStart}
+                  {#if message.senderTelegramPhotoUrl}
+                    <img src={message.senderTelegramPhotoUrl} alt="" class="h-7 w-7 rounded-full border border-border object-cover" />
+                  {:else}
+                    <span
+                      class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
+                      style="background:{color.bg}; color:{color.fg}"
+                    >{initial(message.senderName)}</span>
+                  {/if}
+                {/if}
+              </div>
+            {/if}
+
+            <div class="flex max-w-[70%] flex-col {isAdmin ? 'items-end' : 'items-start'}">
+              {#if groupStart}
+                <p class="mb-1 flex items-baseline gap-1.5 px-1 text-[11px]">
+                  <span class="font-bold {isAdmin ? 'text-primary' : 'text-ink'}">
+                    {isAdmin ? 'Tombola Team' : (message.senderName ?? 'Ticket holder')}
+                  </span>
+                  {#if !isAdmin && message.senderPhoneMasked}
+                    <span class="font-mono text-[10px] text-faint">{message.senderPhoneMasked}</span>
+                  {/if}
+                </p>
+              {/if}
+              <div class="rounded-button px-3.5 py-2.5 {isAdmin ? 'bg-primary text-white' : 'bg-bg/70 text-ink'}">
+                <p class="whitespace-pre-wrap break-words text-sm leading-snug">{message.content}</p>
+                <p class="mt-1 text-right text-[10px] opacity-70">{timeLabel(message.createdAt)}</p>
+              </div>
             </div>
           </div>
         {/each}
