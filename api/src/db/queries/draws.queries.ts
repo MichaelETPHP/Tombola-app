@@ -21,6 +21,8 @@ export interface DbDrawTrigger {
   tokenIsHashed: boolean;
   generatedBy: string | null;
   generationReason: string | null;
+  tier: number;
+  prizeId: string | null;
 }
 
 /**

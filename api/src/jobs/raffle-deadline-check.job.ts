@@ -4,7 +4,7 @@ import {
   findRafflesReadyForDraw,
   lockRaffleForScheduledDraw,
 } from '../db/queries/raffles.queries.js';
-import { generateTriggerLink } from '../modules/draws/draws.service.js';
+import { generateTriggerLink, listPrizeTiers } from '../modules/draws/draws.service.js';
 import { logger } from '../lib/logger.js';
 
 const CHECK_INTERVAL_MS = 60_000;
@@ -18,8 +18,13 @@ async function checkRaffles(): Promise<void> {
     }
 
     for (const raffle of await findRafflesReadyForDraw()) {
-      await generateTriggerLink(raffle.id, null, 'Scheduled draw time reached; trigger selected automatically');
-      logger.info(`Scheduled draw link generated for raffle ${raffle.id}`);
+      // One independent link per prize tier — generateTriggerLink itself
+      // reads current DB state to avoid re-picking anyone who already
+      // holds another tier's pending link for this same raffle.
+      for (const prize of await listPrizeTiers(raffle.id)) {
+        await generateTriggerLink(raffle.id, prize.tier, null, 'Scheduled draw time reached; trigger selected automatically');
+      }
+      logger.info(`Scheduled draw link(s) generated for raffle ${raffle.id}`);
     }
 
     // Extension is always a recorded Platform Owner decision. Checkout has

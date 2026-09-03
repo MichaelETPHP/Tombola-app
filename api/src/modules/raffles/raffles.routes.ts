@@ -63,9 +63,13 @@ adminRafflesRoutes.get('/:id/engine', async (c) => {
   return c.json({ engine: await getRaffleEngine(c.req.param('id')) });
 });
 
+// Same endpoint serves both "generate this tier's first link" and
+// "reassign this tier's link to someone else" — generateTriggerLink
+// already expires-and-replaces whatever was pending for that tier and
+// automatically avoids re-picking whoever just held it.
 adminRafflesRoutes.post('/:id/draw-trigger', requireRole('owner'), async (c) => {
   const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
-  const trigger = await generateTriggerLink(c.req.param('id'), c.get('admin').id, data.reason);
+  const trigger = await generateTriggerLink(c.req.param('id'), data.tier, c.get('admin').id, data.reason);
   return c.json({ trigger }, 201);
 });
 

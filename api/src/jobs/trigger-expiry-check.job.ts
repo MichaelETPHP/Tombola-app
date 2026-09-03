@@ -9,8 +9,10 @@ async function checkExpiredTriggers(): Promise<void> {
     const expiredTriggers = await findExpiredPendingTriggers();
     for (const trigger of expiredTriggers) {
       await expireDrawTrigger(trigger.id);
-      await generateTriggerLink(trigger.raffleId, null, 'Previous one-time draw link expired');
-      logger.info(`Expired draw link replaced for raffle ${trigger.raffleId}`);
+      // Scoped to just this one tier — every other tier's own trigger (if
+      // any) is untouched.
+      await generateTriggerLink(trigger.raffleId, trigger.tier, null, 'Previous one-time draw link expired');
+      logger.info(`Expired draw link replaced for raffle ${trigger.raffleId} tier ${trigger.tier}`);
     }
   } catch (error) {
     logger.error('Trigger expiry check failed', error);
