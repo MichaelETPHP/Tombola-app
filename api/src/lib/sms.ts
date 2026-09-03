@@ -71,8 +71,8 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
   return sendSms({
     to: phone,
     message: locale === 'am'
-      ? `የTombola ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
-      : `Your Tombola verification code is ${code}. It is valid for 5 minutes.`,
+      ? `የYeneEta ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
+      : `Your YeneEta verification code is ${code}. It is valid for 5 minutes.`,
   });
 }
 

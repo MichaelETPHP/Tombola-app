@@ -75,7 +75,7 @@
   <section class="flex flex-col gap-2">
     <div>
       <p class="text-[15px] font-extrabold text-ink">Real people, real prizes</p>
-      <p class="mt-0.5 text-[11px] text-muted">Live activity across Tombola</p>
+      <p class="mt-0.5 text-[11px] text-muted">Live activity across YeneEta</p>
     </div>
     <WinnersMarquee />
   </section>

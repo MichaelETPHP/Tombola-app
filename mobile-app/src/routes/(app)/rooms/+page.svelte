@@ -79,7 +79,7 @@
   }
 </script>
 
-<svelte:head><title>My Rooms · Tombola</title></svelte:head>
+<svelte:head><title>My Rooms · YeneEta</title></svelte:head>
 
 <div class="flex flex-col gap-5">
   <div class="flex items-center gap-3">

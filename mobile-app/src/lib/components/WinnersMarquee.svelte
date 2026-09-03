@@ -68,7 +68,7 @@
     },
     {
       name: 'Ruth A.',
-      detail: 'Joined Tombola community',
+      detail: 'Joined YeneEta community',
       prize: 'Welcome Bonus',
       avatar: '/images/winners/ruth.webp',
       type: 'join',

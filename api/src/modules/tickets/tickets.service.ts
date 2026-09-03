@@ -47,7 +47,7 @@ export async function purchaseTickets(
       // that actually issues the tickets (see payments.service.ts).
       return_url: `${env.MOBILE_APP_URL}/payments/${payment.id}`,
       customization: {
-        title: `Tombola: ${raffle.title}`,
+        title: `YeneEta: ${raffle.title}`,
         description: `${input.quantity} ticket(s) for "${raffle.title}"`,
       },
       mock: {

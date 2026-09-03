@@ -52,7 +52,7 @@
   <div class="receipt-print w-full max-w-[300px]">
     <div class="receipt-paper relative bg-[#fbf8f0] px-5 pb-6 pt-7 text-[#2b2b26] shadow-[0_30px_60px_rgba(0,0,0,0.35)]">
       <div class="text-center">
-        <p class="text-[13px] font-black uppercase tracking-[0.28em]">Tombola</p>
+        <p class="text-[13px] font-black uppercase tracking-[0.28em]">YeneEta</p>
         <p class="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8578]">Official purchase receipt</p>
       </div>
 

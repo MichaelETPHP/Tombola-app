@@ -1,0 +1,28 @@
+# systemd unit for the YeneEta API in production.
+# Replace /path/to/YeneEta/api below (and the bun binary path — check
+# with `which bun`), then:
+#   sudo cp yeneeta-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now yeneeta-api
+#   sudo systemctl status yeneeta-api
+#   journalctl -u yeneeta-api -f          # tail logs
+
+[Unit]
+Description=YeneEta API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/YeneEta/api
+# `bun run dev` uses --watch, which is a dev-only flag — production runs the
+# plain "start" script instead (see api/package.json).
+ExecStart=/usr/local/bin/bun run start
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+# api/.env is read at process boot via the app's own env loader — no need
+# to duplicate secrets here as long as .env lives alongside the service's
+# WorkingDirectory.
+
+[Install]
+WantedBy=multi-user.target

@@ -48,7 +48,7 @@
   ];
 </script>
 
-<svelte:head><title>Control Center | Tombola Admin</title></svelte:head>
+<svelte:head><title>Control Center | YeneEta Admin</title></svelte:head>
 
 <div class="flex flex-col gap-7">
   <header class="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">

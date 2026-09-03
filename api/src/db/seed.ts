@@ -1,5 +1,5 @@
 /**
- * 🎰 Tombola Platform — Seed Data Script
+ * 🎰 YeneEta Platform — Seed Data Script
  * 
  * Populates the database with realistic sample data for the Ethiopian market:
  * - 1 Admin (owner) account
@@ -173,7 +173,7 @@ const RAFFLES: RaffleSeed[] = [
 // ── Main Seed Function ───────────────────────────────────────────
 
 async function seed() {
-  console.log('🌱 Starting Tombola seed...\n');
+  console.log('🌱 Starting YeneEta seed...\n');
 
   // ─── 1. Create Admin ──────────────────────────────────────────
   console.log('👤 Creating admin account...');

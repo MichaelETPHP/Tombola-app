@@ -25,7 +25,7 @@
   }
 </script>
 
-<svelte:head><title>Create raffle · Tombola Admin</title></svelte:head>
+<svelte:head><title>Create raffle · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <a href="/raffles" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to raffles</a>

@@ -58,7 +58,7 @@
   onMount(() => load());
 </script>
 
-<svelte:head><title>Raffles | Tombola Admin</title></svelte:head>
+<svelte:head><title>Raffles | YeneEta Admin</title></svelte:head>
 
 <div class="flex flex-col gap-6">
   <header class="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">

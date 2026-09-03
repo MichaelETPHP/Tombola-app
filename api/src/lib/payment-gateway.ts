@@ -48,8 +48,8 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
       amount: String(payload.amount),
       callback_url: payload.callback_url,
       return_url: payload.return_url ?? '',
-      title: payload.customization?.title ?? 'Tombola',
-      raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? 'Tombola raffle',
+      title: payload.customization?.title ?? 'YeneEta',
+      raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? 'YeneEta raffle',
       ticket_count: String(payload.mock?.ticketCount ?? 1),
       unit_price: String(payload.mock?.unitPrice ?? payload.amount),
       // Only present when the deployer has opted in — see

@@ -10,8 +10,8 @@
   import { openExternal } from '$lib/native/browser.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
 
-  // TODO: replace with the real Tombola TikTok profile URL.
-  const TIKTOK_URL = 'https://www.tiktok.com/@tombola';
+  // TODO: replace with the real YeneEta TikTok profile URL.
+  const TIKTOK_URL = 'https://www.tiktok.com/@yeneeta';
 
   let langOpen = false;
 
@@ -43,16 +43,16 @@
 </script>
 
 <header class="flex items-center justify-between gap-2">
-  <a href="/home" class="tappable flex min-w-0 items-center gap-3 text-inherit no-underline" aria-label="Tombola home">
+  <a href="/home" class="tappable flex min-w-0 items-center gap-3 text-inherit no-underline" aria-label="YeneEta home">
     <img
-      src="/images/tombola-logo-mark.svg"
+      src="/images/yeneeta-logo-mark.svg"
       alt=""
       class="h-10 w-10 shrink-0 rounded-[14px] object-cover shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_5px_12px_-8px_rgba(0,122,95,0.65)]"
       width="40"
       height="40"
     />
     <div class="min-w-0">
-      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">Tombola</p>
+      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">YeneEta</p>
       <p class="mt-1 text-[10px] font-medium text-muted">Real prizes. Fair draws.</p>
     </div>
   </a>
@@ -63,7 +63,7 @@
       type="button"
       on:click={openTikTok}
       class="tappable pressable relative flex h-9 w-9 items-center justify-center rounded-full text-ink active:bg-black/5"
-      aria-label="Follow Tombola on TikTok — we're live"
+      aria-label="Follow YeneEta on TikTok — we're live"
     >
       <TikTokIcon size={18} />
       <span class="live-dot absolute right-1 top-1 flex h-2.5 w-2.5" aria-hidden="true">

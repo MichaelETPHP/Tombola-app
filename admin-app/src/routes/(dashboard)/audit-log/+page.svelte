@@ -54,7 +54,7 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Audit trail · Tombola Admin</title></svelte:head>
+<svelte:head><title>Audit trail · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <header class="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

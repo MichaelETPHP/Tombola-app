@@ -1,4 +1,4 @@
-# Tombola raffle engine
+# YeneEta raffle engine
 
 ## Entry rules
 

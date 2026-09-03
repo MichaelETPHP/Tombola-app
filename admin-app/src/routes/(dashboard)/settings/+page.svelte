@@ -56,7 +56,7 @@
   const labelClass = 'flex flex-col gap-2 text-xs font-bold text-ink';
 </script>
 
-<svelte:head><title>Settings · Tombola Admin</title></svelte:head>
+<svelte:head><title>Settings · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <header class="mb-7">

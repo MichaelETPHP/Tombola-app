@@ -72,7 +72,7 @@ export async function createRaffle(data: {
   if (!data.deadlineAt) deadline.setDate(deadline.getDate() + data.deadlineDays);
 
   return sql.begin(async (tx) => {
-    await tx`SELECT pg_advisory_xact_lock(hashtext(${`tombola:${data.categoryCode}`}))`;
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`yeneeta:${data.categoryCode}`}))`;
     const [sequence] = await tx<{ raffleNumber: number }[]>`
       SELECT COALESCE(MAX(raffle_number), 0)::int + 1 AS raffle_number
       FROM raffles WHERE category_code = ${data.categoryCode}

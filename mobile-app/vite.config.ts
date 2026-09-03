@@ -4,9 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, type Plugin } from 'vite';
 
 const pwaManifest = {
-  name: 'Tombola',
-  short_name: 'Tombola',
-  description: "Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.",
+  name: 'YeneEta',
+  short_name: 'YeneEta',
+  description: "YeneEta — Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.",
   theme_color: '#00D3A0',
   background_color: '#E3F9EF',
   display: 'standalone' as const,

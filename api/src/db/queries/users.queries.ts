@@ -66,7 +66,7 @@ export async function createUser(phoneNumber: string): Promise<DbUser> {
 }
 
 /** Atomically attach a Telegram identity. The unique index prevents one
- * Telegram account from being connected to multiple Tombola users. */
+ * Telegram account from being connected to multiple YeneEta users. */
 export async function linkTelegramIdentity(
   userId: string,
   identity: TelegramIdentity

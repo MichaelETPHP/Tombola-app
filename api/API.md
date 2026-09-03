@@ -1,4 +1,4 @@
-# Tombola API v1
+# YeneEta API v1
 
 Base URL: `http://localhost:3435`
 

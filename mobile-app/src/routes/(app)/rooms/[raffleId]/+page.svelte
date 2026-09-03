@@ -229,7 +229,7 @@
   }
 </script>
 
-<svelte:head><title>{roomTitle || 'Room'} · Tombola</title></svelte:head>
+<svelte:head><title>{roomTitle || 'Room'} · YeneEta</title></svelte:head>
 
 <div class="relative">
   <!-- Header -->
@@ -345,7 +345,7 @@
                 {#if groupStart && !message.isMine}
                   <p class="mb-0.5 flex items-baseline gap-1 px-1 text-[11px]">
                     <span class="font-bold {message.senderType === 'admin' ? 'text-gold' : 'text-ink'}">
-                      {message.senderType === 'admin' ? 'Tombola Team' : message.senderName}
+                      {message.senderType === 'admin' ? 'YeneEta Team' : message.senderName}
                     </span>
                     {#if message.senderPhoneMasked}
                       <span class="font-mono text-[10px] text-muted">{message.senderPhoneMasked}</span>

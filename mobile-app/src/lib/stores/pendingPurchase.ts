@@ -1,4 +1,5 @@
-const KEY = 'tombola:pendingPurchase';
+const KEY = 'yeneeta:pendingPurchase';
+const LEGACY_KEY = 'tombola:pendingPurchase';
 
 export interface PendingPurchase {
   raffleId: string;
@@ -20,7 +21,7 @@ export function setPendingPurchase(purchase: PendingPurchase): void {
 
 export function getPendingPurchase(): PendingPurchase | null {
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = sessionStorage.getItem(KEY) ?? sessionStorage.getItem(LEGACY_KEY);
     return raw ? (JSON.parse(raw) as PendingPurchase) : null;
   } catch {
     return null;

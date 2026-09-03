@@ -19,8 +19,18 @@ function secureRandomIndex(length: number): number {
   return value[0] % length;
 }
 
+/** "+251911234567" -> "+251 911***4567" — keeps the country code and a
+ * few digits on each end (enough for the owner to recognize their own
+ * number), masks everything else. */
 function maskPhone(phone: string): string {
-  return `${phone.slice(0, 4)}${'*'.repeat(Math.max(0, phone.length - 7))}${phone.slice(-3)}`;
+  const digits = phone.replace(/\s+/g, '');
+  const country = digits.slice(0, 4);
+  const rest = digits.slice(4);
+  if (rest.length <= 7) return `${country} ${rest}`;
+  const prefix = rest.slice(0, 3);
+  const suffix = rest.slice(-4);
+  const maskedLen = Math.max(3, rest.length - 7);
+  return `${country} ${prefix}${'*'.repeat(maskedLen)}${suffix}`;
 }
 
 interface PrizeTier {
@@ -49,6 +59,10 @@ export async function getDrawContext(token: string) {
   // future multi-tier reveal UI has the full breakdown without an API
   // version bump.
   const headline = prizes.find((p) => p.tier === 1);
+  const participants = await sql<{ phone: string }[]>`
+    SELECT DISTINCT u.phone_number AS phone FROM tickets t JOIN users u ON u.id = t.user_id
+    WHERE t.raffle_id = ${raffle.id}
+  `;
   return {
     raffleId: raffle.id,
     raffleName: raffle.title,
@@ -57,6 +71,10 @@ export async function getDrawContext(token: string) {
     prizeImageUrl: headline?.imageUrl ?? raffle.prizeImageUrl,
     prizes,
     ticketCount: raffle.ticketsSold,
+    registeredUsers: participants.length,
+    // Masked, for the spin-reel's cycling animation — never the winner's
+    // identity ahead of time, just enough plausible noise to spin through.
+    participantPhones: participants.map((p) => maskPhone(p.phone)),
     drawCommitment: raffle.drawServerSeedHash,
     status: trigger.status,
     expiresAt: trigger.expiresAt,
@@ -208,6 +226,7 @@ export async function executeDraw(token: string, clickedIp: string | null = null
       winnerUserId: string;
       winnerTicketNumber: number;
       winnerTicketCode: string;
+      winnerPhone: string;
       clientSeed: string;
       combinedHash: string;
     }[] = [];
@@ -227,16 +246,27 @@ export async function executeDraw(token: string, clickedIp: string | null = null
         ) RETURNING id
       `;
 
+      // Integer-cents math: chk_net_value requires net_value = gross -
+      // tax_withheld EXACTLY once both are rounded to NUMERIC(12,2). Doing
+      // the 15% cut in floating point (e.g. 19.99 * 0.15) and rounding each
+      // side separately can drift by a cent and trip that constraint.
+      const grossCents = Math.round(Number(prize.value) * 100);
+      const taxCents = Math.round(grossCents * 0.15);
+      const taxWithheld = taxCents / 100;
+      const netValue = (grossCents - taxCents) / 100;
       const claimDeadline = new Date(clickedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-      const taxWithheld = Number(prize.value) * 0.15;
       await tx`
         INSERT INTO payouts (
           raffle_id, draw_result_id, winner_user_id, gross_prize_value, tax_rate,
           tax_withheld, net_value, claim_deadline
         ) VALUES (
           ${raffle.id}, ${draw.id}, ${winningTicket.userId}, ${prize.value}, 15,
-          ${taxWithheld}, ${Number(prize.value) - taxWithheld}, ${claimDeadline}
+          ${taxWithheld}, ${netValue}, ${claimDeadline}
         )
+      `;
+
+      const [winnerUser] = await tx<{ phoneNumber: string }[]>`
+        SELECT phone_number AS "phoneNumber" FROM users WHERE id = ${winningTicket.userId}
       `;
 
       results.push({
@@ -246,6 +276,7 @@ export async function executeDraw(token: string, clickedIp: string | null = null
         winnerUserId: winningTicket.userId,
         winnerTicketNumber: winningTicket.ticketNumber,
         winnerTicketCode: `${raffle.publicCode}-${String(winningTicket.ticketNumber).padStart(5, '0')}`,
+        winnerPhone: maskPhone(winnerUser.phoneNumber),
         clientSeed: tierClientSeed,
         combinedHash,
       });
@@ -270,6 +301,7 @@ export async function executeDraw(token: string, clickedIp: string | null = null
       // about a single winner yet — `results` carries the full breakdown.
       winnerTicketNumber: winner.winnerTicketNumber,
       winnerTicketCode: winner.winnerTicketCode,
+      winnerPhone: winner.winnerPhone,
       totalTickets,
       serverSeed,
       clientSeed: winner.clientSeed,

@@ -45,7 +45,7 @@ function setOffline(type: ConnectionStatus['connectionType'] = connectionType): 
   });
 }
 
-/** Checks both the device link and Tombola API availability. */
+/** Checks both the device link and YeneEta API availability. */
 export async function checkConnectivity(): Promise<boolean> {
   if (checkInFlight) return checkInFlight;
 

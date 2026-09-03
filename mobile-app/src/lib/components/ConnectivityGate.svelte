@@ -13,29 +13,29 @@
   const copy = {
     en: {
       checking: 'Checking your connection',
-      checkingBody: 'Tombola needs an internet connection to load the latest raffles.',
+      checkingBody: 'YeneEta needs an internet connection to load the latest raffles.',
       offlineLabel: 'Connection problem',
       offlineTitle: "You're offline",
-      offlineBody: 'Turn on Wi-Fi or mobile data, then try again. Tombola cannot be used without an internet connection.',
-      serviceTitle: 'Tombola is not reachable',
-      serviceBody: 'Your network is connected, but we cannot reach Tombola right now. Please try again shortly.',
+      offlineBody: 'Turn on Wi-Fi or mobile data, then try again. YeneEta cannot be used without an internet connection.',
+      serviceTitle: 'YeneEta is not reachable',
+      serviceBody: 'Your network is connected, but we cannot reach YeneEta right now. Please try again shortly.',
       waiting: 'Waiting for a connection',
       retry: 'Try again',
       restored: 'Connection restored',
-      restoredBody: 'Tombola is back online.',
+      restoredBody: 'YeneEta is back online.',
     },
     am: {
       checking: 'የኢንተርኔት ግንኙነትዎን እያረጋገጥን ነው',
-      checkingBody: 'የቅርብ ጊዜ ዕጣዎችን ለማሳየት ቶምቦላ የኢንተርኔት ግንኙነት ይፈልጋል።',
+      checkingBody: 'የቅርብ ጊዜ ዕጣዎችን ለማሳየት የኔዕጣ የኢንተርኔት ግንኙነት ይፈልጋል።',
       offlineLabel: 'የግንኙነት ችግር',
       offlineTitle: 'ከኢንተርኔት ውጭ ነዎት',
-      offlineBody: 'Wi-Fi ወይም የሞባይል ዳታን ያብሩና እንደገና ይሞክሩ። ቶምቦላ ያለ ኢንተርኔት አይሰራም።',
-      serviceTitle: 'ቶምቦላን ማግኘት አልተቻለም',
-      serviceBody: 'ኔትወርክዎ ተገናኝቷል፣ ነገር ግን ቶምቦላን አሁን ማግኘት አልቻልንም። እባክዎ ትንሽ ቆይተው ይሞክሩ።',
+      offlineBody: 'Wi-Fi ወይም የሞባይል ዳታን ያብሩና እንደገና ይሞክሩ። የኔዕጣ ያለ ኢንተርኔት አይሰራም።',
+      serviceTitle: 'የኔዕጣን ማግኘት አልተቻለም',
+      serviceBody: 'ኔትወርክዎ ተገናኝቷል፣ ነገር ግን የኔዕጣን አሁን ማግኘት አልቻልንም። እባክዎ ትንሽ ቆይተው ይሞክሩ።',
       waiting: 'ግንኙነት በመጠበቅ ላይ',
       retry: 'እንደገና ይሞክሩ',
       restored: 'ግንኙነቱ ተመልሷል',
-      restoredBody: 'ቶምቦላ እንደገና መስመር ላይ ነው።',
+      restoredBody: 'የኔዕጣ እንደገና መስመር ላይ ነው።',
     },
   } as const;
 
@@ -107,7 +107,7 @@
           </span>
         </div>
 
-        <p class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary-dark">Tombola</p>
+        <p class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary-dark">YeneEta</p>
         <h1 class="max-w-[300px] text-[27px] font-extrabold leading-[1.12] tracking-[-0.035em]">
           {isInitialCheck ? text.checking : isServiceProblem ? text.serviceTitle : text.offlineTitle}
         </h1>

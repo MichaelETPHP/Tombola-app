@@ -1,5 +1,6 @@
 const SOUND_URL = '/ding-light-bulb-moment-jam-fx-long-1-00-02.mp3';
-const MUTE_KEY = 'tombola_chat_muted';
+const MUTE_KEY = 'yeneeta_chat_muted';
+const LEGACY_MUTE_KEY = 'tombola_chat_muted';
 
 let audio: HTMLAudioElement | undefined;
 let unlocked = false;
@@ -45,7 +46,7 @@ export function playChatSound(): void {
 
 export function isChatSoundMuted(): boolean {
   try {
-    return localStorage.getItem(MUTE_KEY) === '1';
+    return (localStorage.getItem(MUTE_KEY) ?? localStorage.getItem(LEGACY_MUTE_KEY)) === '1';
   } catch {
     return false;
   }

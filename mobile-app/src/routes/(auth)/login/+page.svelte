@@ -74,7 +74,7 @@
     try {
       const response = JSON.parse(err.body) as { code?: string };
       if (response.code === 'AUTH_TELEGRAMEXPIRED') {
-        return 'This Telegram session expired. Close Tombola and open it again from the bot menu.';
+        return 'This Telegram session expired. Close YeneEta and open it again from the bot menu.';
       }
       if (response.code === 'AUTH_TELEGRAMNOTCONFIGURED') {
         return 'Telegram login is temporarily unavailable. The bot configuration needs attention.';
@@ -83,7 +83,7 @@
       // Fall through to the signed-session recovery message.
     }
 
-    return 'Telegram could not verify this bot session. Reopen Tombola from the bot menu and try again.';
+    return 'Telegram could not verify this bot session. Reopen YeneEta from the bot menu and try again.';
   }
 
   $: returnTo = $page.url.searchParams.get('returnTo') ?? '';
@@ -137,7 +137,7 @@
     try {
       const telegram = getTelegramMiniApp();
       if (!telegram) {
-        error = 'Open Tombola from the Telegram bot to continue.';
+        error = 'Open YeneEta from the Telegram bot to continue.';
         return;
       }
 
@@ -148,7 +148,7 @@
         return;
       }
 
-      // First time this Telegram account has opened Tombola — get the
+      // First time this Telegram account has opened YeneEta — get the
       // phone number the same way Telegram itself gets it: a native
       // one-tap share, never a typed code.
       telegramUser = result.telegramUser;
@@ -202,14 +202,14 @@
         class="h-16 w-16 rounded-[20px] object-cover shadow-card"
       />
     {:else}
-      <img src="/icons/icon-512.png" alt="Tombola" class="h-16 w-16 rounded-[20px] shadow-card" />
+      <img src="/icons/icon-512.png" alt="YeneEta" class="h-16 w-16 rounded-[20px] shadow-card" />
     {/if}
-    <h1 class="font-display text-[26px] font-semibold text-ink">Tombola</h1>
+    <h1 class="font-display text-[26px] font-semibold text-ink">YeneEta</h1>
     <p class="max-w-[300px] text-sm leading-relaxed text-muted">
       {isTelegramMiniApp
         ? telegramUser
           ? `Hi${telegramUser.fullName ? ` ${telegramUser.fullName}` : ''} — one tap to share your number and you're in.`
-          : 'Continue securely with the Telegram account you used to open Tombola.'
+          : 'Continue securely with the Telegram account you used to open YeneEta.'
         : returnTo.startsWith('/raffles')
           ? "Sign in to confirm your tickets — you'll come right back."
           : 'Enter your phone number to start playing.'}
@@ -232,7 +232,7 @@
           <div>
             <p class="text-[13px] font-semibold text-ink">Verified Telegram session</p>
             <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
-              Tombola uses Telegram's signed identity to keep your account secure.
+              YeneEta uses Telegram's signed identity to keep your account secure.
             </p>
           </div>
         </div>
@@ -247,7 +247,7 @@
                 : "Didn't hear back from Telegram in time."}
             </p>
             <p class="mt-1 text-[11px] leading-relaxed text-muted">
-              Or open Tombola directly (outside the bot) to sign in with your phone number instead.
+              Or open YeneEta directly (outside the bot) to sign in with your phone number instead.
             </p>
           </div>
         {/if}
@@ -369,10 +369,10 @@
       </button>
     </div>
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted">
-      <li>You must be 18 or older to create a Tombola account.</li>
+      <li>You must be 18 or older to create a YeneEta account.</li>
       <li>Your phone number is used only to send a one-time verification code and account-related updates.</li>
       <li>One account per phone number — the 5-ticket limit per raffle applies across every login method.</li>
-      <li>Keep your verification code private; Tombola staff will never ask you for it.</li>
+      <li>Keep your verification code private; YeneEta staff will never ask you for it.</li>
       <li>Accounts found using fraudulent phone numbers or payment methods may be suspended.</li>
     </ul>
     <div class="mt-4">

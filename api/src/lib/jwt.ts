@@ -53,7 +53,7 @@ export async function signAccessToken(payload: Omit<AccessTokenPayload, 'type'>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_EXPIRY)
-    .setIssuer('tombola-api')
+    .setIssuer('yeneeta-api')
     .sign(getSecret(env.JWT_ACCESS_SECRET));
 }
 
@@ -65,7 +65,7 @@ export async function signRefreshToken(payload: Omit<RefreshTokenPayload, 'type'
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(REFRESH_TOKEN_EXPIRY)
-    .setIssuer('tombola-api')
+    .setIssuer('yeneeta-api')
     .sign(getSecret(env.JWT_REFRESH_SECRET));
 }
 
@@ -75,7 +75,7 @@ export async function signRefreshToken(payload: Omit<RefreshTokenPayload, 'type'
  */
 export async function verifyAccessToken(token: string): Promise<AccessTokenPayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
-    issuer: 'tombola-api',
+    issuer: ['yeneeta-api', 'tombola-api'],
   });
 
   if (payload.type !== 'access') {
@@ -91,7 +91,7 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenPaylo
  */
 export async function verifyRefreshToken(token: string): Promise<RefreshTokenPayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_REFRESH_SECRET), {
-    issuer: 'tombola-api',
+    issuer: ['yeneeta-api', 'tombola-api'],
   });
 
   if (payload.type !== 'refresh') {
@@ -108,13 +108,13 @@ export async function signTelegramLinkToken(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('10m')
-    .setIssuer('tombola-api')
+    .setIssuer('yeneeta-api')
     .sign(getSecret(env.JWT_ACCESS_SECRET));
 }
 
 export async function verifyTelegramLinkToken(token: string): Promise<TelegramLinkPayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
-    issuer: 'tombola-api',
+    issuer: ['yeneeta-api', 'tombola-api'],
   });
   if (payload.type !== 'telegram_link') throw new Error('Invalid Telegram link token');
   return payload as unknown as TelegramLinkPayload;
@@ -126,14 +126,14 @@ export async function createTelegramNonce(): Promise<{ nonce: string; nonceToken
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('5m')
-    .setIssuer('tombola-api')
+    .setIssuer('yeneeta-api')
     .sign(getSecret(env.JWT_ACCESS_SECRET));
   return { nonce, nonceToken };
 }
 
 export async function verifyTelegramNonceToken(token: string): Promise<TelegramNoncePayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
-    issuer: 'tombola-api',
+    issuer: ['yeneeta-api', 'tombola-api'],
   });
   if (payload.type !== 'telegram_nonce') throw new Error('Invalid Telegram nonce token');
   return payload as unknown as TelegramNoncePayload;

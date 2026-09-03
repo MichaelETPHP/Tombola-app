@@ -1,6 +1,6 @@
-# Tombola — Raffle Platform
+# YeneEta — Raffle Platform
 
-A raffle/tombola platform for the Ethiopian market: buy tickets by phone number and SMS code, watch a provably-fair draw, claim real prizes. Monorepo containing three independent, deployable services connected only by an HTTP API contract.
+A raffle/lottery platform for the Ethiopian market: buy tickets by phone number and SMS code, watch a provably-fair draw, claim real prizes. Monorepo containing three independent, deployable services connected only by an HTTP API contract.
 
 | Service | What it is | Local URL |
 |---|---|---|

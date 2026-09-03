@@ -1,4 +1,4 @@
-# Tombola API
+# YeneEta API
 
 REST API serving both the mobile app and admin dashboard. Built with Hono.js on Bun runtime.
 

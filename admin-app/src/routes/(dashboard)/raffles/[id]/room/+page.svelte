@@ -163,7 +163,7 @@
   /** Consecutive messages from the same sender collapse under one
    *  name/avatar header instead of repeating it on every bubble — same
    *  grouping the mobile app's room view uses. Admin messages all share
-   *  one identity ("Tombola Team") regardless of which admin is signed
+   *  one identity ("YeneEta Team") regardless of which admin is signed
    *  in, matching how the room already treats them as one unified voice. */
   function senderKey(m: RoomMessage): string {
     if (m.senderType === 'admin') return 'admin';
@@ -204,7 +204,7 @@
   }
 </script>
 
-<svelte:head><title>Room · {raffle?.title ?? 'Raffle'} · Tombola Admin</title></svelte:head>
+<svelte:head><title>Room · {raffle?.title ?? 'Raffle'} · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <a href="/raffles/{raffleId}" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to raffle</a>
@@ -259,7 +259,7 @@
               {#if groupStart}
                 <p class="mb-1 flex items-baseline gap-1.5 px-1 text-[11px]">
                   <span class="font-bold {isAdmin ? 'text-primary' : 'text-ink'}">
-                    {isAdmin ? 'Tombola Team' : (message.senderName ?? 'Ticket holder')}
+                    {isAdmin ? 'YeneEta Team' : (message.senderName ?? 'Ticket holder')}
                   </span>
                   {#if !isAdmin && message.senderPhoneMasked}
                     <span class="font-mono text-[10px] text-faint">{message.senderPhoneMasked}</span>
@@ -281,7 +281,7 @@
         type="text"
         bind:value={draft}
         maxlength="500"
-        placeholder="Post as Tombola — links allowed"
+        placeholder="Post as YeneEta — links allowed"
         class="h-11 min-w-0 flex-1 rounded-button border border-border bg-bg/55 px-3.5 text-sm text-ink focus:border-primary focus:bg-card focus:outline-none"
       />
       <button

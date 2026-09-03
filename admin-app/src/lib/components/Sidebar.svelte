@@ -48,12 +48,12 @@
 </script>
 
 <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-lg lg:hidden">
-  <a href="/" class="flex items-center gap-2.5 no-underline" aria-label="Tombola admin home">
+  <a href="/" class="flex items-center gap-2.5 no-underline" aria-label="YeneEta admin home">
     <span class="flex h-9 w-9 items-center justify-center rounded-[12px] bg-primary text-white">
       <ShieldCheck size={18} strokeWidth={2} />
     </span>
     <div>
-      <p class="text-sm font-extrabold leading-none text-ink">Tombola</p>
+      <p class="text-sm font-extrabold leading-none text-ink">YeneEta</p>
       <p class="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-primary-dark">Super Admin</p>
     </div>
   </a>
@@ -83,7 +83,7 @@
           <ShieldCheck size={19} strokeWidth={2} />
         </span>
         <div>
-          <p class="text-sm font-extrabold leading-none text-white">Tombola</p>
+          <p class="text-sm font-extrabold leading-none text-white">YeneEta</p>
           <p class="mt-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-primary">Super Admin</p>
         </div>
       </div>
@@ -124,12 +124,12 @@
 {/if}
 
 <aside class="sticky top-0 hidden h-dvh w-[268px] shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-text lg:flex">
-  <a href="/" class="mb-8 flex items-center gap-3 px-2 no-underline" aria-label="Tombola admin home">
+  <a href="/" class="mb-8 flex items-center gap-3 px-2 no-underline" aria-label="YeneEta admin home">
     <span class="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]">
       <ShieldCheck size={20} strokeWidth={2} />
     </span>
     <div>
-      <p class="text-[15px] font-extrabold leading-none tracking-[-0.02em] text-white">Tombola</p>
+      <p class="text-[15px] font-extrabold leading-none tracking-[-0.02em] text-white">YeneEta</p>
       <p class="mt-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-primary">Super Admin</p>
     </div>
   </a>

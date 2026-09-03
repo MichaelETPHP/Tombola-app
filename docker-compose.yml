@@ -1,4 +1,4 @@
-# Tombola — all three services, one Coolify project on a shared VPS.
+# YeneEta — all three services, one Coolify project on a shared VPS.
 #
 # No `ports:` mappings on purpose — this VPS runs other Coolify projects
 # too, so binding host ports here risks colliding with them. Coolify's own

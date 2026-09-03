@@ -169,7 +169,7 @@ function toPublicAdmin(admin: DbAdminUser) {
   return {
     id: admin.id,
     phone: admin.phoneNumber,
-    email: `${admin.phoneNumber.replace('+', '')}@admin.tombola.local`,
+    email: `${admin.phoneNumber.replace('+', '')}@admin.yeneeta.local`,
     fullName: admin.fullName ?? (admin.role === 'owner' ? 'Platform Owner' : 'Platform Moderator'),
     role: admin.role,
     createdAt: admin.createdAt,

@@ -206,7 +206,7 @@
   const labelClass = 'flex flex-col gap-2 text-xs font-bold text-ink';
 </script>
 
-<svelte:head><title>{raffle?.title ?? 'Raffle'} · Tombola Admin</title></svelte:head>
+<svelte:head><title>{raffle?.title ?? 'Raffle'} · YeneEta Admin</title></svelte:head>
 
 {#if loading}
   <div class="space-y-4">{#each Array(4) as _}<div class="h-20 animate-pulse rounded-card bg-card"></div>{/each}</div>

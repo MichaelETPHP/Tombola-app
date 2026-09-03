@@ -199,7 +199,7 @@
   $: rankedPrizes = raffle?.prizes && raffle.prizes.length > 1 ? [...raffle.prizes].sort((a, b) => a.tier - b.tier) : [];
 </script>
 
-<svelte:head><title>{raffle?.title ?? 'Raffle'} · Tombola</title></svelte:head>
+<svelte:head><title>{raffle?.title ?? 'Raffle'} · YeneEta</title></svelte:head>
 <svelte:window on:keydown={handleWindowKeydown} />
 
 {#if loading}

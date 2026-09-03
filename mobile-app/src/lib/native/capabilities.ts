@@ -84,24 +84,26 @@ export async function getCurrentLocation(precise = false) {
   });
 }
 
-export interface ShareTombolaOptions {
+export interface ShareYeneEtaOptions {
   title: string;
   text: string;
   url?: string;
   files?: string[];
 }
+export type ShareTombolaOptions = ShareYeneEtaOptions;
 
 /** Uses the native share sheet and falls back to copying the link. */
-export async function shareTombolaContent(options: ShareTombolaOptions): Promise<void> {
+export async function shareYeneEtaContent(options: ShareYeneEtaOptions): Promise<void> {
   const supported = await Share.canShare();
   if (supported.value) {
-    await Share.share({ ...options, dialogTitle: 'Share from Tombola' });
+    await Share.share({ ...options, dialogTitle: 'Share from YeneEta' });
     return;
   }
 
   await Clipboard.write({ string: options.url || options.text });
   await showNativeToast('Link copied');
 }
+export const shareTombolaContent = shareYeneEtaContent;
 
 /** Opens the native single-contact picker; no contact data is uploaded here. */
 export async function pickInviteContact() {

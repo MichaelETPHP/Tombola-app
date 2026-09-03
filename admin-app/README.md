@@ -1,4 +1,4 @@
-# Tombola Admin Dashboard
+# YeneEta Admin Dashboard
 
 Owner/moderator web dashboard: create and manage raffles, review payout
 claims, manage users, and (once implemented) browse the audit log. Talks to

@@ -96,7 +96,7 @@
   const labelClass = 'flex flex-col gap-2 text-xs font-bold text-ink';
 </script>
 
-<svelte:head><title>Admin users · Tombola Admin</title></svelte:head>
+<svelte:head><title>Admin users · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <a href="/settings" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to settings</a>

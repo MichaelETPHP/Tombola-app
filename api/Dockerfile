@@ -1,4 +1,4 @@
-# Tombola API — Bun/Hono. Bun runs TypeScript directly, so there's no
+# YeneEta API — Bun/Hono. Bun runs TypeScript directly, so there's no
 # separate build stage; just install production deps and run the source.
 #
 # Pinned to the Debian-based image (not slim/alpine) — `sharp` ships native
@@ -26,10 +26,10 @@ RUN mkdir -p uploads
 # Run as a non-root user rather than trust the base image's default —
 # created explicitly so this doesn't depend on oven/bun's own image
 # happening to ship one.
-RUN groupadd --system --gid 1001 tombola \
-  && useradd --system --uid 1001 --gid tombola --home /app tombola \
-  && chown -R tombola:tombola /app
-USER tombola
+RUN groupadd --system --gid 1001 yeneeta \
+  && useradd --system --uid 1001 --gid yeneeta --home /app yeneeta \
+  && chown -R yeneeta:yeneeta /app
+USER yeneeta
 
 ENV NODE_ENV=production
 EXPOSE 3435

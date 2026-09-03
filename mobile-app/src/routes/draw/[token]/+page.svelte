@@ -1,18 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { fade } from 'svelte/transition';
   import { api, ApiError } from '$lib/api/client.js';
-  import { CheckCircle2, LockKeyhole, RotateCw, ShieldCheck, Ticket, Trophy } from 'lucide-svelte';
+  import { CheckCircle2, LockKeyhole, RotateCw, ShieldCheck } from 'lucide-svelte';
   import { hapticMedium } from '$lib/native/haptics.js';
-  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   type DrawContext = {
     raffleName: string;
     raffleCode: string;
-    prizeName: string;
-    prizeImageUrl: string | null;
-    ticketCount: number;
-    drawCommitment: string;
+    registeredUsers: number;
+    participantPhones: string[];
     status: string;
     expiresAt: string;
     canSpin: boolean;
@@ -20,6 +18,7 @@
   type DrawResult = {
     raffleName: string;
     winnerTicketCode: string;
+    winnerPhone: string;
     totalTickets: number;
     serverSeed: string;
     serverSeedHash: string;
@@ -31,12 +30,23 @@
   let result: DrawResult | null = null;
   let loading = true;
   let spinning = false;
+  let reelRunning = false;
+  let displayPhone = '';
   let error = '';
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function randomPhone(): string {
+    const pool = draw?.participantPhones ?? [];
+    if (pool.length === 0) return '';
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
 
   async function load() {
     try {
       const response = await api.get<{ draw: DrawContext }>(`/draws/${$page.params.token}`, { skipAuth: true });
       draw = response.draw;
+      displayPhone = randomPhone();
     } catch (cause) {
       error = cause instanceof ApiError && cause.status === 404
         ? 'This draw link is invalid.'
@@ -46,21 +56,49 @@
     }
   }
 
+  // Cycles the reel through masked participant numbers at a fast, steady
+  // clip while the spin request is in flight — stopped the instant the
+  // real winner comes back (reelRunning flips false), never on a fixed
+  // timer, so the reel is always spinning for as long as the network
+  // call actually takes.
+  async function fastReel() {
+    reelRunning = true;
+    while (reelRunning) {
+      displayPhone = randomPhone();
+      await sleep(55);
+    }
+  }
+
+  // Slot-machine deceleration: each step waits a little longer than the
+  // last, landing exactly on the real winner's number.
+  async function decelerateTo(finalPhone: string) {
+    const delays = [70, 90, 120, 160, 210, 270, 350, 450];
+    for (const delay of delays) {
+      displayPhone = randomPhone();
+      await sleep(delay);
+    }
+    displayPhone = finalPhone;
+  }
+
   async function spin() {
     if (!draw?.canSpin || spinning) return;
     spinning = true;
     error = '';
     await hapticMedium();
+    void fastReel();
     try {
       const response = await api.post<DrawResult>(`/draws/${$page.params.token}/spin`, undefined, { skipAuth: true });
-      await new Promise((resolve) => setTimeout(resolve, 2400));
+      reelRunning = false;
+      await decelerateTo(response.winnerPhone);
       result = response;
       draw.canSpin = false;
       await hapticMedium();
     } catch (cause) {
+      reelRunning = false;
       error = cause instanceof ApiError && [409, 410].includes(cause.status)
         ? 'This one-time link has already been used, replaced, or expired.'
         : 'The draw could not be completed. Please try again.';
+    } finally {
       spinning = false;
     }
   }
@@ -68,54 +106,69 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Fair draw · Tombola</title></svelte:head>
+<svelte:head><title>Fair draw · YeneEta</title></svelte:head>
 
 <main class="draw-screen min-h-[100dvh] bg-[#e9faf5] px-5 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#142a25]">
   <div class="mx-auto flex min-h-[calc(100dvh-52px)] max-w-md flex-col">
     <header class="flex items-center justify-between py-2">
-      <div><p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">Tombola fair draw</p><h1 class="mt-1 text-xl font-extrabold tracking-[-0.03em]">Community spin</h1></div>
-      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#0c9f7d]"><ShieldCheck size={21} /></span>
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">YeneEta fair draw</p>
+        <h1 class="mt-1 max-w-[220px] truncate text-xl font-extrabold tracking-[-0.03em]">{draw?.raffleName ?? 'Community spin'}</h1>
+      </div>
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0c9f7d]"><ShieldCheck size={21} /></span>
     </header>
 
     {#if loading}
-      <div class="my-auto space-y-4" aria-label="Loading draw"><div class="mx-auto h-56 w-56 animate-pulse rounded-full bg-white/80"></div><div class="mx-auto h-12 w-52 animate-pulse rounded-2xl bg-white/80"></div></div>
+      <div class="my-auto flex flex-col items-center gap-3" aria-label="Loading draw">
+        <RotateCw size={28} class="animate-spin text-[#0c9f7d]" />
+        <p class="text-sm text-[#60746f]">Loading draw…</p>
+      </div>
     {:else if error && !draw}
       <section class="my-auto rounded-[28px] bg-white p-7 text-center"><LockKeyhole size={30} class="mx-auto text-[#ff6d6d]" /><h2 class="mt-4 text-lg font-extrabold">Link unavailable</h2><p class="mt-2 text-sm leading-6 text-[#60746f]">{error}</p><button on:click={load} class="mt-5 h-11 rounded-2xl bg-[#142a25] px-6 text-sm font-bold text-white">Try again</button></section>
     {:else if draw}
-      <section class="mt-5 overflow-hidden rounded-[30px] bg-white p-5 shadow-[0_18px_48px_rgba(28,94,78,0.10)]">
-        <div class="flex items-center gap-4">
-          <div class="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[#eff8f5]">{#if draw.prizeImageUrl}<img src={resolveImageUrl(draw.prizeImageUrl)} alt={draw.prizeName} class="h-full w-full object-cover" />{:else}<span class="flex h-full items-center justify-center text-[#0c9f7d]"><Trophy size={23} /></span>{/if}</div>
-          <div class="min-w-0"><p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0c9f7d]">{draw.raffleCode}</p><h2 class="mt-1 truncate text-base font-extrabold">{draw.raffleName}</h2><p class="mt-1 flex items-center gap-1.5 text-xs text-[#60746f]"><Ticket size={13} /> {draw.ticketCount} verified tickets</p></div>
-        </div>
-      </section>
+      <p class="mt-3 text-center text-xs font-bold uppercase tracking-[0.14em] text-[#60746f]">{draw.registeredUsers} registered user{draw.registeredUsers === 1 ? '' : 's'}</p>
 
-      <div class="relative my-auto flex flex-col items-center py-8">
-        <div class="pointer-events-none absolute top-7 z-10 h-0 w-0 border-x-[14px] border-t-[24px] border-x-transparent border-t-[#ff6d6d]"></div>
-        <div class:wheel-spin={spinning} class="wheel relative grid h-64 w-64 place-items-center rounded-full border-[10px] border-white shadow-[0_18px_50px_rgba(21,78,65,0.18)]">
-          <div class="grid h-24 w-24 place-items-center rounded-full border-[8px] border-white bg-[#142a25] text-center text-white shadow-lg"><span class="text-[11px] font-extrabold uppercase tracking-[0.12em]">{result ? 'Final' : 'Ready'}</span></div>
+      <div class="relative my-auto flex flex-col items-center py-6">
+        <div
+          class:reel-active={spinning}
+          class:reel-done={!!result}
+          class="reel relative flex h-64 w-64 flex-col items-center justify-center gap-2 rounded-full border-[10px] border-white bg-white text-center shadow-[0_18px_50px_rgba(21,78,65,0.18)]"
+        >
+          {#if result}
+            <div in:fade={{ duration: 220 }} class="flex flex-col items-center gap-2 px-4">
+              <CheckCircle2 size={26} class="text-[#0c9f7d]" />
+              <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">Winner</p>
+              <p class="text-2xl font-black tracking-[-0.02em] tabular-nums text-[#142a25]">{result.winnerPhone}</p>
+              <p class="text-[11px] font-semibold text-[#60746f]">{result.winnerTicketCode}</p>
+            </div>
+          {:else}
+            <div class="px-4">
+              {#key displayPhone}
+                <p in:fade={{ duration: 70 }} class="text-xl font-black tracking-[-0.02em] tabular-nums text-[#142a25]">{displayPhone || '+251 •••••••••'}</p>
+              {/key}
+              <p class="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0c9f7d]">{spinning ? 'Selecting…' : 'Ready'}</p>
+            </div>
+          {/if}
         </div>
-
-        {#if result}
-          <div class="mt-7 text-center"><CheckCircle2 size={28} class="mx-auto text-[#0c9f7d]" /><p class="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-[#60746f]">Winning ticket</p><p class="mt-1 text-3xl font-black tracking-[-0.04em] text-[#142a25]">{result.winnerTicketCode}</p><p class="mt-2 text-xs text-[#60746f]">Selected from {result.totalTickets} paid tickets</p></div>
-        {:else}
-          <p class="mt-7 max-w-xs text-center text-sm leading-6 text-[#60746f]">Your spin starts the public reveal. The server’s committed formula selects the ticket; you cannot influence the winner.</p>
-        {/if}
       </div>
 
       {#if error}<p class="mb-3 rounded-2xl bg-[#fff0f0] px-4 py-3 text-center text-xs font-semibold text-[#c74d4d]" role="alert">{error}</p>{/if}
       {#if !result}
         <button on:click={spin} disabled={!draw.canSpin || spinning} class="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-[#ff6d6d] text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(255,109,109,0.28)] active:scale-[0.98] disabled:opacity-50"><RotateCw size={18} class={spinning ? 'animate-spin' : ''} /> {spinning ? 'Selecting one verified ticket…' : draw.canSpin ? 'Spin to reveal winner' : 'Draw link unavailable'}</button>
-      {:else}
-        <details class="rounded-2xl bg-white px-4 py-3 text-xs text-[#60746f]"><summary class="cursor-pointer font-bold text-[#142a25]">Fairness proof</summary><dl class="mt-3 space-y-2 break-all"><div><dt class="font-bold">Committed hash</dt><dd>{result.serverSeedHash}</dd></div><div><dt class="font-bold">Final hash</dt><dd>{result.combinedHash}</dd></div><div><dt class="font-bold">Revealed seed</dt><dd>{result.serverSeed}</dd></div></dl></details>
       {/if}
     {/if}
   </div>
 </main>
 
 <style>
-  .wheel { background: conic-gradient(#0fc49a 0 12.5%,#d9f7ef 12.5% 25%,#ff7777 25% 37.5%,#ffe6a6 37.5% 50%,#0fc49a 50% 62.5%,#d9f7ef 62.5% 75%,#ff7777 75% 87.5%,#ffe6a6 87.5%); }
-  .wheel::after { content: ''; position: absolute; inset: 19px; border-radius: 999px; border: 1px solid rgba(255,255,255,.78); }
-  .wheel-spin { animation: draw-spin 2.4s cubic-bezier(.12,.72,.15,1) forwards; }
-  @keyframes draw-spin { from { transform: rotate(0deg); } to { transform: rotate(1880deg); } }
-  @media (prefers-reduced-motion: reduce) { .wheel-spin { animation-duration: .2s; } }
+  .reel { transition: box-shadow 0.3s ease; }
+  .reel-active { box-shadow: 0 0 0 6px rgba(12, 159, 125, 0.14), 0 18px 50px rgba(21, 78, 65, 0.18); animation: reel-pulse 0.9s ease-in-out infinite; }
+  .reel-done { box-shadow: 0 0 0 6px rgba(12, 159, 125, 0.22), 0 18px 50px rgba(21, 78, 65, 0.18); }
+  @keyframes reel-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.015); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reel-active { animation: none; }
+  }
 </style>

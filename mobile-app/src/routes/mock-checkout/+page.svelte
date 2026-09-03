@@ -9,7 +9,7 @@
 
   let txRef = '';
   let amount = 0;
-  let raffleTitle = 'Tombola raffle';
+  let raffleTitle = 'YeneEta raffle';
   let ticketCount = 1;
   let unitPrice = 0;
   let callbackUrl = '';
@@ -25,7 +25,7 @@
     const params = new URLSearchParams(window.location.search);
     txRef = params.get('tx_ref') ?? '';
     amount = Number(params.get('amount') ?? 0);
-    raffleTitle = params.get('raffle_title') ?? 'Tombola raffle';
+    raffleTitle = params.get('raffle_title') ?? 'YeneEta raffle';
     ticketCount = Math.max(1, Math.min(5, Number(params.get('ticket_count') ?? 1)));
     unitPrice = Number(params.get('unit_price') ?? amount / ticketCount);
     callbackUrl = params.get('callback_url') ?? '';
@@ -76,14 +76,14 @@
       outcome = status;
       redirectTimer = setTimeout(returnToApp, 850);
     } catch {
-      submitError = 'The test gateway could not reach Tombola. Check that the API is running, then try again.';
+      submitError = 'The test gateway could not reach YeneEta. Check that the API is running, then try again.';
     } finally {
       submitting = false;
     }
   }
 </script>
 
-<svelte:head><title>Secure test checkout · Tombola</title></svelte:head>
+<svelte:head><title>Secure test checkout · YeneEta</title></svelte:head>
 
 <main class="checkout-shell min-h-[100dvh] bg-[#f2f6f4] text-[#17201e]">
   <div class="mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col px-4 pb-[max(18px,env(safe-area-inset-bottom))] pt-[max(44px,var(--safe-top))]">
@@ -107,8 +107,8 @@
         </span>
         <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-[#00a77d]">Test gateway response</p>
         <h1 class="mt-2 text-2xl font-extrabold tracking-[-0.03em]">{outcome === 'success' ? 'Payment confirmed' : 'Payment declined'}</h1>
-        <p class="mt-2 max-w-[300px] text-sm leading-6 text-[#63716d]">{outcome === 'success' ? 'Tombola is issuing your ticket numbers now.' : 'No tickets will be issued for this attempt.'}</p>
-        <div class="mt-7 flex items-center gap-2 text-xs font-semibold text-[#63716d]"><span class="checkout-pulse h-2 w-2 rounded-full bg-[#00b589]"></span> Returning to Tombola</div>
+        <p class="mt-2 max-w-[300px] text-sm leading-6 text-[#63716d]">{outcome === 'success' ? 'YeneEta is issuing your ticket numbers now.' : 'No tickets will be issued for this attempt.'}</p>
+        <div class="mt-7 flex items-center gap-2 text-xs font-semibold text-[#63716d]"><span class="checkout-pulse h-2 w-2 rounded-full bg-[#00b589]"></span> Returning to YeneEta</div>
       </section>
     {:else}
       <div class="flex flex-1 flex-col">

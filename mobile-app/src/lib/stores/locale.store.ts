@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 
-const KEY = 'tombola:locale';
+const KEY = 'yeneeta:locale';
+const LEGACY_KEY = 'tombola:locale';
 
 export interface Locale {
   code: 'en' | 'am';
@@ -21,7 +22,7 @@ export const locale = writable<Locale['code']>('en');
  */
 export function initLocale(): void {
   try {
-    const stored = localStorage.getItem(KEY);
+    const stored = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (stored === 'en' || stored === 'am') {
       locale.set(stored);
     }

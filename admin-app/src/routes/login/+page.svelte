@@ -15,7 +15,7 @@
   // be verified" like every other failure — genuinely confusing when the
   // password was actually right and you just tried a few times in a row.
   function loginErrorMessage(err: unknown): string {
-    if (!(err instanceof ApiError)) return 'Unable to reach Tombola. Check your connection and try again.';
+    if (!(err instanceof ApiError)) return 'Unable to reach YeneEta. Check your connection and try again.';
     if (err.status === 429) {
       try {
         const body = JSON.parse(err.body) as { retryAfter?: number };
@@ -52,7 +52,7 @@
   }
 </script>
 
-<svelte:head><title>Super Admin sign in · Tombola</title></svelte:head>
+<svelte:head><title>Super Admin sign in · YeneEta</title></svelte:head>
 
 <main class="grid min-h-[100dvh] bg-card lg:grid-cols-[minmax(420px,0.92fr)_minmax(520px,1.08fr)]">
   <section class="relative hidden overflow-hidden bg-sidebar p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
@@ -74,7 +74,7 @@
 
     <div class="relative flex items-center gap-3">
       <span class="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary text-white"><Dices size={22} strokeWidth={2.2} /></span>
-      <div><p class="text-base font-bold tracking-tight">Tombola</p><p class="text-xs text-white/55">Platform operations</p></div>
+      <div><p class="text-base font-bold tracking-tight">YeneEta</p><p class="text-xs text-white/55">Platform operations</p></div>
     </div>
 
     <div class="relative max-w-[520px]">
@@ -89,20 +89,20 @@
       </div>
     </div>
 
-    <p class="relative text-xs text-white/35">Restricted to authorized Tombola Platform Owner accounts.</p>
+    <p class="relative text-xs text-white/35">Restricted to authorized YeneEta Platform Owner accounts.</p>
   </section>
 
   <section class="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-10 lg:min-h-0">
     <form class="admin-reveal w-full max-w-[440px]" on:submit|preventDefault={submit}>
       <div class="mb-10 flex items-center gap-3 lg:hidden">
         <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-sidebar text-primary"><Dices size={20} /></span>
-        <div><p class="font-bold text-ink">Tombola</p><p class="text-xs text-faint">Platform operations</p></div>
+        <div><p class="font-bold text-ink">YeneEta</p><p class="text-xs text-faint">Platform operations</p></div>
       </div>
 
       <span class="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-primary-bg text-primary"><LockKeyhole size={21} /></span>
       <p class="text-xs font-bold uppercase tracking-[0.16em] text-primary">Super Admin</p>
       <h2 class="mt-2 text-[30px] font-bold tracking-[-0.035em] text-ink sm:text-[34px]">Welcome back</h2>
-      <p class="mt-2 text-sm leading-6 text-muted">Sign in to manage the Tombola platform.</p>
+      <p class="mt-2 text-sm leading-6 text-muted">Sign in to manage the YeneEta platform.</p>
 
       <div class="mt-8 flex flex-col gap-5">
         <div class="flex flex-col gap-2">

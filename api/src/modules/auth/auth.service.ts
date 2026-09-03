@@ -229,7 +229,7 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
   let user = await findUserByTelegramId(identity.userId);
   if (user) return { status: 'authenticated' as const, ...(await createSession(user)) };
 
-  // Tombola currently operates with Ethiopian E.164 numbers. A Telegram
+  // YeneEta currently operates with Ethiopian E.164 numbers. A Telegram
   // account with no shared phone (or a non-Ethiopian number) can still link
   // safely through the normal OTP screen.
   if (!identity.phone || !/^\+251[0-9]{9}$/.test(identity.phone)) {

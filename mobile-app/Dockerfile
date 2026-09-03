@@ -1,4 +1,4 @@
-# Tombola mobile-app (PWA) — SvelteKit + adapter-static, served by nginx.
+# YeneEta mobile-app (PWA) — SvelteKit + adapter-static, served by nginx.
 #
 # VITE_API_URL is a Vite *build-time* variable (client.ts reads
 # import.meta.env.VITE_API_URL) — it gets baked into the compiled JS, so it

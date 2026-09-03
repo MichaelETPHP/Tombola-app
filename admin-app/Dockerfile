@@ -1,4 +1,4 @@
-# Tombola admin-app — SvelteKit + adapter-node, run directly with Bun.
+# YeneEta admin-app — SvelteKit + adapter-node, run directly with Bun.
 #
 # VITE_API_URL is a Vite *build-time* variable (baked into the client
 # bundle) — pass it as a Docker build ARG (Coolify: "Build Variables"),
@@ -48,10 +48,10 @@ RUN bun install --production --no-save
 # Run as a non-root user rather than trust the base image's default —
 # created explicitly so this doesn't depend on oven/bun's own image
 # happening to ship one.
-RUN groupadd --system --gid 1001 tombola \
-  && useradd --system --uid 1001 --gid tombola --home /app tombola \
-  && chown -R tombola:tombola /app
-USER tombola
+RUN groupadd --system --gid 1001 yeneeta \
+  && useradd --system --uid 1001 --gid yeneeta --home /app yeneeta \
+  && chown -R yeneeta:yeneeta /app
+USER yeneeta
 
 ENV NODE_ENV=production
 ENV PORT=5355

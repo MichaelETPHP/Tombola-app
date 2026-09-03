@@ -198,7 +198,7 @@
   }
 </script>
 
-<svelte:head><title>Registered Users | Tombola Admin</title></svelte:head>
+<svelte:head><title>Registered Users | YeneEta Admin</title></svelte:head>
 
 <!-- ── Toast ──────────────────────────────────────────────────── -->
 {#if toastVisible}

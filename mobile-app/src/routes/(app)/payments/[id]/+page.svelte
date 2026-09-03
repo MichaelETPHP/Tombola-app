@@ -95,7 +95,7 @@
   onDestroy(stopPolling);
 </script>
 
-<svelte:head><title>Payment receipt · Tombola</title></svelte:head>
+<svelte:head><title>Payment receipt · YeneEta</title></svelte:head>
 
 <div class="payment-page flex flex-col">
   <header class="flex h-10 items-center justify-between">
@@ -170,7 +170,7 @@
       <span class="processing-ring relative mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/65"><ReceiptText size={25} class="text-primary-dark" /></span>
       <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">Payment received</p>
       <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">Preparing your tickets</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Keep this screen open for a moment while Tombola assigns your ticket numbers.</p>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Keep this screen open for a moment while YeneEta assigns your ticket numbers.</p>
       <div class="mt-6 flex items-center gap-2 rounded-full bg-white/60 px-3 py-2 text-[11px] font-semibold text-muted"><ShieldCheck size={14} class="text-primary-dark" /> Secure server confirmation {checking ? 'in progress' : 'queued'}</div>
     </section>
   {/if}

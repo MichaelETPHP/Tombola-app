@@ -1,6 +1,6 @@
-# Tombola Telegram setup
+# YeneEta Telegram setup
 
-The application now supports one Tombola account on both surfaces:
+The application now supports one YeneEta account on both surfaces:
 
 - Telegram Mini App: signed `Telegram.WebApp.initData` is verified by the API and linked users enter automatically.
 - Standalone PWA/Capacitor app: phone OTP only; Telegram login is never shown outside the Telegram Mini App.
@@ -12,7 +12,7 @@ Run `api/src/db/Migration/005_telegram_identity.sql` as the owner of the `Tombol
 
 ## 2. Configure BotFather
 
-1. Create or select the Tombola bot.
+1. Create or select the YeneEta bot.
 2. Under **Mini App**, set the deployed HTTPS mobile-app URL as the Main Mini App URL.
 3. Generate a fresh bot token for this same bot and store it only on the API service.
 

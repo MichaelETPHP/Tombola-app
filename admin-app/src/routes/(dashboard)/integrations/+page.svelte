@@ -42,7 +42,7 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Integrations | Tombola Admin</title></svelte:head>
+<svelte:head><title>Integrations | YeneEta Admin</title></svelte:head>
 
 {#if $auth.admin?.role !== 'owner'}
   <div class="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-card border border-border bg-card p-8 text-center">

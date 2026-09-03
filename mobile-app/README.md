@@ -1,4 +1,4 @@
-# Tombola Mobile App
+# YeneEta Mobile App
 
 Installable participant-facing app (SvelteKit built as a static SPA). Talks
 to the `api` project over HTTP only. Ships two ways from the same codebase:

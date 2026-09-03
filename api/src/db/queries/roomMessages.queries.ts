@@ -10,7 +10,7 @@ export interface DbRoomMessage {
   createdAt: Date;
   /** Only populated for senderType 'user' — joined in for the group-chat
    *  identity strip (name/phone/avatar). Admin messages stay unattributed
-   *  to an individual admin, same as before — they post as "Tombola". */
+   *  to an individual admin, same as before — they post as "YeneEta". */
   senderFullName: string | null;
   senderPhoneNumber: string | null;
   senderTelegramPhotoUrl: string | null;
