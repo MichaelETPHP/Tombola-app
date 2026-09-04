@@ -214,7 +214,7 @@
     <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-card shadow-[0_12px_30px_rgba(20,89,72,0.10)]">
       <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" eager />
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
-      <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-[#172c27]/55 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"><ChevronLeft size={19} /></button>
+      <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-[#172c27]/55 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"><ChevronLeft size={19} /></button>
     </section>
 
     <header class="min-w-0 px-0.5">
@@ -258,11 +258,13 @@
           {#each rankedPrizes as prize, i (prize.id)}
             <button
               type="button"
-              class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === carouselIndex ? 'w-5 bg-primary-dark' : 'w-1.5 bg-dot-inactive'}"
+              class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full"
               aria-label="Show {rankWord[i] ?? `${prize.tier}th`} place prize"
               aria-current={i === carouselIndex ? 'true' : undefined}
               on:click={() => { stopAutoAdvance(); goToCarousel(i); }}
-            ></button>
+            >
+              <span class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === carouselIndex ? 'w-5 bg-primary-dark' : 'w-1.5 bg-dot-inactive'}" aria-hidden="true"></span>
+            </button>
           {/each}
         </div>
       </div>
@@ -281,9 +283,9 @@
           <div class="flex items-center justify-between gap-4">
             <div><p class="text-xs font-bold text-ink">Choose tickets</p><p class="mt-0.5 text-[9px] text-muted">1–{maxAllowed} per participant{resumedFromAuth ? ' · ready to continue' : ''}</p></div>
             <div class="flex items-center gap-3 rounded-full bg-bg-start p-1">
-              <button type="button" aria-label="Remove one ticket" disabled={quantity <= 1} class="tappable pressable flex h-9 w-9 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.max(1, quantity - 1); hapticLight(); }}><Minus size={15} /></button>
+              <button type="button" aria-label="Remove one ticket" disabled={quantity <= 1} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.max(1, quantity - 1); hapticLight(); }}><Minus size={15} /></button>
               <span class="min-w-5 text-center text-base font-extrabold text-ink">{quantity}</span>
-              <button type="button" aria-label="Add one ticket" disabled={quantity >= maxAllowed} class="tappable pressable flex h-9 w-9 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.min(maxAllowed, quantity + 1); hapticLight(); }}><Plus size={15} /></button>
+              <button type="button" aria-label="Add one ticket" disabled={quantity >= maxAllowed} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.min(maxAllowed, quantity + 1); hapticLight(); }}><Plus size={15} /></button>
             </div>
           </div>
 
@@ -291,8 +293,10 @@
           <div class="mt-3"><Button variant="glass" loading={purchasing} on:click={handleBuyClick}><Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB</Button></div>
 
           <div class="mt-2.5 flex items-center justify-center gap-2">
-            <button type="button" role="checkbox" aria-checked={agreedToTerms} aria-label="Agree to Terms and Conditions" on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable pressable flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border {agreedToTerms ? 'border-primary-dark/45 bg-action-bg' : termsShake ? 'border-pink bg-pink-bg' : 'border-dot-inactive bg-card'} {termsShake ? 'terms-shake' : ''}">{#if agreedToTerms}<Check size={12} class="text-primary-dark" strokeWidth={3.5} />{/if}</button>
-            <p class="text-[9.5px] text-muted">I agree to the <button type="button" class="tappable font-bold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>Terms and Conditions</button></p>
+            <button type="button" role="checkbox" aria-checked={agreedToTerms} aria-label="Agree to Terms and Conditions" on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
+              <span class="flex h-5 w-5 items-center justify-center rounded-[6px] border {agreedToTerms ? 'border-primary-dark/45 bg-action-bg' : termsShake ? 'border-pink bg-pink-bg' : 'border-dot-inactive bg-card'} {termsShake ? 'terms-shake' : ''}" aria-hidden="true">{#if agreedToTerms}<Check size={12} class="text-primary-dark" strokeWidth={3.5} />{/if}</span>
+            </button>
+            <p class="text-[9.5px] text-muted">I agree to the <button type="button" class="tappable inline-flex min-h-11 items-center font-bold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>Terms and Conditions</button></p>
           </div>
           <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> Sign in by SMS before payment{:else}<ShieldCheck size={10} /> Numbers are issued after payment confirmation{/if}</p>
         </div>
@@ -306,7 +310,7 @@
 {#if termsOpen}
   <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#152521]/45" aria-label="Close" on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
   <section class="no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
-    <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">Terms and Conditions</h2><button type="button" aria-label="Close" class="tappable pressable flex h-8 w-8 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
+    <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">Terms and Conditions</h2><button type="button" aria-label="Close" class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>You must be 18 or older to purchase tickets.</li><li>Purchases are final after payment confirmation.</li><li>Each paid ticket is one independent chance in the draw.</li><li>The maximum is five tickets per participant in one raffle.</li><li>The published fairness proof can be verified after the draw.</li></ul>
     <div class="mt-4"><Button size="md" on:click={() => (termsOpen = false)}>Understood</Button></div>
   </section>
@@ -338,7 +342,7 @@
       <button
         type="button"
         aria-label="Close"
-        class="tappable pressable absolute right-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
+        class="tappable pressable absolute right-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
         style="top: max(16px, var(--safe-top));"
         on:click={closeLightbox}
       ><X size={19} /></button>

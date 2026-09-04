@@ -41,7 +41,7 @@
 <div class="receipt-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center px-6" role="dialog" aria-modal="true" aria-label="Purchase receipt">
   <button
     type="button"
-    class="pressable absolute right-5 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm"
+    class="pressable absolute right-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm"
     style="top: max(20px, var(--safe-top));"
     aria-label="Skip"
     on:click={dismiss}
@@ -86,7 +86,7 @@
   </div>
 
   <div class="mt-7 flex w-full max-w-[300px] flex-col items-center gap-2.5">
-    <button type="button" class="pressable text-[11px] font-bold text-white/70" on:click={dismiss}>Skip · Continue now</button>
+    <button type="button" class="pressable min-h-11 px-3 text-[11px] font-bold text-white/70" on:click={dismiss}>Skip · Continue now</button>
     <div class="h-[3px] w-full overflow-hidden rounded-full bg-white/15">
       <div class="h-full rounded-full bg-white transition-[width] ease-linear" class:receipt-bar-pulled={barPulled} style="width: 100%; transition-duration: {DURATION_MS}ms;"></div>
     </div>

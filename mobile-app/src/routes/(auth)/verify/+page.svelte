@@ -109,7 +109,7 @@
     type="button"
     aria-label="Back to login"
     on:click={backToLogin}
-    class="tappable pressable absolute left-4 top-[max(44px,var(--safe-top))] flex h-10 w-10 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
+    class="tappable pressable absolute left-4 top-[max(44px,var(--safe-top))] flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
   >
     <ChevronLeft size={22} />
   </button>
@@ -140,7 +140,7 @@
       type="button"
       disabled={resendCooldown > 0 || resending}
       on:click={resend}
-      class="tappable text-[13px] font-semibold disabled:cursor-default {resendCooldown > 0
+      class="tappable min-h-11 px-3 text-[13px] font-semibold disabled:cursor-default {resendCooldown > 0
         ? 'text-muted'
         : 'text-primary-dark'}"
     >

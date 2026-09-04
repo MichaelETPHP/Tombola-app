@@ -186,7 +186,7 @@
     type="button"
     aria-label="Back to home"
     on:click={backToHome}
-    class="tappable pressable absolute left-4 top-[max(44px,var(--safe-top))] flex h-10 w-10 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
+    class="tappable pressable absolute left-4 top-[max(44px,var(--safe-top))] flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
   >
     <ChevronLeft size={22} />
   </button>
@@ -314,15 +314,20 @@
         aria-label="Agree to Terms &amp; Conditions"
         on:click={() => (agreedToTerms = !agreedToTerms)}
         on:animationend={() => (termsShake = false)}
-        class="tappable pressable flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border transition-colors duration-150 {agreedToTerms
-          ? 'border-primary-dark/60 bg-primary/25'
-          : termsShake
-            ? 'border-coral-start/70 bg-coral-start/20'
-            : 'border-ink/15 bg-card'} {termsShake ? 'terms-shake' : ''}"
+        class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
       >
-        {#if agreedToTerms}
-          <Check size={12} class="text-primary-dark" strokeWidth={3.5} />
-        {/if}
+        <span
+          class="flex h-5 w-5 items-center justify-center rounded-[6px] border transition-colors duration-150 {agreedToTerms
+            ? 'border-primary-dark/60 bg-primary/25'
+            : termsShake
+              ? 'border-coral-start/70 bg-coral-start/20'
+              : 'border-ink/15 bg-card'} {termsShake ? 'terms-shake' : ''}"
+          aria-hidden="true"
+        >
+          {#if agreedToTerms}
+            <Check size={12} class="text-primary-dark" strokeWidth={3.5} />
+          {/if}
+        </span>
       </button>
       <p
         class="text-[11.5px] leading-snug transition-colors duration-150 {termsShake
@@ -332,7 +337,7 @@
         I agree to the
         <button
           type="button"
-          class="tappable font-semibold text-primary-dark underline underline-offset-2"
+          class="tappable inline-flex min-h-11 items-center font-semibold text-primary-dark underline underline-offset-2"
           on:click={() => (termsOpen = true)}
         >Terms &amp; Conditions</button>
       </p>
@@ -362,7 +367,7 @@
       <button
         type="button"
         aria-label="Close"
-        class="tappable pressable flex h-8 w-8 items-center justify-center rounded-full bg-bg-start text-primary-dark"
+        class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark"
         on:click={() => (termsOpen = false)}
       >
         <X size={16} />

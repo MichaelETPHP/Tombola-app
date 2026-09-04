@@ -88,7 +88,7 @@
 <main class="checkout-shell min-h-[100dvh] bg-[#f2f6f4] text-[#17201e]">
   <div class="mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col px-4 pb-[max(18px,env(safe-area-inset-bottom))] pt-[max(44px,var(--safe-top))]">
     <header class="flex h-11 items-center justify-between">
-      <button type="button" class="pressable flex h-10 w-10 items-center justify-center rounded-full text-[#17201e]" aria-label="Go back" on:click={() => { hapticLight(); history.back(); }}><ArrowLeft size={21} strokeWidth={2} /></button>
+      <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full text-[#17201e]" aria-label="Go back" on:click={() => { hapticLight(); history.back(); }}><ArrowLeft size={21} strokeWidth={2} /></button>
       <div class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#63716d]"><LockKeyhole size={13} /> Secure checkout</div>
       <span class="flex h-8 items-center gap-1.5 rounded-full bg-[#fff3d6] px-2.5 text-[10px] font-bold uppercase tracking-wide text-[#946414]"><FlaskConical size={12} /> Test</span>
     </header>

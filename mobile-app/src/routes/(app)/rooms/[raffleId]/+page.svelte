@@ -243,7 +243,7 @@
         hapticLight();
         goto('/rooms');
       }}
-      class="tappable pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
+      class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
     >
       <ChevronLeft size={20} />
     </button>
@@ -267,7 +267,7 @@
       type="button"
       aria-label={soundMuted ? 'Unmute message sound' : 'Mute message sound'}
       on:click={toggleSound}
-      class="tappable pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-muted shadow-card-light"
+      class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-muted shadow-card-light"
     >
       {#if soundMuted}
         <BellOff size={17} />
@@ -396,7 +396,7 @@
           type="button"
           on:click={scrollToBottom}
           in:scale={{ duration: 180, easing: backOut, start: 0.8 }}
-          class="tappable pressable sticky left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white shadow-nav"
+          class="tappable pressable sticky left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white shadow-nav"
           style="bottom: calc(164px + var(--safe-bottom, 0px));"
         >
           <ChevronDown size={14} />

@@ -90,7 +90,7 @@
         hapticLight();
         goto('/profile');
       }}
-      class="tappable pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
+      class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
     >
       <ChevronLeft size={20} />
     </button>

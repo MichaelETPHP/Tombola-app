@@ -86,13 +86,18 @@
         {#each raffles as raffle, i (raffle.id)}
           <button
             type="button"
-            class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === activeIndex
-              ? 'w-6 bg-primary-dark'
-              : 'w-1.5 bg-dot-inactive'}"
+            class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full"
             aria-label="Show featured raffle {i + 1}"
             aria-current={i === activeIndex ? 'true' : undefined}
             on:click={() => goTo(i)}
-          ></button>
+          >
+            <span
+              class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === activeIndex
+                ? 'w-6 bg-primary-dark'
+                : 'w-1.5 bg-dot-inactive'}"
+              aria-hidden="true"
+            ></span>
+          </button>
         {/each}
       </div>
     {/if}

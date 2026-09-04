@@ -98,10 +98,10 @@
 <svelte:head><title>Payment receipt · YeneEta</title></svelte:head>
 
 <div class="payment-page flex flex-col">
-  <header class="flex h-10 items-center justify-between">
-    <button type="button" class="pressable flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-ink" aria-label="Back to raffle" on:click={goBack}><ArrowLeft size={20} /></button>
+  <header class="flex h-11 items-center justify-between">
+    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink" aria-label="Back to raffle" on:click={goBack}><ArrowLeft size={20} /></button>
     <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">Payment receipt</p>
-    <span class="h-10 w-10"></span>
+    <span class="h-11 w-11"></span>
   </header>
 
   {#if loadError}
@@ -146,7 +146,7 @@
 
       <div class="mt-auto space-y-2.5 pt-4">
         <button type="button" class="pressable h-12 w-full rounded-button bg-primary text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(0,181,137,0.18)]" on:click={() => goto('/tickets')}>View all my tickets</button>
-        <button type="button" class="pressable h-10 w-full text-xs font-bold text-muted" on:click={goToRaffle}>Back to raffle</button>
+        <button type="button" class="pressable h-11 w-full text-xs font-bold text-muted" on:click={goToRaffle}>Back to raffle</button>
       </div>
     </section>
   {:else if payment.status === 'failed' || payment.status === 'refunded'}
@@ -163,7 +163,7 @@
       <h1 class="text-xl font-extrabold tracking-[-0.025em] text-ink">Confirmation is delayed</h1>
       <p class="mt-2 max-w-[310px] text-sm leading-6 text-muted">Do not pay again yet. We will keep the payment record while the gateway responds.</p>
       <button type="button" class="pressable mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-ink text-sm font-bold text-white" on:click={restartPolling}><RefreshCw size={16} /> Check again</button>
-      <button type="button" class="pressable mt-2 h-10 text-xs font-bold text-muted" on:click={() => goto('/tickets')}>Check my tickets</button>
+      <button type="button" class="pressable mt-2 h-11 px-3 text-xs font-bold text-muted" on:click={() => goto('/tickets')}>Check my tickets</button>
     </section>
   {:else}
     <section class="flex flex-1 flex-col items-center justify-center px-5 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>

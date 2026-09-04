@@ -67,7 +67,7 @@
         type="button"
         role="tab"
         aria-selected={activeFilter === filter.value}
-        class="tappable pressable min-h-10 rounded-[12px] px-2 text-[11px] font-bold transition-[background-color,color,box-shadow] duration-200 {activeFilter === filter.value
+        class="tappable pressable min-h-11 rounded-[12px] px-2 text-[11px] font-bold transition-[background-color,color,box-shadow] duration-200 {activeFilter === filter.value
           ? 'bg-primary text-[#10211d] shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]'
           : 'text-muted'}"
         on:click={() => selectFilter(filter.value)}
@@ -92,7 +92,7 @@
       </div>
       <button
         type="button"
-        class="tappable pressable h-10 rounded-button bg-primary px-5 text-xs font-bold text-[#10211d]"
+        class="tappable pressable h-11 rounded-button bg-primary px-5 text-xs font-bold text-[#10211d]"
         on:click={() => load()}
       >
         Try again

@@ -57,7 +57,7 @@
       <p class="text-xs leading-relaxed text-muted">Check your connection, then try again.</p>
       <button
         type="button"
-        class="tappable pressable inline-flex h-10 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#10211d]"
+        class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#10211d]"
         on:click={loadRaffles}
       >
         Try again <ArrowRight size={15} />
@@ -86,7 +86,7 @@
         <h2 class="text-base font-extrabold text-ink">More open raffles</h2>
         <p class="mt-0.5 text-[11px] text-muted">Every ticket gives you one chance</p>
       </div>
-      <a href="/raffles" class="tappable flex shrink-0 items-center gap-1 text-xs font-bold text-primary-dark">
+      <a href="/raffles" class="tappable flex min-h-11 shrink-0 items-center gap-1 px-1 text-xs font-bold text-primary-dark">
         View all <ArrowRight size={14} />
       </a>
     </div>

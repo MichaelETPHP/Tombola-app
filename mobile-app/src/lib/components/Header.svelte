@@ -62,7 +62,7 @@
     <button
       type="button"
       on:click={openTikTok}
-      class="tappable pressable relative flex h-9 w-9 items-center justify-center rounded-full text-ink active:bg-black/5"
+      class="tappable pressable relative flex h-11 w-11 items-center justify-center rounded-full text-ink active:bg-black/5"
       aria-label="Follow YeneEta on TikTok — we're live"
     >
       <TikTokIcon size={18} />
@@ -77,7 +77,7 @@
       <button
         type="button"
         on:click={toggleLang}
-        class="tappable pressable relative z-50 flex h-9 items-center gap-1 rounded-full px-2 text-ink active:bg-black/5"
+        class="tappable pressable relative z-50 flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-2 text-ink active:bg-black/5"
         aria-label="Change language"
         aria-expanded={langOpen}
       >
@@ -95,7 +95,7 @@
             <button
               type="button"
               on:click={() => pickLocale(opt.code)}
-              class="tappable flex w-full items-center justify-between px-3 py-2 text-left text-[12px] font-semibold text-ink active:bg-black/5"
+              class="tappable flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-[12px] font-semibold text-ink active:bg-black/5"
             >
               {opt.label}
               {#if $locale === opt.code}
@@ -112,7 +112,7 @@
       <a
         href="/profile"
         on:click={hapticLight}
-        class="profile-avatar tappable relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-card text-primary-dark no-underline shadow-[0_7px_16px_-11px_rgba(0,122,95,0.65),inset_0_1px_0_rgba(255,255,255,0.8)]"
+        class="profile-avatar tappable relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-card text-primary-dark no-underline shadow-[0_7px_16px_-11px_rgba(0,122,95,0.65),inset_0_1px_0_rgba(255,255,255,0.8)]"
         aria-label="Open profile for {profileName}"
         title="Profile"
         in:scale={{ duration: 260, start: 0.78, opacity: 0, easing: cubicOut }}
@@ -127,7 +127,7 @@
     {:else}
       <a
         href="/login?returnTo=/profile"
-        class="tappable pressable flex h-9 w-9 items-center justify-center rounded-full text-ink active:bg-black/5"
+        class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full text-ink active:bg-black/5"
         aria-label="Sign in"
       >
         <LogIn size={18} strokeWidth={2} />
