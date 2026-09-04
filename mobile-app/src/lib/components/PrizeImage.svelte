@@ -6,6 +6,7 @@
   export let title: string;
   export let prizeName: string;
   export let size: 'sm' | 'lg' = 'sm';
+  export let fit: 'cover' | 'contain' = 'cover';
   export let eager = false;
 
   // 'local' -> 'production' -> 'failed'. Most images only exist on
@@ -35,7 +36,7 @@
       loading={eager ? 'eager' : 'lazy'}
       fetchpriority={eager ? 'high' : 'low'}
       decoding="async"
-      class="h-full w-full object-cover"
+      class="h-full w-full {fit === 'contain' ? 'object-contain' : 'object-cover'}"
       on:error={handleError}
     />
   {:else}

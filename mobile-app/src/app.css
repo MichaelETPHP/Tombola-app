@@ -240,12 +240,26 @@
    clear while tightening the previously over-generous 137px spacing. This
    selector only exists after a signed Telegram Mini App launch, leaving the
    native APK and browser/PWA spacing unchanged. */
-html.telegram-mini-app .safe-area-top {
-  padding-top: max(
+html.telegram-mini-app {
+  --telegram-content-start: max(
     100px,
     calc(var(--tg-content-safe-area-inset-top, 0px) + 12px),
     calc(var(--telegram-content-safe-top, 0px) + 12px)
   );
+}
+
+html.telegram-mini-app .safe-area-top {
+  padding-top: var(--telegram-content-start);
+}
+
+/* Absolute controls cannot inherit a container's safe-area padding. Keep
+   their resting position on the same shared content line instead. */
+.safe-area-floating-top {
+  top: max(44px, var(--safe-top));
+}
+
+html.telegram-mini-app .safe-area-floating-top {
+  top: var(--telegram-content-start);
 }
 
 .safe-area-bottom {

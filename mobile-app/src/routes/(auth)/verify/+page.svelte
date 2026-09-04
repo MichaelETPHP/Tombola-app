@@ -109,7 +109,7 @@
     type="button"
     aria-label="Back to login"
     on:click={backToLogin}
-    class="tappable pressable absolute left-4 top-[max(44px,var(--safe-top))] flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
+    class="safe-area-floating-top tappable pressable absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
   >
     <ChevronLeft size={22} />
   </button>
