@@ -36,6 +36,7 @@
   let agreedToTerms = false;
   let termsOpen = false;
   let termsShake = false;
+  let pageVisible = true;
 
   const rankBg = ['bg-gold-bg', 'bg-blue-bg', 'bg-pink-bg'];
   const rankText = ['text-gold', 'text-blue', 'text-pink'];
@@ -111,6 +112,10 @@
     if (lightboxIndex !== null && e.key === 'Escape') closeLightbox();
   }
 
+  function handleVisibilityChange() {
+    pageVisible = !document.hidden;
+  }
+
   async function fetchRaffle() {
     try {
       const response = await api.get<{ raffle: Raffle }>(`/raffles/${$page.params.id}`, { skipAuth: true });
@@ -125,6 +130,10 @@
   }
 
   onMount(async () => {
+    document.documentElement.classList.add('raffle-detail-lock');
+    pageVisible = !document.hidden;
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     pullRefresh.set(fetchRaffle);
     const hadCachedRaffle = !!raffle;
     if (hadCachedRaffle) {
@@ -141,9 +150,16 @@
       quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 5);
       resumedFromAuth = $auth.isAuthenticated;
     }
+
   });
 
-  onDestroy(stopAutoAdvance);
+  onDestroy(() => {
+    stopAutoAdvance();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.classList.remove('raffle-detail-lock');
+    }
+  });
 
   function handleBuyClick() {
     if (!agreedToTerms) {
@@ -211,8 +227,9 @@
   </section>
 {:else}
   <article class="raffle-screen">
-    <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-card shadow-[0_12px_30px_rgba(20,89,72,0.10)]">
-      <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" eager />
+    <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-[#dff7ee] shadow-[0_12px_30px_rgba(20,89,72,0.10)]">
+      <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager />
+      <div class="prize-glass-flash pointer-events-none absolute inset-y-0 left-0 w-[38%] {pageVisible ? '' : 'is-paused'}" aria-hidden="true"></div>
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
       <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-[#172c27]/55 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"><ChevronLeft size={19} /></button>
     </section>
@@ -242,7 +259,7 @@
                 on:click={() => openLightbox(i)}
               >
                 {#if prize.imageUrl}
-                  <img src={resolveImageUrl(prize.imageUrl)} alt={prize.name} class="h-full w-full object-cover" />
+                  <img src={resolveImageUrl(prize.imageUrl)} alt={prize.name} class="h-full w-full object-contain" />
                 {:else}
                   <span class="text-[10px] font-black {rankText[i] ?? 'text-primary-dark'}">{rankWord[i] ?? `${prize.tier}th`}</span>
                 {/if}
@@ -365,13 +382,28 @@
 {/if}
 
 <style>
-  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; }
+  :global(html.raffle-detail-lock),
+  :global(html.raffle-detail-lock body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
   .raffle-cover { flex: 1 1 32%; }
+  .prize-glass-flash {
+    z-index: 1;
+    transform: translate3d(-150%, 0, 0) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18) 28%, rgba(255, 255, 255, 0.72) 50%, rgba(255, 255, 255, 0.16) 72%, transparent);
+    filter: blur(1px);
+    animation: prize-glass-flash 5.2s cubic-bezier(0.16, 1, 0.3, 1) 700ms infinite;
+    will-change: transform;
+  }
+  .prize-glass-flash.is-paused { animation-play-state: paused; }
   .prize-carousel { flex: 0 0 auto; }
   .ticket-sheet { flex: 0 0 auto; }
   .terms-shake { animation: terms-shake 380ms var(--ease-out); }
+  @keyframes prize-glass-flash {
+    0%, 72% { transform: translate3d(-150%, 0, 0) skewX(-18deg); }
+    88%, 100% { transform: translate3d(380%, 0, 0) skewX(-18deg); }
+  }
   @keyframes terms-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
   @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-cover { flex-basis: 25%; } .raffle-description { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
   @media (max-height: 630px) { .raffle-cover { min-height: 82px; } .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
-  @media (prefers-reduced-motion: reduce) { .terms-shake { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .terms-shake, .prize-glass-flash { animation: none; } }
 </style>
