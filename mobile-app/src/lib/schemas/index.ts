@@ -50,6 +50,7 @@ export const raffleSchema = z.object({
   status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
   currentDeadline: z.string(),
   createdAt: z.string(),
+  telegramGroupLink: z.string().nullable().optional(),
 });
 
 export const raffleListResponseSchema = z.object({

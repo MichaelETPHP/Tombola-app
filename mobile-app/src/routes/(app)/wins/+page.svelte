@@ -53,7 +53,7 @@
 </script>
 
 {#if $auth.isLoading}
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
     <ListItemSkeleton />
     <ListItemSkeleton />
     <ListItemSkeleton />
@@ -63,7 +63,7 @@
     <h1 class="text-[22px] font-extrabold text-ink">My wins</h1>
 
     {#if loading}
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading wins">
         <ListItemSkeleton />
         <ListItemSkeleton />
         <ListItemSkeleton />

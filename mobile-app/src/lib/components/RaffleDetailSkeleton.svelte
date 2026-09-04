@@ -2,7 +2,7 @@
   import Skeleton from './Skeleton.svelte';
 </script>
 
-<div class="flex h-[calc(100dvh-140px)] min-h-0 flex-col gap-3 overflow-hidden">
+<div class="flex h-[calc(100dvh-140px)] min-h-0 flex-col gap-3 overflow-hidden" aria-busy="true" aria-label="Loading raffle">
   <Skeleton class="min-h-[104px] flex-1 rounded-card" />
   <div class="flex flex-col gap-2">
     <Skeleton class="h-5 w-4/5 rounded-full" />

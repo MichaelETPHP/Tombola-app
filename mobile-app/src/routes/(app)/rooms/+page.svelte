@@ -98,7 +98,7 @@
   </div>
 
   {#if loading}
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading rooms">
       <ListItemSkeleton />
       <ListItemSkeleton />
       <ListItemSkeleton />

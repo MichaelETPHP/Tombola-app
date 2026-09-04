@@ -10,10 +10,11 @@
   import { hapticLight } from '$lib/native/haptics.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
-  import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check } from 'lucide-svelte';
+  import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check, ExternalLink } from 'lucide-svelte';
   import type { Raffle, RoomMessage } from '$lib/schemas/index.js';
   import { playChatSound, isChatSoundMuted, setChatSoundMuted } from '$lib/native/chatSound.js';
   import { markRoomSeen } from '$lib/stores/unreadRooms.js';
+  import { openExternal } from '$lib/native/browser.js';
 
   // Chat has its own refresh mechanism (polling) — the page-wide
   // pull-to-refresh gesture would just fight scrolling through history.
@@ -40,6 +41,13 @@
 
   let roomTitle = '';
   let roomEnded = false;
+  let telegramGroupLink: string | null = null;
+
+  async function openTelegramGroup() {
+    if (!telegramGroupLink) return;
+    hapticLight();
+    await openExternal(telegramGroupLink);
+  }
 
   function toggleSound() {
     soundMuted = !soundMuted;
@@ -71,6 +79,7 @@
       roomTitle = res.raffle.title;
       roomEnded = res.raffle.status === 'completed' || res.raffle.status === 'cancelled';
       if (roomEnded) readOnly = true;
+      telegramGroupLink = res.raffle.telegramGroupLink ?? null;
     } catch {
       // Header just falls back to a generic label — not worth surfacing.
     }
@@ -276,6 +285,23 @@
       {/if}
     </button>
   </div>
+
+  {#if telegramGroupLink}
+    <button
+      type="button"
+      on:click={openTelegramGroup}
+      class="tappable pressable mb-3 flex w-full items-center gap-3 rounded-card bg-[#229ED9]/10 p-3.5 text-left ring-1 ring-[#229ED9]/20"
+    >
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#229ED9] text-white">
+        <Send size={15} fill="currentColor" />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[13px] font-bold text-[#0d6d94]">Join the Telegram group</p>
+        <p class="text-[11px] text-[#229ED9]">Chat and get raffle updates outside the app</p>
+      </div>
+      <ExternalLink size={14} class="shrink-0 text-[#229ED9]" />
+    </button>
+  {/if}
 
   {#if loading}
     <div class="flex flex-col gap-3 pb-4 pt-2">

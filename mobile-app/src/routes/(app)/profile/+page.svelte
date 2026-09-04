@@ -145,9 +145,26 @@
 </script>
 
 {#if $auth.isLoading}
-  <div class="flex flex-col gap-5">
-    <Skeleton class="h-6 w-24 rounded-full" />
-    <Skeleton class="h-[72px] w-full rounded-card" />
+  <div class="flex flex-col gap-5" aria-busy="true" aria-label="Loading profile">
+    <Skeleton class="h-7 w-28 rounded-full" />
+
+    <div class="flex items-center gap-3.5 rounded-card bg-card p-4 shadow-card">
+      <Skeleton class="h-14 w-14 shrink-0 rounded-full" />
+      <div class="flex flex-1 flex-col gap-2">
+        <Skeleton class="h-4 w-2/5 rounded-full" />
+        <Skeleton class="h-3 w-1/3 rounded-full" />
+      </div>
+      <Skeleton class="h-10 w-10 shrink-0 rounded-full" />
+    </div>
+
+    <ListItemSkeleton />
+    <ListItemSkeleton />
+
+    <div class="flex flex-col gap-3">
+      <Skeleton class="h-5 w-36 rounded-full" />
+      <ListItemSkeleton />
+      <ListItemSkeleton />
+    </div>
   </div>
 {:else if $auth.isAuthenticated}
   <div class="flex flex-col gap-5">

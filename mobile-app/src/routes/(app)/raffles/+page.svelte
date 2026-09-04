@@ -78,7 +78,7 @@
   </div>
 
   {#if $isLoadingRaffles}
-    <div class="flex flex-col gap-3" aria-label="Loading raffles">
+    <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading raffles">
       <RaffleCardSkeleton />
       <RaffleCardSkeleton />
       <RaffleCardSkeleton />

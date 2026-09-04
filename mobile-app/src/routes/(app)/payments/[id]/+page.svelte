@@ -112,7 +112,7 @@
       <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={() => goto('/tickets')}>View my tickets</button>
     </section>
   {:else if !payment}
-    <div class="flex flex-1 flex-col justify-center gap-4 px-2">
+    <div class="flex flex-1 flex-col justify-center gap-4 px-2" aria-busy="true" aria-label="Checking payment status">
       <Skeleton class="mx-auto h-16 w-16 rounded-full" />
       <Skeleton class="mx-auto h-6 w-44 rounded-full" />
       <Skeleton class="mx-auto h-4 w-64 rounded-full" />

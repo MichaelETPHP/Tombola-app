@@ -10,7 +10,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RaffleEngine from '$lib/components/RaffleEngine.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { ArrowLeft, CalendarClock, Check, LockKeyhole, MessageCircle, Plus, Save, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
+  import { ArrowLeft, CalendarClock, Check, ExternalLink, LockKeyhole, MessageCircle, Plus, Save, Send, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
   import PrizeImage from '$lib/components/PrizeImage.svelte';
 
   let raffle: Raffle | null = null;
@@ -28,6 +28,7 @@
   let maxTicketsPerUser = 5;
   let deadlineAt = '';
   let deadlineReason = 'Additional time approved by the Platform Owner';
+  let telegramGroupLink = '';
 
   let nextRowKey = 0;
   type PrizeRow = { key: number; id: string | null; name: string; value: string; imageUrl: string | null; uploading: boolean };
@@ -114,6 +115,7 @@
     const next = new Date(value.currentDeadline);
     next.setDate(next.getDate() + 1);
     deadlineAt = next.toISOString().slice(0, 16);
+    telegramGroupLink = value.telegramGroupLink ?? '';
   }
 
   async function load() {
@@ -169,6 +171,7 @@
         prizeName,
         prizeValue: Number(prizeValue),
         additionalPrizes: additionalPrizes.map((row) => ({ name: row.name, value: Number(row.value) })),
+        telegramGroupLink: telegramGroupLink.trim() || null,
       };
       if (raffle.ticketsSold === 0) {
         Object.assign(payload, {
@@ -321,6 +324,24 @@
           {/if}
 
           <label class="sm:col-span-2 {labelClass}">Description<textarea maxlength="2000" rows="4" bind:value={description} class="rounded-button border border-border bg-bg/55 px-3.5 py-3 text-sm leading-6 text-ink focus:border-primary focus:bg-card focus:outline-none"></textarea><span class="font-normal text-faint">Explain exactly what the winner receives.</span></label>
+
+          <div class="sm:col-span-2 mt-2 border-t border-border pt-6"><h3 class="text-sm font-bold text-ink">Community</h3><p class="mt-1 text-xs font-normal text-faint">Shown as a pinned, tappable banner in every buyer's room chat for this raffle.</p></div>
+          <label class="sm:col-span-2 {labelClass}">
+            Telegram group invite link
+            <input type="url" bind:value={telegramGroupLink} placeholder="https://t.me/+AbCdEfGhIjK" class={inputClass} />
+            <span class="font-normal text-faint">Create the group in Telegram yourself first, then paste its invite link here — nothing is auto-created.</span>
+          </label>
+          {#if telegramGroupLink}
+            <a
+              href={telegramGroupLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="admin-press -mt-2 flex w-fit items-center gap-1.5 rounded-full bg-[#229ED9]/10 px-3 py-1.5 text-[11px] font-bold text-[#0d6d94] no-underline ring-1 ring-[#229ED9]/25"
+            >
+              <Send size={11} /> Open group link <ExternalLink size={11} />
+            </a>
+          {/if}
+
           <div class="sm:col-span-2 mt-2 flex items-start justify-between gap-4 border-t border-border pt-6"><div><h3 class="text-sm font-bold text-ink">Ticket rules</h3><p class="mt-1 text-xs font-normal text-faint">These values define the published purchase contract.</p></div>{#if raffle.ticketsSold > 0}<span class="flex shrink-0 items-center gap-1.5 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning"><LockKeyhole size={11} /> Locked after first sale</span>{/if}</div>
           <label class={labelClass}>Ticket price (ETB)<input required type="number" min="0.01" step="0.01" disabled={raffle.ticketsSold > 0} bind:value={ticketPrice} class={inputClass} /><span class="font-normal text-faint">Price for one chance.</span></label>
           <label class={labelClass}>Ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class={inputClass} /><span class="font-normal text-faint">Total tickets available.</span></label>

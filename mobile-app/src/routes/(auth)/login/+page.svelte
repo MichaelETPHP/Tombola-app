@@ -148,7 +148,7 @@
         // Navigate first, *then* show the banner — <Banner /> lives in the
         // root layout and persists across navigation, so it renders on top
         // of the destination page instead of flashing on this one first.
-        await goto(returnTo || '/home', { replaceState: true });
+        await goto('/home', { replaceState: true });
         showBanner('Login successful');
         return;
       }
@@ -173,7 +173,7 @@
         if (cancelled) return;
         if (completion.status === 'authenticated') {
           setAuth(completion.accessToken, completion.user);
-          await goto(returnTo || '/home', { replaceState: true });
+          await goto('/home', { replaceState: true });
           showBanner('Login successful');
           return;
         }
