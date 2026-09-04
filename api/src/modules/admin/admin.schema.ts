@@ -5,6 +5,13 @@ export const listUsersSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+export const listAuditLogSchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).default(25),
+  offset: z.coerce.number().int().min(0).default(0),
+  entityType: z.string().trim().min(1).optional(),
+  actorType: z.enum(['user', 'admin', 'system']).optional(),
+});
+
 export const suspendUserSchema = z.object({
   suspended: z.boolean(),
 });
@@ -49,6 +56,7 @@ export const updateAdminSchema = z.object({
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export type ListUsersInput = z.infer<typeof listUsersSchema>;
+export type ListAuditLogInput = z.infer<typeof listAuditLogSchema>;
 export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
 export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileSchema>;
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;

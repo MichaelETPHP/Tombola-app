@@ -3,10 +3,11 @@
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { toast } from '$lib/stores/toast.store.js';
+  import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
     Check, Clipboard, Clock3, Fingerprint, Link2, RefreshCw,
     ShieldCheck, Ticket, Users, Search, Copy, Phone, ExternalLink,
-    X, Sparkles, AlertCircle
+    X, Sparkles, AlertCircle, CalendarDays
   } from 'lucide-svelte';
 
   export let raffleId: string;
@@ -32,6 +33,7 @@
       firstTicket: number;
       lastTicket: number;
       ticketNumbers: number[];
+      lastPurchasedAt: string;
     }[];
     triggers: {
       id: string;
@@ -444,6 +446,9 @@
                     </span>
                     <span class="text-[10px] text-faint font-mono">
                       #{participant.firstTicket} – #{participant.lastTicket}
+                    </span>
+                    <span class="flex items-center gap-1 text-[10px] text-faint" title="Last ticket purchased">
+                      <CalendarDays size={10} /> {toEthiopianDate(participant.lastPurchasedAt)}
                     </span>
                   </div>
                 </div>

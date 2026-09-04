@@ -1,6 +1,7 @@
 import { listUsers, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
 import { listRaffles } from '../../db/queries/raffles.queries.js';
 import { findExpiringPayouts } from '../../db/queries/payouts.queries.js';
+import { listAuditLog as dbListAuditLog } from '../../db/queries/audit.queries.js';
 import {
   findAdminByPhone,
   findAdminById,
@@ -14,7 +15,7 @@ import {
 import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput } from './admin.schema.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 
@@ -146,6 +147,24 @@ function toAdminUser(user: {
 export async function adminListUsers(limit: number, offset: number) {
   const users = await listUsers(limit, offset);
   return users.map(toAdminUser);
+}
+
+/**
+ * List audit log entries (admin). The table has always been written to —
+ * this is just the first read path exposing it.
+ */
+export async function getAuditLog(input: ListAuditLogInput) {
+  const entries = await dbListAuditLog(input);
+  return entries.map((entry) => ({
+    id: entry.id,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    actorType: entry.actorType,
+    actorId: entry.actorId,
+    action: entry.action,
+    metadata: entry.metadata,
+    createdAt: entry.createdAt,
+  }));
 }
 
 /**

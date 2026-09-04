@@ -33,6 +33,33 @@ export interface DbPayout {
   updatedAt: Date;
 }
 
+/** A payout with the raffle/winner/prize context joined in — everything
+ * the admin dashboard needs to show something meaningful instead of raw
+ * UUIDs. `prizeName`/`prizeTier` are nullable only for pre-multi-tier-
+ * migration data whose draw_results row never got a prize_id backfilled. */
+export interface DbPayoutDetailed extends DbPayout {
+  raffleTitle: string;
+  raffleCode: string;
+  winnerFullName: string | null;
+  winnerPhone: string;
+  prizeName: string | null;
+  prizeTier: number | null;
+}
+
+const DETAILED_PAYOUT_SELECT = sql`
+  p.*,
+  r.title AS raffle_title, r.public_code AS raffle_code,
+  u.full_name AS winner_full_name, u.phone_number AS winner_phone,
+  rp.name AS prize_name, rp.tier AS prize_tier
+`;
+const DETAILED_PAYOUT_JOINS = sql`
+  FROM payouts p
+  JOIN raffles r ON r.id = p.raffle_id
+  JOIN users u ON u.id = p.winner_user_id
+  JOIN draw_results dr ON dr.id = p.draw_result_id
+  LEFT JOIN raffle_prizes rp ON rp.id = dr.prize_id
+`;
+
 /** Matches the `tax_rate` column default in the schema. */
 const DEFAULT_TAX_RATE = 15;
 
@@ -71,6 +98,17 @@ export async function createPayout(data: {
 export async function findPayoutById(id: string): Promise<DbPayout | null> {
   const rows = await sql<DbPayout[]>`
     SELECT * FROM payouts WHERE id = ${id} LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/** Same as findPayoutById, with raffle/winner/prize context joined in. */
+export async function findPayoutByIdDetailed(id: string): Promise<DbPayoutDetailed | null> {
+  const rows = await sql<DbPayoutDetailed[]>`
+    SELECT ${DETAILED_PAYOUT_SELECT}
+    ${DETAILED_PAYOUT_JOINS}
+    WHERE p.id = ${id}
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -130,27 +168,30 @@ export async function updatePayoutStatus(
 }
 
 /**
- * List payouts with optional status filter.
+ * List payouts with optional status filter, raffle/winner/prize context
+ * joined in for the admin dashboard.
  */
 export async function listPayouts(options: {
   status?: PayoutClaimStatus;
   limit: number;
   offset: number;
-}): Promise<DbPayout[]> {
+}): Promise<DbPayoutDetailed[]> {
   const { status, limit, offset } = options;
 
   if (status) {
-    return sql<DbPayout[]>`
-      SELECT * FROM payouts
-      WHERE claim_status = ${status}
-      ORDER BY claim_deadline ASC
+    return sql<DbPayoutDetailed[]>`
+      SELECT ${DETAILED_PAYOUT_SELECT}
+      ${DETAILED_PAYOUT_JOINS}
+      WHERE p.claim_status = ${status}
+      ORDER BY p.claim_deadline ASC
       LIMIT ${limit} OFFSET ${offset}
     `;
   }
 
-  return sql<DbPayout[]>`
-    SELECT * FROM payouts
-    ORDER BY created_at DESC
+  return sql<DbPayoutDetailed[]>`
+    SELECT ${DETAILED_PAYOUT_SELECT}
+    ${DETAILED_PAYOUT_JOINS}
+    ORDER BY p.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
 }

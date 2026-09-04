@@ -1,10 +1,13 @@
+import { sql } from '../../db/client.js';
 import {
   findPayoutById,
+  findPayoutByIdDetailed,
   findPayoutsByUserId,
   submitClaim as dbSubmitClaim,
   updatePayoutStatus as dbUpdatePayoutStatus,
   listPayouts as dbListPayouts,
   type DbPayout,
+  type DbPayoutDetailed,
   type PayoutClaimStatus,
 } from '../../db/queries/payouts.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -33,6 +36,20 @@ function toApiPayout(payout: DbPayout) {
     claimedAt: payout.claimedAt,
     fulfilledAt: payout.fulfilledAt,
     createdAt: payout.createdAt,
+  };
+}
+
+/** toApiPayout, plus the raffle/winner/prize context the admin dashboard
+ * shows instead of raw UUIDs. */
+function toApiPayoutDetailed(payout: DbPayoutDetailed) {
+  return {
+    ...toApiPayout(payout),
+    raffleTitle: payout.raffleTitle,
+    raffleCode: payout.raffleCode,
+    winnerFullName: payout.winnerFullName,
+    winnerPhone: payout.winnerPhone,
+    prizeName: payout.prizeName,
+    prizeTier: payout.prizeTier,
   };
 }
 
@@ -73,21 +90,38 @@ export async function submitClaim(
 
 /**
  * Update payout status (admin action). There's no column to record which
- * admin acted or free-text notes — log that to `audit_log` if/when the
- * admin-app's audit log screen gets a backing route.
+ * admin acted or free-text notes, so that goes to audit_log instead — now
+ * that the admin-app's audit log screen has a backing route to read it.
  */
-export async function updatePayoutStatus(payoutId: string, data: UpdatePayoutStatusInput) {
+export async function updatePayoutStatus(payoutId: string, adminId: string, data: UpdatePayoutStatusInput) {
   const payout = await findPayoutById(payoutId);
   if (!payout) {
     throw new AppError(404, 'Payout not found');
   }
 
   const updated = await dbUpdatePayoutStatus(payoutId, data.status);
+  await sql`
+    INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+    VALUES ('admin', ${adminId}, 'payout.status_changed', 'payout', ${payoutId},
+      ${sql.json({ from: payout.claimStatus, to: data.status })})
+  `;
   return updated ? toApiPayout(updated) : null;
 }
 
 /**
- * List payouts with optional status filter.
+ * Get a single payout with raffle/winner/prize context (admin review page).
+ */
+export async function getPayoutById(payoutId: string) {
+  const payout = await findPayoutByIdDetailed(payoutId);
+  if (!payout) {
+    throw new AppError(404, 'Payout not found');
+  }
+  return toApiPayoutDetailed(payout);
+}
+
+/**
+ * List payouts with optional status filter, raffle/winner/prize context
+ * included for the admin dashboard.
  */
 export async function listPayouts(options: {
   status?: string;
@@ -99,7 +133,7 @@ export async function listPayouts(options: {
     limit: options.limit,
     offset: options.offset,
   });
-  return payouts.map(toApiPayout);
+  return payouts.map(toApiPayoutDetailed);
 }
 
 /**

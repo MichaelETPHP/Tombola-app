@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import DataTable from '$lib/components/DataTable.svelte';
+  import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
   import { ChevronLeft, ChevronRight, FileClock, RefreshCw, ShieldAlert } from 'lucide-svelte';
 
   interface AuditEntry {
@@ -91,7 +92,7 @@
   {:else}
     <DataTable {columns} rows={entries} emptyMessage="No activity matches these filters.">
       <svelte:fragment slot="cell" let:row let:column>
-        {#if column === 'createdAt'}<span class="whitespace-nowrap">{new Date(row.createdAt).toLocaleString()}</span>
+        {#if column === 'createdAt'}<span class="whitespace-nowrap">{toEthiopianDateTime(row.createdAt)}</span>
         {:else if column === 'actorType'}<span class="capitalize">{row.actorType === 'admin' ? 'Administrator' : row.actorType}</span>
         {:else if column === 'entityId'}<span class="font-mono text-[11px] text-faint">{row.entityId.slice(0, 10)}…</span>
         {:else}{(row as unknown as Record<string, unknown>)[column]}{/if}
@@ -107,3 +108,16 @@
     </div>
   {/if}
 </div>
+
+<!-- Floating refresh — frosted glass, bottom-right. Re-runs the exact
+     same load() as the header button; this one just stays reachable
+     without scrolling back up after paging through entries. -->
+<button
+  type="button"
+  aria-label="Refresh audit trail from the database"
+  disabled={loading}
+  on:click={load}
+  class="admin-press fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/40 bg-white/60 text-ink shadow-[0_10px_30px_-8px_rgba(23,32,30,0.35)] backdrop-blur-md transition-transform hover:scale-105 disabled:opacity-60"
+>
+  <RefreshCw size={18} class={loading ? 'animate-spin' : ''} />
+</button>

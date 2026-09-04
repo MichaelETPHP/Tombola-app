@@ -4,7 +4,10 @@
   import DataTable from '$lib/components/DataTable.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import type { Payout } from '$lib/schemas/index.js';
-  import { CircleAlert, Clock3, PackageCheck, RefreshCw } from 'lucide-svelte';
+  import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
+  import { CircleAlert, Clock3, PackageCheck, RefreshCw, Trophy, User } from 'lucide-svelte';
+
+  const formatEtb = (n: number) => Number(n).toLocaleString();
 
   const filters = [
     { value: 'all', label: 'All' },
@@ -23,15 +26,28 @@
   let loadError = false;
 
   const columns = [
-    { key: 'id', label: 'Payout reference' },
-    { key: 'raffleId', label: 'Raffle' },
+    { key: 'winner', label: 'Winner' },
+    { key: 'raffle', label: 'Raffle & prize' },
+    { key: 'value', label: 'Prize value' },
     { key: 'status', label: 'Claim status' },
-    { key: 'claimDeadline', label: 'Claim deadline', sortable: true },
+    { key: 'claimDeadline', label: 'Claim deadline (E.C.)', sortable: true },
     { key: 'actions', label: 'Review' },
   ];
 
   function isUrgent(deadline: string) {
     return new Date(deadline).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+  }
+
+  // 1st, 2nd, 3rd, 4th, 11th, 21st, ...
+  function ordinal(n: number): string {
+    const v = n % 100;
+    if (v >= 11 && v <= 13) return `${n}th`;
+    switch (n % 10) {
+      case 1: return `${n}st`;
+      case 2: return `${n}nd`;
+      case 3: return `${n}rd`;
+      default: return `${n}th`;
+    }
   }
 
   async function load(status: Filter = activeStatus) {
@@ -55,6 +71,8 @@
     load(status);
   }
 
+  $: totalNetValue = payouts.reduce((sum, p) => sum + p.netValue, 0);
+
   onMount(() => load());
 </script>
 
@@ -67,9 +85,15 @@
       <h1 class="text-[28px] font-extrabold leading-none tracking-[-0.04em] text-ink md:text-[34px]">Payouts</h1>
       <p class="mt-2 max-w-[580px] text-sm leading-relaxed text-muted">Review winner claims, verify identification, and track physical prize fulfillment.</p>
     </div>
-    <div class="flex items-center gap-3 rounded-button border border-border bg-card px-4 py-2.5">
-      <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-warning-bg text-warning"><Clock3 size={15} /></span>
-      <div><p class="font-mono text-base font-bold leading-none text-ink">{payouts.length}</p><p class="mt-1 text-[9px] text-muted">In current queue</p></div>
+    <div class="flex items-center divide-x divide-border rounded-button border border-border bg-card px-4 py-2.5">
+      <div class="flex items-center gap-2 pr-4">
+        <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-warning-bg text-warning"><Clock3 size={15} /></span>
+        <div><p class="font-mono text-base font-bold leading-none text-ink">{payouts.length}</p><p class="mt-1 text-[9px] text-muted">In queue</p></div>
+      </div>
+      <div class="pl-4">
+        <p class="font-mono text-base font-bold leading-none text-ink">{formatEtb(totalNetValue)} ETB</p>
+        <p class="mt-1 text-[9px] text-muted">Net value shown</p>
+      </div>
     </div>
   </header>
 
@@ -90,16 +114,31 @@
   {:else}
     <DataTable columns={columns} rows={payouts} emptyMessage="No payouts in this queue.">
       <svelte:fragment slot="cell" let:row let:column>
-        {#if column === 'id'}
-          <div><p class="font-mono text-xs font-bold text-ink">{String(row.id).slice(0, 8)}</p><p class="mt-1 text-[9px] text-faint">Prize claim</p></div>
-        {:else if column === 'raffleId'}
-          <span class="font-mono text-[11px] text-muted">{String(row.raffleId).slice(0, 13)}…</span>
+        {#if column === 'winner'}
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-bg text-primary-dark"><User size={14} /></span>
+            <div class="min-w-0">
+              <p class="truncate text-xs font-bold text-ink">{row.winnerFullName || 'Unnamed winner'}</p>
+              <p class="mt-0.5 font-mono text-[11px] text-faint">{row.winnerPhone ?? '—'}</p>
+            </div>
+          </div>
+        {:else if column === 'raffle'}
+          <div class="min-w-0">
+            <p class="truncate text-xs font-bold text-ink">{row.raffleTitle ?? 'Raffle'}</p>
+            <div class="mt-1 flex items-center gap-1.5">
+              {#if row.prizeTier}
+                <span class="inline-flex items-center gap-1 rounded-full bg-gold-bg px-1.5 py-0.5 text-[9px] font-black uppercase text-gold"><Trophy size={9} /> {ordinal(row.prizeTier)}</span>
+              {/if}
+              <span class="truncate text-[11px] text-faint">{row.prizeName ?? row.raffleCode ?? ''}</span>
+            </div>
+          </div>
+        {:else if column === 'value'}
+          <div><p class="font-mono text-xs font-bold text-ink">{formatEtb(row.grossPrizeValue)} ETB</p><p class="mt-0.5 text-[10px] text-faint">net {formatEtb(row.netValue)}</p></div>
         {:else if column === 'status'}
           <StatusBadge status={row.status} />
         {:else if column === 'claimDeadline'}
           <div class={isUrgent(row.claimDeadline) ? 'text-danger' : ''}>
-            <p class="font-semibold">{new Date(row.claimDeadline).toLocaleDateString()}</p>
-            <p class="mt-1 text-[10px] opacity-70">{new Date(row.claimDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+            <p class="text-xs font-semibold">{toEthiopianDateTime(row.claimDeadline)}</p>
           </div>
         {:else if column === 'actions'}
           <a href="/payouts/{row.id}" class="admin-press inline-flex h-9 items-center rounded-button bg-primary-bg px-3 text-[11px] font-bold text-primary-dark no-underline">Review claim</a>

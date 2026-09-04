@@ -3,6 +3,7 @@
   import { api, ApiError } from '$lib/api/client.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { toast } from '$lib/stores/toast.store.js';
+  import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
     CircleAlert, MessageSquareText, RefreshCw, Search, Send,
     ShieldAlert, Trash2, Users, X, CheckSquare, Square,
@@ -72,6 +73,8 @@
 
   $: activeCount    = users.filter((u) => !u.isSuspended).length;
   $: suspendedCount = users.length - activeCount;
+  $: telegramCount  = users.filter((u) => u.authMethod === 'telegram').length;
+  $: phoneCount     = users.length - telegramCount;
 
   // Select-all only toggles the current page
   $: allPageSelected = pageUsers.length > 0 && pageUsers.every((u) => selectedIds.has(u.id));
@@ -198,6 +201,18 @@
       <div class="pl-4"><span class="font-mono text-base font-bold text-danger">{suspendedCount}</span><span class="ml-2 text-[10px] text-muted">Suspended</span></div>
     </div>
   </header>
+
+  <!-- ── Sign-in method dashboard ──────────────────────────────────── -->
+  <div class="grid grid-cols-2 gap-3 sm:max-w-[420px]">
+    <div class="flex items-center gap-3 rounded-button border border-border bg-card p-3.5">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-info-bg text-info"><Send size={15} /></span>
+      <div><p class="font-mono text-lg font-bold leading-none text-ink">{telegramCount}</p><p class="mt-1 text-[10px] text-muted">Via Telegram</p></div>
+    </div>
+    <div class="flex items-center gap-3 rounded-button border border-border bg-card p-3.5">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-bg text-primary-dark"><MessageSquareText size={15} /></span>
+      <div><p class="font-mono text-lg font-bold leading-none text-ink">{phoneCount}</p><p class="mt-1 text-[10px] text-muted">Via phone OTP</p></div>
+    </div>
+  </div>
 
   <!-- ── Filters ────────────────────────────────────────────────── -->
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -352,7 +367,7 @@
                   </td>
                   <td class="px-4 py-3"><StatusBadge status={user.isSuspended ? 'suspended' : 'active'} /></td>
                   <td class="px-4 py-3 text-xs text-muted">
-                    <p>{new Date(user.createdAt).toLocaleDateString()}</p>
+                    <p class="font-medium text-ink">{toEthiopianDate(user.createdAt)}</p>
                     <p class="mt-1 text-[10px] text-faint">{new Date(user.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                   </td>
                   <td class="px-4 py-3">

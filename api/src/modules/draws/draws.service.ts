@@ -365,10 +365,11 @@ export async function getRaffleEngine(raffleId: string) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
   const [participants, prizes, triggers, extensions, draw] = await Promise.all([
-    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[] }[]>`
+    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[]; lastPurchasedAt: Date }[]>`
       SELECT u.id, u.full_name, u.phone_number AS phone, COUNT(t.id)::int AS ticket_count,
              MIN(t.ticket_number)::int AS first_ticket, MAX(t.ticket_number)::int AS last_ticket,
-             ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)::int[] AS ticket_numbers
+             ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)::int[] AS ticket_numbers,
+             MAX(t.purchased_at) AS last_purchased_at
       FROM tickets t JOIN users u ON u.id = t.user_id WHERE t.raffle_id = ${raffleId}
       GROUP BY u.id ORDER BY MIN(t.ticket_number)
     `,

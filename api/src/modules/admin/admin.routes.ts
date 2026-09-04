@@ -8,6 +8,7 @@ import {
   updateOwnProfileSchema,
   createAdminSchema,
   updateAdminSchema,
+  listAuditLogSchema,
 } from './admin.schema.js';
 import {
   getDashboardStats,
@@ -23,6 +24,7 @@ import {
   createAdminUser,
   updateAdminUser,
   deleteAdminUser,
+  getAuditLog,
 } from './admin.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
@@ -155,6 +157,16 @@ adminRoutes.get('/users', async (c) => {
   const { limit, offset } = listUsersSchema.parse(query);
   const users = await adminListUsers(limit, offset);
   return c.json({ users });
+});
+
+/**
+ * GET /admin/audit-log
+ * List audit log entries, newest first, with optional entity/actor filters.
+ */
+adminRoutes.get('/audit-log', async (c) => {
+  const input = listAuditLogSchema.parse(c.req.query());
+  const entries = await getAuditLog(input);
+  return c.json({ entries });
 });
 
 /**

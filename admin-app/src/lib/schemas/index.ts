@@ -137,6 +137,12 @@ export const payoutSchema = z.object({
   claimedAt: z.string().nullable(),
   fulfilledAt: z.string().nullable(),
   createdAt: z.string(),
+  raffleTitle: z.string().optional(),
+  raffleCode: z.string().optional(),
+  winnerFullName: z.string().nullable().optional(),
+  winnerPhone: z.string().optional(),
+  prizeName: z.string().nullable().optional(),
+  prizeTier: z.number().nullable().optional(),
 });
 
 // ── User Schemas ─────────────────────────────────────────

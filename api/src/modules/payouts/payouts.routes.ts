@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { submitClaimSchema, updatePayoutStatusSchema } from './payouts.schema.js';
-import { submitClaim, updatePayoutStatus, listPayouts, listMyPayouts } from './payouts.service.js';
+import { submitClaim, updatePayoutStatus, listPayouts, listMyPayouts, getPayoutById } from './payouts.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
@@ -62,6 +62,15 @@ adminPayoutsRoutes.get('/', async (c) => {
 });
 
 /**
+ * GET /admin/payouts/:id
+ * A single payout with raffle/winner/prize context joined in.
+ */
+adminPayoutsRoutes.get('/:id', async (c) => {
+  const payout = await getPayoutById(c.req.param('id'));
+  return c.json({ payout });
+});
+
+/**
  * PATCH /admin/payouts/:id
  * Update payout status (verify, fulfill, reject).
  */
@@ -69,6 +78,6 @@ adminPayoutsRoutes.patch('/:id', async (c) => {
   const payoutId = c.req.param('id');
   const body = await c.req.json();
   const data = updatePayoutStatusSchema.parse(body);
-  const result = await updatePayoutStatus(payoutId, data);
+  const result = await updatePayoutStatus(payoutId, c.get('admin').id, data);
   return c.json({ payout: result });
 });

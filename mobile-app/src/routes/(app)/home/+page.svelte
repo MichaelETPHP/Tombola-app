@@ -36,15 +36,18 @@
   });
 </script>
 
-<div class="flex flex-col gap-7">
+<div class="home-page flex flex-col gap-6">
   <Header />
 
-  <section class="flex flex-col gap-2">
-    <span class="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary-dark">Live prizes</span>
-    <h1 class="max-w-[360px] font-sans text-[28px] font-extrabold leading-[1.08] tracking-[-0.04em] text-ink">
+  <section class="flex flex-col gap-2.5 pt-1">
+    <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary-dark px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_7px_16px_-12px_rgba(0,105,80,0.8)]">
+      <span class="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true"></span>
+      Live prizes
+    </span>
+    <h1 class="max-w-[370px] font-sans text-[29px] font-extrabold leading-[1.07] tracking-[-0.035em] text-ink">
       Pick a prize. Choose your tickets. You’re in.
     </h1>
-    <p class="max-w-[390px] text-[13px] leading-relaxed text-muted">
+    <p class="max-w-[390px] text-[12px] font-medium leading-[1.65] text-[#586660]">
       Enter with as little as one ticket. You can hold up to five tickets in each raffle.
     </p>
   </section>
@@ -72,21 +75,13 @@
     </section>
   {/if}
 
-  <section class="flex flex-col gap-2">
-    <div>
-      <p class="text-[15px] font-extrabold text-ink">Real people, real prizes</p>
-      <p class="mt-0.5 text-[11px] text-muted">Live activity across YeneEta</p>
-    </div>
-    <WinnersMarquee />
-  </section>
-
   <section class="deferred-section flex flex-col gap-3">
     <div class="flex items-end justify-between gap-4">
       <div>
-        <h2 class="text-base font-extrabold text-ink">More open raffles</h2>
-        <p class="mt-0.5 text-[11px] text-muted">Every ticket gives you one chance</p>
+        <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">More ways to win</h2>
+        <p class="mt-1 text-[10px] font-medium text-[#586660]">Every ticket gives you one fair chance</p>
       </div>
-      <a href="/raffles" class="tappable flex min-h-11 shrink-0 items-center gap-1 px-1 text-xs font-bold text-primary-dark">
+      <a href="/raffles" class="tappable flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-extrabold text-primary-dark no-underline">
         View all <ArrowRight size={14} />
       </a>
     </div>
@@ -102,11 +97,42 @@
       <p class="rounded-button bg-card/70 px-4 py-3 text-xs text-muted">The featured raffle is the only prize open right now.</p>
     {/if}
   </section>
+
+  <section class="flex flex-col gap-3">
+    <div>
+      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">Real people, real prizes</h2>
+      <p class="mt-1 text-[10px] font-medium text-[#586660]">Live activity across YeneEta</p>
+    </div>
+    <WinnersMarquee />
+  </section>
 </div>
 
 <style>
+  .home-page {
+    animation: home-arrive 420ms var(--ease-out) both;
+  }
+
+  @keyframes home-arrive {
+    from {
+      opacity: 0.65;
+      transform: translateY(8px);
+      filter: blur(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
   .deferred-section {
     content-visibility: auto;
     contain-intrinsic-size: auto 520px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-page {
+      animation: none;
+    }
   }
 </style>
