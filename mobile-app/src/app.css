@@ -234,6 +234,14 @@
   padding-top: max(44px, var(--safe-top));
 }
 
+/* In Telegram fullscreen mode the host's Close/menu controls float over the
+   WebView. Its content-safe inset is specifically the area below that chrome,
+   so keep a small breathing gap after it. The 56px floor also nudges the
+   header down on older Telegram clients that do not expose the inset yet. */
+html.telegram-mini-app .safe-area-top {
+  padding-top: max(56px, calc(var(--tg-content-safe-area-inset-top, 0px) + 12px));
+}
+
 .safe-area-bottom {
   padding-bottom: max(16px, var(--safe-bottom));
 }
