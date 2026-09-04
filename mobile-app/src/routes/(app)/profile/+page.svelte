@@ -10,10 +10,9 @@
   import Button from '$lib/components/Button.svelte';
   import Skeleton from '$lib/components/Skeleton.svelte';
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
-  import TicketReceipt from '$lib/components/TicketReceipt.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { User, MessageCircle, ChevronRight, ChevronDown, Ticket as TicketIcon } from 'lucide-svelte';
+  import { User, MessageCircle, ChevronRight, Pencil, Ticket as TicketIcon, Check } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
@@ -38,6 +37,7 @@
   let preferredLanguage: AppLanguage = $auth.user?.preferredLanguage ?? $language;
   let saving = false;
   let error = '';
+  let editOpen = false;
 
   // Phone/OTP accounts have no profile photo at all — a generated
   // cartoon avatar reads far better than plain initials. Seeded by the
@@ -49,15 +49,12 @@
   let paymentsLoading = payments.length === 0;
   let hasFetchedPayments = false;
 
+  // Only fetched here to power "My tickets" link card's live count — the
+  // full list/receipts live on the dedicated /tickets page now, not inline
+  // on Profile (it made this page too long to scroll through).
   let tickets: Ticket[] = get(ticketsStore);
-  let ticketsLoading = tickets.length === 0;
   let hasFetchedTickets = false;
-  let expandedTicketId: string | null = null;
-
-  function toggleTicket(id: string) {
-    hapticLight();
-    expandedTicketId = expandedTicketId === id ? null : id;
-  }
+  $: raffleCount = new Set(tickets.map((t) => t.raffleId)).size;
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
     goto('/login?returnTo=/profile', { replaceState: true });
@@ -77,15 +74,12 @@
   }
 
   async function loadTickets() {
-    if (tickets.length === 0) ticketsLoading = true;
     try {
       const res = await api.get<{ tickets: Ticket[] }>('/tickets');
       tickets = res.tickets;
       ticketsStore.set(res.tickets);
     } catch (err) {
       console.error('Failed to load tickets', err);
-    } finally {
-      ticketsLoading = false;
     }
   }
 
@@ -118,11 +112,17 @@
       setLanguage(preferredLanguage);
       hapticMedium();
       showBanner('Profile updated');
+      editOpen = false;
     } catch (err) {
       error = err instanceof ApiError ? 'Could not update profile.' : 'Network error.';
     } finally {
       saving = false;
     }
+  }
+
+  function toggleEdit() {
+    hapticLight();
+    editOpen = !editOpen;
   }
 
   async function logout() {
@@ -147,19 +147,18 @@
 {#if $auth.isLoading}
   <div class="flex flex-col gap-5">
     <Skeleton class="h-6 w-24 rounded-full" />
-    <div class="flex flex-col gap-3 rounded-card bg-card p-4 shadow-card">
-      <Skeleton class="h-11 w-full rounded-button" />
-      <Skeleton class="h-11 w-full rounded-button" />
-      <Skeleton class="h-11 w-full rounded-button" />
-    </div>
+    <Skeleton class="h-[72px] w-full rounded-card" />
   </div>
 {:else if $auth.isAuthenticated}
   <div class="flex flex-col gap-5">
     <h1 class="font-display text-2xl font-semibold text-ink">Profile</h1>
 
-    <div class="flex flex-col items-center gap-2 py-1">
+    <!-- Compact identity row — avatar, name and phone read at a glance;
+         editing is opt-in via the pencil rather than always taking a full
+         card's worth of space. -->
+    <div class="flex items-center gap-3.5 rounded-card bg-card p-4 shadow-card">
       <div
-        class="flex h-20 w-20 items-center justify-center rounded-full bg-bg-start text-2xl font-bold text-primary-dark shadow-card"
+        class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bg-start text-lg font-bold text-primary-dark"
       >
         {#if $auth.user?.telegramPhotoUrl || dicebearUri}
           <img
@@ -168,46 +167,64 @@
             class="h-full w-full rounded-full object-cover"
           />
         {:else}
-          <User size={32} />
+          <User size={24} />
         {/if}
       </div>
-    </div>
-
-    <div class="flex flex-col gap-3 rounded-card bg-card p-4 shadow-card">
-      <label for="phone" class="text-[13px] font-semibold text-muted">Phone number</label>
-      <input
-        id="phone"
-        type="text"
-        value={$auth.user?.phone ?? ''}
-        disabled
-        class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-muted disabled:cursor-not-allowed"
-      />
-
-      <label for="name" class="text-[13px] font-semibold text-muted">Full name</label>
-      <input
-        id="name"
-        type="text"
-        bind:value={fullName}
-        placeholder="Add your name"
-        class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] placeholder:text-muted focus:ring-primary"
-      />
-
-      <label for="language" class="text-[13px] font-semibold text-muted">Language</label>
-      <select
-        id="language"
-        bind:value={preferredLanguage}
-        class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-ink outline-none ring-2 ring-transparent focus:ring-primary"
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-[15px] font-bold text-ink">{$auth.user?.fullName || 'Add your name'}</p>
+        <p class="mt-0.5 text-xs text-muted">{$auth.user?.phone ?? ''}</p>
+      </div>
+      <button
+        type="button"
+        aria-label={editOpen ? 'Close edit profile' : 'Edit profile'}
+        aria-expanded={editOpen}
+        on:click={toggleEdit}
+        class="tappable pressable flex h-10 w-10 shrink-0 items-center justify-center rounded-full {editOpen
+          ? 'bg-primary text-white'
+          : 'bg-bg-start text-primary-dark'}"
       >
-        <option value="en">English</option>
-        <option value="am">አማርኛ</option>
-      </select>
-
-      {#if error}
-        <p class="text-[13px] text-coral-start">{error}</p>
-      {/if}
-
-      <Button variant="secondary" loading={saving} on:click={save}>Save changes</Button>
+        <Pencil size={15} />
+      </button>
     </div>
+
+    {#if editOpen}
+      <div
+        class="flex flex-col gap-3 rounded-card bg-card p-4 shadow-card"
+        transition:slide={{ duration: 220, easing: cubicOut }}
+      >
+        <label for="name" class="text-[13px] font-semibold text-muted">Full name</label>
+        <input
+          id="name"
+          type="text"
+          bind:value={fullName}
+          placeholder="Add your name"
+          class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] placeholder:text-muted focus:ring-primary"
+        />
+
+        <span class="text-[13px] font-semibold text-muted">Language</span>
+        <div class="grid grid-cols-2 gap-2">
+          {#each [{ code: 'en', label: 'English' }, { code: 'am', label: 'አማርኛ' }] as opt (opt.code)}
+            <button
+              type="button"
+              on:click={() => (preferredLanguage = opt.code as AppLanguage)}
+              class="tappable pressable flex h-11 items-center justify-center gap-1.5 rounded-button text-[13px] font-semibold {preferredLanguage ===
+              opt.code
+                ? 'bg-primary/15 text-primary-dark ring-1 ring-primary/40'
+                : 'bg-bg-start text-muted'}"
+            >
+              {#if preferredLanguage === opt.code}<Check size={13} />{/if}
+              {opt.label}
+            </button>
+          {/each}
+        </div>
+
+        {#if error}
+          <p class="text-[13px] text-coral-start">{error}</p>
+        {/if}
+
+        <Button variant="secondary" loading={saving} on:click={save}>Save changes</Button>
+      </div>
+    {/if}
 
     <a
       href="/rooms"
@@ -224,57 +241,24 @@
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
 
-    <section class="flex flex-col gap-3">
-      <h2 class="font-display text-lg font-semibold text-ink">My tickets</h2>
-      {#if ticketsLoading}
-        <div class="flex flex-col gap-3">
-          <ListItemSkeleton />
-          <ListItemSkeleton />
-        </div>
-      {:else if tickets.length === 0}
-        <p class="text-[13px] text-muted">You haven't bought any tickets yet.</p>
-      {:else}
-        <div class="flex flex-col gap-2.5">
-          {#each tickets as ticket (ticket.id)}
-            {@const expanded = expandedTicketId === ticket.id}
-            <div class="overflow-hidden rounded-card bg-card shadow-card-light">
-              <button
-                type="button"
-                on:click={() => toggleTicket(ticket.id)}
-                aria-expanded={expanded}
-                class="tappable flex w-full items-center gap-3 p-4 text-left"
-              >
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
-                  <TicketIcon size={17} />
-                </span>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-semibold text-ink">{ticket.raffleTitle ?? 'Raffle'}</p>
-                  <p class="mt-0.5 font-mono text-xs text-muted">{ticket.ticketCode ?? `#${ticket.ticketNumber}`}</p>
-                </div>
-                <ChevronDown
-                  size={16}
-                  class="shrink-0 text-muted transition-transform duration-200 ease-[var(--ease-out)] {expanded ? 'rotate-180' : ''}"
-                />
-              </button>
-              {#if expanded}
-                <div transition:slide={{ duration: 220, easing: cubicOut }}>
-                  <div class="border-t border-dot-inactive/60 p-4 pt-3">
-                    <TicketReceipt
-                      raffleTitle={ticket.raffleTitle ?? 'Raffle'}
-                      ticketCode={ticket.ticketCode ?? `#${ticket.ticketNumber}`}
-                      ticketNumber={ticket.ticketNumber}
-                      amount={ticket.amount ?? 0}
-                      purchasedAt={ticket.createdAt}
-                      expiresAt={ticket.expiresAt}
-                    />
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </section>
+    <a
+      href="/tickets"
+      on:click={hapticLight}
+      class="tappable pressable flex items-center gap-3 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
+    >
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
+        <TicketIcon size={18} />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-ink">My Tickets</p>
+        <p class="text-xs text-muted">
+          {tickets.length === 0
+            ? 'Your ticket numbers and receipts'
+            : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'} across ${raffleCount} raffle${raffleCount === 1 ? '' : 's'}`}
+        </p>
+      </div>
+      <ChevronRight size={16} class="shrink-0 text-muted" />
+    </a>
 
     <section class="flex flex-col gap-3">
       <h2 class="font-display text-lg font-semibold text-ink">Payment history</h2>
