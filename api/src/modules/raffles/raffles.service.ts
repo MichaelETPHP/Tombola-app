@@ -7,6 +7,9 @@ import {
   extendRaffleDeadline,
   listRafflePrizes,
   setAdditionalRafflePrizes,
+  deleteRaffle as dbDeleteRaffle,
+  bulkDeleteRaffles as dbBulkDeleteRaffles,
+  findRaffleIdsWithFulfilledPayouts,
   type DbRaffle,
 } from '../../db/queries/raffles.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -135,4 +138,42 @@ export async function listRaffles(input: ListRafflesInput) {
     offset: input.offset,
   });
   return raffles.map(toApiRaffle);
+}
+
+/**
+ * Hard-delete a single raffle and everything tied to it (tickets,
+ * payments, prizes, draw triggers/results, payouts, notifications, room
+ * messages — all cascade at the DB level, see Migration 014). Refuses to
+ * delete a raffle that has a 'fulfilled' payout on record, since that
+ * would erase the only evidence a real prize actually went out.
+ */
+export async function adminDeleteRaffle(raffleId: string) {
+  const raffle = await findRaffleById(raffleId);
+  if (!raffle) throw new AppError(404, 'raffle.notFound');
+  const [blockedId] = await findRaffleIdsWithFulfilledPayouts([raffleId]);
+  if (blockedId) {
+    throw new AppError(
+      409,
+      `Cannot delete "${raffle.title}" — it has a fulfilled payout on record. Remove financial history first if you're certain.`
+    );
+  }
+  const deleted = await dbDeleteRaffle(raffleId);
+  if (!deleted) throw new AppError(404, 'raffle.notFound');
+  return deleted;
+}
+
+/**
+ * Hard-delete multiple raffles in one DB round-trip. Raffles with a
+ * fulfilled payout are silently skipped (not deleted) rather than failing
+ * the whole batch — the response reports both which were deleted and
+ * which were blocked, so the admin can see exactly what happened.
+ */
+export async function adminBulkDeleteRaffles(ids: string[]) {
+  if (!ids.length) throw new AppError(400, 'No raffle IDs provided');
+  if (ids.length > 200) throw new AppError(400, 'Too many IDs — maximum 200 per request');
+  const blockedIds = await findRaffleIdsWithFulfilledPayouts(ids);
+  const blockedSet = new Set(blockedIds);
+  const deletableIds = ids.filter((id) => !blockedSet.has(id));
+  const deletedIds = await dbBulkDeleteRaffles(deletableIds);
+  return { deletedCount: deletedIds.length, deletedIds, blockedIds };
 }

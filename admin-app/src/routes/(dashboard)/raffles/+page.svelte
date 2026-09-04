@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '$lib/api/client.js';
+  import { api, ApiError } from '$lib/api/client.js';
+  import { auth } from '$lib/stores/auth.store.js';
+  import { toast } from '$lib/stores/toast.store.js';
   import DataTable from '$lib/components/DataTable.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { CircleAlert, Plus, RefreshCw, Search, Ticket } from 'lucide-svelte';
+  import { CircleAlert, Plus, RefreshCw, Search, Ticket, Trash2, X } from 'lucide-svelte';
 
   const filters = [
     { value: 'all', label: 'All' },
@@ -21,6 +23,8 @@
   let loading = true;
   let loadError = false;
   let search = '';
+  let selectedIds = new Set<string>();
+  let deletingBulk = false;
 
   const columns = [
     { key: 'title', label: 'Raffle', sortable: true },
@@ -28,11 +32,16 @@
     { key: 'ticketsSold', label: 'Ticket sales', sortable: true },
     { key: 'ticketPrice', label: 'Price' },
     { key: 'currentDeadline', label: 'Deadline', sortable: true },
+    { key: 'actions', label: '' },
   ];
 
   $: filteredRaffles = raffles.filter((raffle) =>
     `${raffle.title} ${raffle.prizeName}`.toLowerCase().includes(search.trim().toLowerCase())
   );
+
+  $: selectedCount = selectedIds.size;
+  $: allFilteredSelected = filteredRaffles.length > 0 && filteredRaffles.every((r) => selectedIds.has(r.id));
+  $: isOwner = $auth.admin?.role === 'owner';
 
   async function load(status: Filter = activeStatus) {
     loading = true;
@@ -41,6 +50,7 @@
       const qs = status === 'all' ? '' : `?status=${status}`;
       const res = await api.get<{ raffles: Raffle[] }>(`/admin/raffles${qs}`);
       raffles = res.raffles;
+      selectedIds = new Set([...selectedIds].filter((id) => raffles.some((r) => r.id === id)));
     } catch (err) {
       loadError = true;
       console.error('Failed to load raffles', err);
@@ -53,6 +63,64 @@
     if (status === activeStatus) return;
     activeStatus = status;
     load(status);
+  }
+
+  function toggleRow(raffle: Raffle) {
+    selectedIds.has(raffle.id) ? selectedIds.delete(raffle.id) : selectedIds.add(raffle.id);
+    selectedIds = new Set(selectedIds);
+  }
+
+  function toggleAllFiltered() {
+    if (allFilteredSelected) {
+      filteredRaffles.forEach((r) => selectedIds.delete(r.id));
+    } else {
+      filteredRaffles.forEach((r) => selectedIds.add(r.id));
+    }
+    selectedIds = new Set(selectedIds);
+  }
+
+  function clearSelection() {
+    selectedIds = new Set();
+  }
+
+  async function deleteSingleRaffle(raffle: Raffle) {
+    if (!confirm(`Permanently delete "${raffle.title}" and all its tickets, prizes, draw results, and payouts? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/raffles/${raffle.id}`);
+      raffles = raffles.filter((r) => r.id !== raffle.id);
+      selectedIds.delete(raffle.id);
+      selectedIds = new Set(selectedIds);
+      toast.success(`"${raffle.title}" and all related data deleted.`, 'Raffle Deleted');
+    } catch (err) {
+      const msg = err instanceof ApiError && err.status === 409
+        ? err.message || 'This raffle has a fulfilled payout and cannot be deleted.'
+        : 'Delete failed.';
+      toast.error(msg, 'Delete Failed');
+    }
+  }
+
+  async function deleteBulkRaffles() {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || deletingBulk) return;
+    if (!confirm(`Permanently delete ${ids.length} selected raffle${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    deletingBulk = true;
+    try {
+      const result = await api.delete<{ deletedCount: number; deletedIds: string[]; blockedIds: string[] }>('/admin/raffles', { ids });
+      raffles = raffles.filter((r) => !result.deletedIds.includes(r.id));
+      clearSelection();
+      if (result.blockedIds.length > 0) {
+        toast.info(
+          `${result.deletedCount} deleted. ${result.blockedIds.length} skipped — they have a fulfilled payout on record.`,
+          'Partially Completed'
+        );
+      } else {
+        toast.success(`${result.deletedCount} raffle${result.deletedCount !== 1 ? 's' : ''} deleted successfully.`, 'Bulk Delete Complete');
+      }
+    } catch {
+      toast.error('Bulk delete failed.', 'Delete Failed');
+    } finally {
+      deletingBulk = false;
+    }
   }
 
   onMount(() => load());
@@ -84,6 +152,28 @@
     </label>
   </div>
 
+  {#if isOwner && selectedCount > 0}
+    <div class="flex items-center justify-between rounded-button border border-primary/20 bg-primary-bg px-4 py-2.5">
+      <p class="text-[13px] font-semibold text-primary-dark">
+        {selectedCount} of {filteredRaffles.length} raffle{filteredRaffles.length !== 1 ? 's' : ''} selected
+      </p>
+      <div class="flex items-center gap-2">
+        {#if selectedCount < filteredRaffles.length}
+          <button type="button" class="admin-press text-[11px] font-bold text-primary-dark underline underline-offset-2" on:click={toggleAllFiltered}>
+            Select all {filteredRaffles.length}
+          </button>
+          <span class="text-primary/40">·</span>
+        {/if}
+        <button type="button" disabled={deletingBulk}
+          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-danger/25 bg-danger-bg px-3 text-[11px] font-bold text-danger hover:bg-danger hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          on:click={deleteBulkRaffles}>
+          <Trash2 size={12} /> {deletingBulk ? 'Deleting…' : `Delete ${selectedCount}`}
+        </button>
+        <button type="button" class="admin-press text-[11px] text-muted hover:text-ink" on:click={clearSelection}><X size={14} /></button>
+      </div>
+    </div>
+  {/if}
+
   <div class="flex items-center justify-between text-[11px] text-muted">
     <p><span class="font-mono font-bold text-ink">{filteredRaffles.length}</span> raffles shown</p>
     <p>Maximum 5 tickets per user</p>
@@ -98,7 +188,16 @@
       <button class="admin-press inline-flex h-10 items-center gap-2 rounded-button border border-border px-4 text-xs font-bold" on:click={() => load()}><RefreshCw size={14} /> Try again</button>
     </div>
   {:else}
-    <DataTable columns={columns} rows={filteredRaffles} emptyMessage="No raffles match this view.">
+    <DataTable
+      columns={columns}
+      rows={filteredRaffles}
+      emptyMessage="No raffles match this view."
+      selectable={isOwner}
+      isSelected={(row) => selectedIds.has(row.id)}
+      allSelected={allFilteredSelected}
+      on:toggleRow={(e) => toggleRow(e.detail)}
+      on:toggleAll={toggleAllFiltered}
+    >
       <svelte:fragment slot="cell" let:row let:column>
         {#if column === 'title'}
           <a class="group block no-underline" href="/raffles/{row.id}">
@@ -116,6 +215,12 @@
           <span class="font-mono text-xs font-bold">{Number(row.ticketPrice).toLocaleString()} ETB</span>
         {:else if column === 'currentDeadline'}
           <div><p>{new Date(row.currentDeadline).toLocaleDateString()}</p><p class="mt-1 text-[10px] text-faint">{new Date(row.currentDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+        {:else if column === 'actions'}
+          {#if isOwner}
+            <button type="button" aria-label="Delete raffle" class="admin-press flex h-8 w-8 items-center justify-center rounded-button text-faint hover:bg-danger-bg hover:text-danger" on:click={() => deleteSingleRaffle(row)}>
+              <Trash2 size={14} />
+            </button>
+          {/if}
         {:else}
           {(row as Record<string, unknown>)[column]}
         {/if}

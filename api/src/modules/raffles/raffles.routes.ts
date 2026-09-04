@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { createRaffleSchema, generateDrawTriggerSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema } from './raffles.schema.js';
-import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline } from './raffles.service.js';
+import { createRaffleSchema, generateDrawTriggerSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema, bulkDeleteRafflesSchema } from './raffles.schema.js';
+import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline, adminDeleteRaffle, adminBulkDeleteRaffles } from './raffles.service.js';
 import { findRafflePrize, updateRafflePrizeImage } from '../../db/queries/raffles.queries.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
@@ -203,4 +203,27 @@ adminRafflesRoutes.patch('/:id/deadline', requireRole('owner'), async (c) => {
   const data = updateRaffleDeadlineSchema.parse(await c.req.json());
   const raffle = await changeRaffleDeadline(c.req.param('id'), data.deadlineAt, data.reason, c.get('admin').id);
   return c.json({ raffle, message: c.get('t')('raffle.updated') });
+});
+
+/**
+ * DELETE /admin/raffles/:id
+ * Hard-delete a single raffle and every related row (tickets, payments,
+ * prizes, draw triggers/results, payouts, notifications, room messages —
+ * all cascade at the DB level). Owner-only.
+ */
+adminRafflesRoutes.delete('/:id', requireRole('owner'), async (c) => {
+  const result = await adminDeleteRaffle(c.req.param('id'));
+  return c.json({ deleted: result });
+});
+
+/**
+ * DELETE /admin/raffles
+ * Bulk-delete multiple raffles. Body: { ids: string[] }. Owner-only.
+ * Raffles with a fulfilled payout are skipped, not deleted — see
+ * adminBulkDeleteRaffles. Maximum 200 IDs per request.
+ */
+adminRafflesRoutes.delete('/', requireRole('owner'), async (c) => {
+  const { ids } = bulkDeleteRafflesSchema.parse(await c.req.json());
+  const result = await adminBulkDeleteRaffles(ids);
+  return c.json(result);
 });

@@ -342,3 +342,42 @@ export async function findRafflesPastDeadline(): Promise<DbRaffle[]> {
       AND deadline_at < NOW()
   `;
 }
+
+/**
+ * Which of these raffle IDs have at least one payout already marked
+ * 'fulfilled' (real prize value actually delivered to a winner) — used to
+ * block deletion, since removing the raffle would erase the only record
+ * that money/a prize actually went out.
+ */
+export async function findRaffleIdsWithFulfilledPayouts(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await sql<{ raffleId: string }[]>`
+    SELECT DISTINCT raffle_id AS "raffleId" FROM payouts
+    WHERE raffle_id = ANY(${ids}::uuid[]) AND claim_status = 'fulfilled'
+  `;
+  return rows.map((r) => r.raffleId);
+}
+
+/**
+ * Hard-delete a raffle. Every related row (tickets, payments, prizes,
+ * draw triggers/results, payouts, notifications, room messages) cascades
+ * via ON DELETE CASCADE — see Migration/014_raffle_delete_cascade.sql.
+ */
+export async function deleteRaffle(id: string): Promise<{ id: string; title: string } | null> {
+  const rows = await sql<{ id: string; title: string }[]>`
+    DELETE FROM raffles WHERE id = ${id} RETURNING id, title
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * Hard-delete multiple raffles in one statement. Returns the IDs actually
+ * found and deleted.
+ */
+export async function bulkDeleteRaffles(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM raffles WHERE id = ANY(${ids}::uuid[]) RETURNING id
+  `;
+  return rows.map((r) => r.id);
+}
