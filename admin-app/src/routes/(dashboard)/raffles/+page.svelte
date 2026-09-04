@@ -202,7 +202,7 @@
       <svelte:fragment slot="cell" let:row let:column>
         {#if column === 'title'}
           <a class="group flex items-center gap-3 no-underline" href="/raffles/{row.id}">
-            <PrizeImage src={row.prizeImageUrl} icon={Trophy} class="h-11 w-11 shrink-0 rounded-[10px] bg-bg ring-1 ring-border" />
+            <PrizeImage src={row.prizeImageUrl} icon={Trophy} eager class="h-11 w-11 shrink-0 rounded-[10px] bg-bg ring-1 ring-border" />
             <div class="min-w-0">
               <p class="font-bold text-ink transition-colors group-hover:text-primary-dark">{row.title}</p>
               <p class="mt-1 max-w-[240px] truncate text-[10px] text-faint">{row.prizeName}</p>
