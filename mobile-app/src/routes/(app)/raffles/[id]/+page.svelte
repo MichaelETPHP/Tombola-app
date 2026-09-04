@@ -150,7 +150,6 @@
       quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 5);
       resumedFromAuth = $auth.isAuthenticated;
     }
-
   });
 
   onDestroy(() => {
@@ -247,11 +246,12 @@
           on:scroll={handleCarouselScroll}
           on:touchstart={stopAutoAdvance}
           data-swipe-region
-          role="presentation"
+          role="region"
+          aria-label="Prize tiers"
           class="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-2xl [touch-action:pan-x]"
         >
           {#each rankedPrizes as prize, i (prize.id)}
-            <div class="flex w-full shrink-0 snap-start items-center gap-3 bg-bg-start/70 px-3.5 py-2.5">
+            <div role="group" aria-label="{rankWord[i] ?? `${prize.tier}th`} place prize, {i + 1} of {rankedPrizes.length}" class="flex h-16 w-full shrink-0 snap-start items-center gap-3 bg-bg-start/70 px-3.5 py-2.5">
               <button
                 type="button"
                 class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full {rankBg[i] ?? 'bg-action-bg'} {prize.imageUrl ? '' : 'cursor-default'}"
@@ -268,20 +268,10 @@
                 <p class="text-[9px] font-bold uppercase tracking-[0.07em] text-muted">{rankWord[i] ?? `${prize.tier}th`} place</p>
                 <p class="truncate text-[13.5px] font-bold text-ink">{prize.name}</p>
               </div>
+              <span class="shrink-0 rounded-full bg-card/80 px-2 py-1 text-[9px] font-extrabold tabular-nums text-primary-dark" aria-hidden="true">
+                {i + 1}/{rankedPrizes.length}
+              </span>
             </div>
-          {/each}
-        </div>
-        <div class="mt-1.5 flex items-center justify-center gap-1.5" aria-label="Prize pages">
-          {#each rankedPrizes as prize, i (prize.id)}
-            <button
-              type="button"
-              class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full"
-              aria-label="Show {rankWord[i] ?? `${prize.tier}th`} place prize"
-              aria-current={i === carouselIndex ? 'true' : undefined}
-              on:click={() => { stopAutoAdvance(); goToCarousel(i); }}
-            >
-              <span class="h-1.5 rounded-full transition-[width,background-color] duration-200 {i === carouselIndex ? 'w-5 bg-primary-dark' : 'w-1.5 bg-dot-inactive'}" aria-hidden="true"></span>
-            </button>
           {/each}
         </div>
       </div>
@@ -309,13 +299,14 @@
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
           <div class="mt-3"><Button variant="glass" loading={purchasing} on:click={handleBuyClick}><Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB</Button></div>
 
-          <div class="mt-2.5 flex items-center justify-center gap-2">
-            <button type="button" role="checkbox" aria-checked={agreedToTerms} aria-label="Agree to Terms and Conditions" on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
-              <span class="flex h-5 w-5 items-center justify-center rounded-[6px] border {agreedToTerms ? 'border-primary-dark/45 bg-action-bg' : termsShake ? 'border-pink bg-pink-bg' : 'border-dot-inactive bg-card'} {termsShake ? 'terms-shake' : ''}" aria-hidden="true">{#if agreedToTerms}<Check size={12} class="text-primary-dark" strokeWidth={3.5} />{/if}</span>
+          <div class="terms-consent mt-2.5 flex min-h-11 items-stretch overflow-hidden rounded-[14px] bg-bg-start/65">
+            <button type="button" role="checkbox" aria-checked={agreedToTerms} on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable flex min-h-11 min-w-0 flex-1 items-center gap-2.5 px-3 text-left">
+              <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border {agreedToTerms ? 'border-primary-dark/45 bg-action-bg' : termsShake ? 'border-pink bg-pink-bg' : 'border-dot-inactive bg-card'} {termsShake ? 'terms-shake' : ''}" aria-hidden="true">{#if agreedToTerms}<Check size={12} class="text-primary-dark" strokeWidth={3.5} />{/if}</span>
+              <span class="truncate text-[10px] font-semibold text-[#586660]">I agree to the conditions</span>
             </button>
-            <p class="text-[9.5px] text-muted">I agree to the <button type="button" class="tappable inline-flex min-h-11 items-center font-bold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>Terms and Conditions</button></p>
+            <button type="button" class="tappable min-h-11 shrink-0 border-l border-primary-dark/10 px-3 text-[10px] font-extrabold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>Read terms</button>
           </div>
-          <p class="mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> Sign in by SMS before payment{:else}<ShieldCheck size={10} /> Numbers are issued after payment confirmation{/if}</p>
+          <p class="purchase-note mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> Sign in by SMS before payment{:else}<ShieldCheck size={10} /> Numbers are issued after payment confirmation{/if}</p>
         </div>
       {:else}
         <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted"><CalendarClock size={17} class="shrink-0 text-primary-dark" /><span>This raffle is {raffle.status.replace('_', ' ')}. Ticket sales are closed.</span></div>
@@ -384,7 +375,7 @@
 <style>
   :global(html.raffle-detail-lock),
   :global(html.raffle-detail-lock body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
-  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
+  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 108px - var(--safe-bottom)); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
   .raffle-cover { flex: 1 1 32%; }
   .prize-glass-flash {
     z-index: 1;
@@ -395,7 +386,7 @@
     will-change: transform;
   }
   .prize-glass-flash.is-paused { animation-play-state: paused; }
-  .prize-carousel { flex: 0 0 auto; }
+  .prize-carousel { flex: 0 0 64px; min-height: 64px; overflow: hidden; }
   .ticket-sheet { flex: 0 0 auto; }
   .terms-shake { animation: terms-shake 380ms var(--ease-out); }
   @keyframes prize-glass-flash {
@@ -403,7 +394,7 @@
     88%, 100% { transform: translate3d(380%, 0, 0) skewX(-18deg); }
   }
   @keyframes terms-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
-  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-cover { flex-basis: 25%; } .raffle-description { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
+  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-cover { flex-basis: 25%; } .raffle-description, .purchase-note { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
   @media (max-height: 630px) { .raffle-cover { min-height: 82px; } .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
   @media (prefers-reduced-motion: reduce) { .terms-shake, .prize-glass-flash { animation: none; } }
 </style>
