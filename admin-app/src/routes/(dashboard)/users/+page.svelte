@@ -2,10 +2,11 @@
   import { onMount } from 'svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import { toast } from '$lib/stores/toast.store.js';
   import {
     CircleAlert, MessageSquareText, RefreshCw, Search, Send,
     ShieldAlert, Trash2, Users, X, CheckSquare, Square,
-    CheckCircle, ChevronLeft, ChevronRight,
+    CheckCircle, ChevronLeft, ChevronRight, Copy,
   } from 'lucide-svelte';
 
   interface AppUser {
@@ -40,22 +41,10 @@
   $: selectedCount = selectedIds.size;
 
   // Delete
-  type DeleteMode = 'single' | 'bulk' | null;
-  let deleteMode: DeleteMode = null;
-  let deletingUser: AppUser | null = null;
-  let deleting = false;
-  let deleteProgress = 0;
-
-  // Toast
-  let toastMessage = '';
-  let toastVisible = false;
-  let toastTimer: ReturnType<typeof setTimeout>;
+  let deletingId = '';
 
   function showToast(msg: string) {
-    toastMessage = msg;
-    toastVisible = true;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastVisible = false; }, 3500);
+    toast.success(msg);
   }
 
   // ── Filtering & Pagination ────────────────────────────────────
@@ -141,48 +130,40 @@
   }
 
   // ── Delete ────────────────────────────────────────────────────
-  function openSingleDelete(user: AppUser) { deletingUser = user; deleteMode = 'single'; actionError = ''; }
-  function openBulkDelete()                { deletingUser = null; deleteMode = 'bulk';   actionError = ''; }
-  function closeDeleteDialog()             { if (!deleting) { deleteMode = null; deletingUser = null; } }
-
-  async function confirmDelete() {
-    deleting = true; deleteProgress = 0; actionError = '';
-
-    const startTime = Date.now();
-    const iv = setInterval(() => {
-      deleteProgress = Math.min(80, Math.round(((Date.now() - startTime) / 900) * 80));
-    }, 30);
-
+  async function deleteSingleUser(user: AppUser) {
+    if (!confirm(`Permanently delete ${user.phone} and all their data? This cannot be undone.`)) return;
+    deletingId = user.id;
     try {
-      if (deleteMode === 'single' && deletingUser) {
-        await api.delete(`/admin/users/${deletingUser.id}`);
-        const phone = deletingUser.phone;
-        users = users.filter((u) => u.id !== deletingUser!.id);
-        selectedIds.delete(deletingUser.id);
-        selectedIds = new Set(selectedIds);
-        deleteProgress = 100;
-        await new Promise((r) => setTimeout(r, 300));
-        closeDeleteDialog();
-        showToast(`✓ ${phone} deleted`);
-      } else if (deleteMode === 'bulk') {
-        const ids = [...selectedIds];
-        await api.delete('/admin/users', { ids });
-        users = users.filter((u) => !selectedIds.has(u.id));
-        const count = ids.length;
-        clearSelection();
-        deleteProgress = 100;
-        await new Promise((r) => setTimeout(r, 300));
-        closeDeleteDialog();
-        showToast(`✓ ${count} user${count !== 1 ? 's' : ''} deleted`);
-      }
+      await api.delete(`/admin/users/${user.id}`);
+      users = users.filter((u) => u.id !== user.id);
+      selectedIds.delete(user.id);
+      selectedIds = new Set(selectedIds);
+      toast.success(`${user.phone} and associated data deleted.`, 'User Deleted');
     } catch (err) {
-      deleteProgress = 0;
-      actionError = err instanceof ApiError
-        ? 'Delete failed — run migration 007 to enable cascade deletes.'
-        : 'Network error. Try again.';
+      toast.error(
+        err instanceof ApiError ? 'Delete failed — ensure cascade deletes are enabled.' : 'Network error.',
+        'Delete Failed'
+      );
     } finally {
-      clearInterval(iv);
-      deleting = false;
+      deletingId = '';
+    }
+  }
+
+  async function deleteBulkUsers() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`Permanently delete ${ids.length} selected user${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    try {
+      await api.delete('/admin/users', { ids });
+      users = users.filter((u) => !selectedIds.has(u.id));
+      const count = ids.length;
+      clearSelection();
+      toast.success(`${count} user${count !== 1 ? 's' : ''} deleted successfully.`, 'Bulk Delete Complete');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? 'Bulk delete failed.' : 'Network error.',
+        'Delete Failed'
+      );
     }
   }
 
@@ -199,19 +180,6 @@
 </script>
 
 <svelte:head><title>Registered Users | YeneEta Admin</title></svelte:head>
-
-<!-- ── Toast ──────────────────────────────────────────────────── -->
-{#if toastVisible}
-  <div class="toast-enter fixed right-5 top-5 z-[100] flex items-center gap-3 rounded-[14px] border border-border bg-card px-4 py-3 shadow-2xl">
-    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-bg text-success">
-      <CheckCircle size={15} strokeWidth={2.5} />
-    </span>
-    <p class="text-[13px] font-semibold text-ink">{toastMessage}</p>
-    <button type="button" aria-label="Dismiss" class="ml-1 text-faint hover:text-ink" on:click={() => (toastVisible = false)}>
-      <X size={14} />
-    </button>
-  </div>
-{/if}
 
 <div class="flex flex-col gap-6">
 
@@ -274,7 +242,7 @@
         {/if}
         <button type="button"
           class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-danger/25 bg-danger-bg px-3 text-[11px] font-bold text-danger hover:bg-danger hover:text-white"
-          on:click={openBulkDelete}>
+          on:click={deleteBulkUsers}>
           <Trash2 size={12} /> Delete {selectedCount}
         </button>
         <button type="button" class="admin-press text-[11px] text-muted hover:text-ink" on:click={clearSelection}>
@@ -339,8 +307,28 @@
                     </button>
                   </td>
                   <td class="px-4 py-3">
-                    <p class="font-mono text-xs font-semibold text-ink">{user.phone}</p>
-                    <p class="mt-1 font-mono text-[9px] text-faint">{user.id.slice(0, 8)}</p>
+                    <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                      <span>{user.phone}</span>
+                      <button
+                        type="button"
+                        class="admin-press text-faint hover:text-ink transition-colors"
+                        title="Copy Phone"
+                        on:click={() => { navigator.clipboard.writeText(user.phone); toast.success(`Phone copied: ${user.phone}`, 'Copied'); }}
+                      >
+                        <Copy size={11} />
+                      </button>
+                    </div>
+                    <div class="mt-1 flex items-center gap-1 font-mono text-[9px] text-faint">
+                      <span>{user.id.slice(0, 8)}</span>
+                      <button
+                        type="button"
+                        class="admin-press text-faint hover:text-ink transition-colors"
+                        title="Copy User ID"
+                        on:click={() => { navigator.clipboard.writeText(user.id); toast.success(`User ID copied: ${user.id}`, 'Copied'); }}
+                      >
+                        <Copy size={9} />
+                      </button>
+                    </div>
                   </td>
                   <td class="px-4 py-3">
                     <span class={user.fullName ? 'font-semibold text-ink' : 'text-faint'}>{user.fullName ?? 'Not provided'}</span>
@@ -375,9 +363,14 @@
                         <ShieldAlert size={12} />{user.isSuspended ? 'Restore' : 'Suspend'}
                       </button>
                       <button type="button" aria-label="Delete"
-                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white"
-                        on:click={() => openSingleDelete(user)}>
-                        <Trash2 size={13} />
+                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={deletingId === user.id}
+                        on:click={() => deleteSingleUser(user)}>
+                        {#if deletingId === user.id}
+                          <span class="h-3 w-3 animate-spin rounded-full border-2 border-danger border-t-transparent"></span>
+                        {:else}
+                          <Trash2 size={13} />
+                        {/if}
                       </button>
                     </div>
                   </td>
@@ -456,64 +449,3 @@
     </div>
   </div>
 {/if}
-
-<!-- ── Delete Dialog ───────────────────────────────────────────── -->
-{#if deleteMode}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-    <div class="admin-reveal w-full max-w-[380px] overflow-hidden rounded-card border border-border bg-card shadow-2xl">
-
-      <div class="p-6">
-        <div class="mb-3 flex items-center gap-2.5">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-danger-bg text-danger"><Trash2 size={17} /></span>
-          <h2 class="text-base font-bold text-ink">
-            {deleteMode === 'bulk'
-              ? `Delete ${selectedCount} user${selectedCount !== 1 ? 's' : ''}?`
-              : 'Delete this user?'}
-          </h2>
-        </div>
-        <p class="text-sm text-muted">
-          {deleteMode === 'bulk'
-            ? `${selectedCount} account${selectedCount !== 1 ? 's' : ''} and all their data will be permanently removed.`
-            : `${deletingUser?.phone} and all their data will be permanently removed.`}
-          This cannot be undone.
-        </p>
-        {#if actionError}
-          <p class="mt-3 rounded-button bg-danger-bg px-3 py-2 text-[11px] font-semibold text-danger">{actionError}</p>
-        {/if}
-      </div>
-
-      <!-- Progress bar -->
-      <div class="h-1 w-full bg-border">
-        <div class="h-full bg-danger transition-all duration-300 ease-out" style="width: {deleteProgress}%"></div>
-      </div>
-
-      <!-- Yes / No -->
-      <div class="flex">
-        <button type="button"
-          class="admin-press flex-1 py-4 text-[13px] font-bold text-muted hover:bg-bg disabled:opacity-40"
-          disabled={deleting} on:click={closeDeleteDialog}>No</button>
-        <div class="w-px bg-border"></div>
-        <button type="button" id="confirm-delete-btn"
-          class="admin-press flex flex-1 items-center justify-center gap-2 py-4 text-[13px] font-bold text-danger hover:bg-danger-bg disabled:opacity-40"
-          disabled={deleting} on:click={confirmDelete}>
-          {#if deleting}
-            <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-danger/30 border-t-danger"></span>
-            Deleting…
-          {:else}
-            Yes, delete
-          {/if}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-<style>
-  .toast-enter {
-    animation: toast-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  @keyframes toast-in {
-    from { opacity: 0; transform: translateY(-10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-</style>

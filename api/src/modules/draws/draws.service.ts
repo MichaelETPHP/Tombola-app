@@ -365,9 +365,10 @@ export async function getRaffleEngine(raffleId: string) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
   const [participants, prizes, triggers, extensions, draw] = await Promise.all([
-    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number }[]>`
+    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[] }[]>`
       SELECT u.id, u.full_name, u.phone_number AS phone, COUNT(t.id)::int AS ticket_count,
-             MIN(t.ticket_number)::int AS first_ticket, MAX(t.ticket_number)::int AS last_ticket
+             MIN(t.ticket_number)::int AS first_ticket, MAX(t.ticket_number)::int AS last_ticket,
+             ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)::int[] AS ticket_numbers
       FROM tickets t JOIN users u ON u.id = t.user_id WHERE t.raffle_id = ${raffleId}
       GROUP BY u.id ORDER BY MIN(t.ticket_number)
     `,
@@ -397,7 +398,12 @@ export async function getRaffleEngine(raffleId: string) {
       drawCommitment: raffle.drawServerSeedHash, deadlineAt: raffle.deadlineAt,
     },
     prizes,
-    participants: participants.map((participant) => ({ ...participant, phone: maskPhone(participant.phone) })),
+    participants: participants.map((participant) => ({
+      ...participant,
+      phone: participant.phone,
+      maskedPhone: maskPhone(participant.phone),
+      ticketNumbers: participant.ticketNumbers ?? [participant.firstTicket],
+    })),
     // Only the latest attempt per tier — older expired/replaced attempts
     // for the same tier are audit history, not something the admin table
     // needs to render a row for.
@@ -410,7 +416,11 @@ export async function getRaffleEngine(raffleId: string) {
       }, {})
     )
       .sort((a, b) => a.tier - b.tier)
-      .map((trigger) => ({ ...trigger, phone: maskPhone(trigger.phone) })),
+      .map((trigger) => ({
+        ...trigger,
+        phone: trigger.phone,
+        maskedPhone: maskPhone(trigger.phone),
+      })),
     extensions,
     draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${String(d.winningTicketNumber).padStart(5, '0')}` })),
   };

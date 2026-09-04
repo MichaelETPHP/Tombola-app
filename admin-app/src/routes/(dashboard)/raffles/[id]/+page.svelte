@@ -6,6 +6,7 @@
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
+  import { toast } from '$lib/stores/toast.store.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RaffleEngine from '$lib/components/RaffleEngine.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
@@ -52,8 +53,10 @@
       const res = await api.upload<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/prizes/${grandPrizeId}/image`, formData);
       hydrate(res.raffle);
       success = 'Grand prize photo updated.';
+      toast.success('Grand prize photo updated.', 'Photo Uploaded');
     } catch (err) {
       error = err instanceof ApiError ? 'Could not upload that image — try a different file.' : 'Network error.';
+      toast.error(error, 'Upload Failed');
       grandPrizeUploading = false;
     } finally {
       input.value = '';
@@ -80,8 +83,10 @@
       const res = await api.upload<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/prizes/${row.id}/image`, formData);
       hydrate(res.raffle);
       success = `${row.name || 'Prize'} photo updated.`;
+      toast.success(`${row.name || 'Prize'} photo updated.`, 'Photo Uploaded');
     } catch (err) {
       error = err instanceof ApiError ? 'Could not upload that image — try a different file.' : 'Network error.';
+      toast.error(error, 'Upload Failed');
       row.uploading = false;
       additionalPrizes = additionalPrizes;
     } finally {
@@ -175,8 +180,11 @@
       const res = await api.patch<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}`, payload);
       hydrate(res.raffle);
       success = 'Raffle details saved.';
-    } catch (err) { error = err instanceof ApiError ? 'The raffle could not be updated. Check the values and current status.' : 'Network error.'; }
-    finally { saving = false; }
+      toast.success('Raffle details saved successfully.', 'Saved');
+    } catch (err) {
+      error = err instanceof ApiError ? 'The raffle could not be updated. Check the values and current status.' : 'Network error.';
+      toast.error(error, 'Save Failed');
+    } finally { saving = false; }
   }
 
   async function changeStatus(status: Raffle['status']) {
@@ -186,8 +194,11 @@
       const res = await api.patch<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/status`, { status, reason: `Changed to ${status} by Platform Owner` });
       hydrate(res.raffle);
       success = `Raffle is now ${status.replace('_', ' ')}.`;
-    } catch (err) { error = err instanceof ApiError ? 'That status change is not allowed from the current stage.' : 'Network error.'; }
-    finally { action = ''; }
+      toast.success(`Raffle is now ${status.replace('_', ' ')}.`, 'Status Updated');
+    } catch (err) {
+      error = err instanceof ApiError ? 'That status change is not allowed from the current stage.' : 'Network error.';
+      toast.error(error, 'Status Change Failed');
+    } finally { action = ''; }
   }
 
   async function extendDeadline() {
@@ -197,8 +208,11 @@
       const res = await api.patch<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/deadline`, { deadlineAt: new Date(deadlineAt).toISOString(), reason: deadlineReason });
       hydrate(res.raffle);
       success = 'Deadline extension recorded.';
-    } catch (err) { error = err instanceof ApiError ? 'The deadline must be later than the current deadline.' : 'Network error.'; }
-    finally { action = ''; }
+      toast.success('Deadline extension recorded.', 'Deadline Extended');
+    } catch (err) {
+      error = err instanceof ApiError ? 'The deadline must be later than the current deadline.' : 'Network error.';
+      toast.error(error, 'Extension Failed');
+    } finally { action = ''; }
   }
 
   onMount(load);

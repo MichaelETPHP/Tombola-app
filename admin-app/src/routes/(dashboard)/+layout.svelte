@@ -2,11 +2,14 @@
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.store.js';
   import Sidebar from '$lib/components/Sidebar.svelte';
+  import ToastContainer from '$lib/components/ToastContainer.svelte';
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
     goto('/login', { replaceState: true });
   }
 </script>
+
+<ToastContainer />
 
 {#if $auth.isLoading}
   <div class="flex min-h-[100dvh] bg-bg">
