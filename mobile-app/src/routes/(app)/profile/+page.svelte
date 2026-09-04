@@ -102,7 +102,10 @@
       // ignore — see above
     }
     clearAuth();
-    goto('/login', { replaceState: true });
+    // Navigate first so the root-level banner appears on the login screen,
+    // matching the existing successful-login notification sequence.
+    await goto('/login', { replaceState: true });
+    showBanner('Logout successful');
   }
 </script>
 
