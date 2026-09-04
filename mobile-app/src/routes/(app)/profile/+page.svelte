@@ -1,6 +1,8 @@
 <script lang="ts">
   import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth, clearAuth } from '$lib/stores/auth.store.js';
   import { showBanner } from '$lib/stores/banner.store.js';
@@ -8,12 +10,14 @@
   import Button from '$lib/components/Button.svelte';
   import Skeleton from '$lib/components/Skeleton.svelte';
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
+  import TicketReceipt from '$lib/components/TicketReceipt.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { User, MessageCircle, ChevronRight } from 'lucide-svelte';
+  import { User, MessageCircle, ChevronRight, ChevronDown, Ticket as TicketIcon } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
+  import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
 
   const pullRefresh = getPullRefreshContext();
 
@@ -45,6 +49,16 @@
   let paymentsLoading = payments.length === 0;
   let hasFetchedPayments = false;
 
+  let tickets: Ticket[] = get(ticketsStore);
+  let ticketsLoading = tickets.length === 0;
+  let hasFetchedTickets = false;
+  let expandedTicketId: string | null = null;
+
+  function toggleTicket(id: string) {
+    hapticLight();
+    expandedTicketId = expandedTicketId === id ? null : id;
+  }
+
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
     goto('/login?returnTo=/profile', { replaceState: true });
   }
@@ -62,14 +76,35 @@
     }
   }
 
+  async function loadTickets() {
+    if (tickets.length === 0) ticketsLoading = true;
+    try {
+      const res = await api.get<{ tickets: Ticket[] }>('/tickets');
+      tickets = res.tickets;
+      ticketsStore.set(res.tickets);
+    } catch (err) {
+      console.error('Failed to load tickets', err);
+    } finally {
+      ticketsLoading = false;
+    }
+  }
+
   // Reactive rather than onMount — same reason as wins/tickets: the root
   // layout's silent-refresh can still be in flight when this page mounts.
   $: if ($auth.isAuthenticated && !hasFetchedPayments) {
     hasFetchedPayments = true;
     loadPayments();
   }
+  $: if ($auth.isAuthenticated && !hasFetchedTickets) {
+    hasFetchedTickets = true;
+    loadTickets();
+  }
 
-  $: pullRefresh.set($auth.isAuthenticated ? loadPayments : null);
+  async function refreshAll(): Promise<void> {
+    await Promise.all([loadPayments(), loadTickets()]);
+  }
+
+  $: pullRefresh.set($auth.isAuthenticated ? refreshAll : null);
 
   async function save() {
     error = '';
@@ -188,6 +223,58 @@
       </div>
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
+
+    <section class="flex flex-col gap-3">
+      <h2 class="font-display text-lg font-semibold text-ink">My tickets</h2>
+      {#if ticketsLoading}
+        <div class="flex flex-col gap-3">
+          <ListItemSkeleton />
+          <ListItemSkeleton />
+        </div>
+      {:else if tickets.length === 0}
+        <p class="text-[13px] text-muted">You haven't bought any tickets yet.</p>
+      {:else}
+        <div class="flex flex-col gap-2.5">
+          {#each tickets as ticket (ticket.id)}
+            {@const expanded = expandedTicketId === ticket.id}
+            <div class="overflow-hidden rounded-card bg-card shadow-card-light">
+              <button
+                type="button"
+                on:click={() => toggleTicket(ticket.id)}
+                aria-expanded={expanded}
+                class="tappable flex w-full items-center gap-3 p-4 text-left"
+              >
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
+                  <TicketIcon size={17} />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold text-ink">{ticket.raffleTitle ?? 'Raffle'}</p>
+                  <p class="mt-0.5 font-mono text-xs text-muted">{ticket.ticketCode ?? `#${ticket.ticketNumber}`}</p>
+                </div>
+                <ChevronDown
+                  size={16}
+                  class="shrink-0 text-muted transition-transform duration-200 ease-[var(--ease-out)] {expanded ? 'rotate-180' : ''}"
+                />
+              </button>
+              {#if expanded}
+                <div transition:slide={{ duration: 220, easing: cubicOut }}>
+                  <div class="border-t border-dot-inactive/60 p-4 pt-3">
+                    <TicketReceipt
+                      raffleTitle={ticket.raffleTitle ?? 'Raffle'}
+                      ticketCode={ticket.ticketCode ?? `#${ticket.ticketNumber}`}
+                      ticketNumber={ticket.ticketNumber}
+                      amount={ticket.amount ?? 0}
+                      purchasedAt={ticket.createdAt}
+                      expiresAt={ticket.expiresAt}
+                    />
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
 
     <section class="flex flex-col gap-3">
       <h2 class="font-display text-lg font-semibold text-ink">Payment history</h2>

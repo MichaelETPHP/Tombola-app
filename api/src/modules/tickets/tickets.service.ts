@@ -88,5 +88,10 @@ export async function getUserTickets(userId: string) {
     ticketNumber: t.ticketNumber,
     ticketCode: t.ticketCode,
     createdAt: t.purchasedAt,
+    raffleTitle: t.raffleTitle,
+    // The raffle's own deadline — the closest real concept to a ticket's
+    // "expiry" (once the raffle draws, that ticket's chance is resolved).
+    expiresAt: t.raffleDeadlineAt,
+    amount: t.ticketPrice,
   }));
 }

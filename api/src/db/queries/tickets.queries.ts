@@ -9,6 +9,9 @@ export interface DbTicket {
   paymentId: string;
   purchasedAt: Date;
   ticketCode?: string;
+  raffleTitle?: string;
+  raffleDeadlineAt?: Date;
+  ticketPrice?: number;
 }
 
 /**
@@ -62,7 +65,8 @@ export async function countUserTicketsInRaffle(
  */
 export async function listUserTickets(userId: string): Promise<DbTicket[]> {
   return sql<DbTicket[]>`
-    SELECT t.*, r.public_code || '-' || lpad(t.ticket_number::text, 5, '0') AS ticket_code
+    SELECT t.*, r.public_code || '-' || lpad(t.ticket_number::text, 5, '0') AS ticket_code,
+           r.title AS raffle_title, r.deadline_at AS raffle_deadline_at, r.ticket_price
     FROM tickets t
     JOIN raffles r ON t.raffle_id = r.id
     WHERE t.user_id = ${userId}

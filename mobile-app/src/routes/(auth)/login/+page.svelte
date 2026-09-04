@@ -16,6 +16,7 @@
     completeTelegramContactLogin,
   } from '$lib/telegram.js';
   import { setAuth } from '$lib/stores/auth.store.js';
+  import { showBanner } from '$lib/stores/banner.store.js';
   import { ChevronLeft, Send, ShieldCheck, Check, X } from 'lucide-svelte';
 
   // Ethiopian mobile numbers are 9 digits after the leading 0
@@ -144,7 +145,11 @@
       const result = await authenticateTelegramMiniApp(telegram);
       if (result.status === 'authenticated') {
         setAuth(result.accessToken, result.user);
+        // Navigate first, *then* show the banner — <Banner /> lives in the
+        // root layout and persists across navigation, so it renders on top
+        // of the destination page instead of flashing on this one first.
         await goto(returnTo || '/home', { replaceState: true });
+        showBanner('Login successful');
         return;
       }
 
@@ -169,6 +174,7 @@
         if (completion.status === 'authenticated') {
           setAuth(completion.accessToken, completion.user);
           await goto(returnTo || '/home', { replaceState: true });
+          showBanner('Login successful');
           return;
         }
       }
