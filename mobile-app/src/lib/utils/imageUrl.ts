@@ -13,3 +13,17 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return url.startsWith('/uploads/') ? `${API_BASE}${url}` : url;
 }
+
+// Uploaded files live on whichever server's disk/volume actually processed
+// the upload (see api/src/lib/uploads.ts) — each environment has its own,
+// they are NOT shared storage. So a relative path resolved against a local
+// dev API almost always 404s for any image that was actually uploaded via
+// production. PrizeImage.svelte uses this as a second attempt after the
+// local origin fails, so images still show up while developing locally
+// against the shared database.
+const PRODUCTION_API_URL = 'https://jvbgvlbqbxt4rgf3r720wawd.187.77.12.130.sslip.io';
+
+export function productionImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/uploads/') ? `${PRODUCTION_API_URL}${url}` : url;
+}

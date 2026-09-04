@@ -10,8 +10,8 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RaffleEngine from '$lib/components/RaffleEngine.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { ArrowLeft, CalendarClock, Check, ImagePlus, LockKeyhole, MessageCircle, Plus, Save, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
-  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
+  import { ArrowLeft, CalendarClock, Check, LockKeyhole, MessageCircle, Plus, Save, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
+  import PrizeImage from '$lib/components/PrizeImage.svelte';
 
   let raffle: Raffle | null = null;
   let loading = true;
@@ -242,13 +242,7 @@
         <div class="mb-6"><h2 class="text-sm font-bold text-ink">Prize and ticket information</h2><p class="mt-1 text-xs text-faint">Ticket economics lock automatically after the first successful sale.</p></div>
 
         <div class="mb-7 grid gap-4 rounded-[16px] border border-border bg-bg/40 p-3 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
-          <div class="flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden rounded-[13px] border border-border bg-card">
-            {#if raffle.prizeImageUrl}
-              <img src={resolveImageUrl(raffle.prizeImageUrl)} alt={raffle.prizeName} class="h-full w-full object-cover" />
-            {:else}
-              <ImagePlus size={24} class="text-faint" />
-            {/if}
-          </div>
+          <PrizeImage src={raffle.prizeImageUrl} alt={raffle.prizeName} iconSize={24} class="aspect-[4/3] w-full shrink-0 rounded-[13px] border border-border bg-card" />
           <div class="min-w-0 px-1 py-2">
             <p class="text-xs font-bold text-ink">Prize cover image</p>
             <p class="mt-1 max-w-sm text-[11px] leading-5 text-faint">Photos are resized, stripped of metadata and converted to WebP before storage.</p>
@@ -269,13 +263,11 @@
             <div class="flex items-center gap-2.5"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-black text-white">1</span><span class="text-xs font-bold text-ink">Grand prize</span></div>
             <div class="mt-4 flex gap-4">
               <div class="flex shrink-0 flex-col items-center gap-1.5">
-                <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-card">
-                  {#key grandPrizeImageUrl}
-                    <div in:fade={{ duration: 200, easing: cubicOut }}>
-                      {#if grandPrizeImageUrl}<img src={resolveImageUrl(grandPrizeImageUrl)} alt={prizeName} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
-                    </div>
-                  {/key}
-                </div>
+                {#key grandPrizeImageUrl}
+                  <div in:fade={{ duration: 200, easing: cubicOut }}>
+                    <PrizeImage src={grandPrizeImageUrl} alt={prizeName} class="h-16 w-16 rounded-[12px] border border-border bg-card" />
+                  </div>
+                {/key}
                 {#if grandPrizeId}
                   <label class="admin-press flex h-6 cursor-pointer items-center rounded-full bg-bg px-2 text-[9px] font-bold text-ink has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-55">
                     {grandPrizeUploading ? '…' : grandPrizeImageUrl ? 'Change' : 'Add photo'}
@@ -303,13 +295,11 @@
               </div>
               <div class="mt-4 flex gap-4">
                 <div class="flex shrink-0 flex-col items-center gap-1.5">
-                  <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-card">
-                    {#key row.imageUrl}
-                      <div in:fade={{ duration: 200, easing: cubicOut }}>
-                        {#if row.imageUrl}<img src={resolveImageUrl(row.imageUrl)} alt={row.name} class="h-16 w-16 object-cover" />{:else}<ImagePlus size={16} class="text-faint" />{/if}
-                      </div>
-                    {/key}
-                  </div>
+                  {#key row.imageUrl}
+                    <div in:fade={{ duration: 200, easing: cubicOut }}>
+                      <PrizeImage src={row.imageUrl} alt={row.name} class="h-16 w-16 rounded-[12px] border border-border bg-card" />
+                    </div>
+                  {/key}
                   {#if row.id}
                     <label class="admin-press flex h-6 cursor-pointer items-center rounded-full bg-bg px-2 text-[9px] font-bold text-ink has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-55">
                       {row.uploading ? '…' : row.imageUrl ? 'Change' : 'Add photo'}

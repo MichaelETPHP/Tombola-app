@@ -5,8 +5,8 @@
   import { toast } from '$lib/stores/toast.store.js';
   import DataTable from '$lib/components/DataTable.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import PrizeImage from '$lib/components/PrizeImage.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
   import { CircleAlert, Plus, RefreshCw, Search, Ticket, Trash2, Trophy, X } from 'lucide-svelte';
 
   const filters = [
@@ -202,18 +202,7 @@
       <svelte:fragment slot="cell" let:row let:column>
         {#if column === 'title'}
           <a class="group flex items-center gap-3 no-underline" href="/raffles/{row.id}">
-            <div class="h-11 w-11 shrink-0 overflow-hidden rounded-[10px] bg-bg ring-1 ring-border">
-              {#if row.prizeImageUrl}
-                <img
-                  src={resolveImageUrl(row.prizeImageUrl)}
-                  alt=""
-                  loading="lazy"
-                  class="h-full w-full object-cover transition-transform duration-200 ease-out group-hover:scale-105"
-                />
-              {:else}
-                <div class="flex h-full w-full items-center justify-center text-faint"><Trophy size={16} /></div>
-              {/if}
-            </div>
+            <PrizeImage src={row.prizeImageUrl} icon={Trophy} class="h-11 w-11 shrink-0 rounded-[10px] bg-bg ring-1 ring-border" />
             <div class="min-w-0">
               <p class="font-bold text-ink transition-colors group-hover:text-primary-dark">{row.title}</p>
               <p class="mt-1 max-w-[240px] truncate text-[10px] text-faint">{row.prizeName}</p>
