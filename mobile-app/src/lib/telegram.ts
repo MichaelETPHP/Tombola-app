@@ -4,9 +4,16 @@ import type { AuthResponse } from '$lib/schemas/index.js';
 interface TelegramWebApp {
   initData: string;
   platform: string;
+  contentSafeAreaInset?: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  };
   ready(): void;
   expand(): void;
   isVersionAtLeast?(version: string): boolean;
+  onEvent?(eventType: 'contentSafeAreaChanged' | 'fullscreenChanged', callback: () => void): void;
   disableVerticalSwipes?(): void;
   enableClosingConfirmation?(): void;
   requestFullscreen?(): void;
@@ -18,6 +25,13 @@ interface TelegramWebApp {
   // actual number is never exposed here, it goes to the bot's backend
   // instead (see api/src/lib/telegram.ts's extractSharedContact).
   requestContact?(callback?: (shared: boolean) => void): void;
+}
+
+function syncTelegramContentSafeArea(webApp: TelegramWebApp): void {
+  const top = webApp.contentSafeAreaInset?.top;
+  if (Number.isFinite(top) && top !== undefined && top > 0) {
+    document.documentElement.style.setProperty('--telegram-content-safe-top', `${Math.ceil(top)}px`);
+  }
 }
 
 declare global {
@@ -41,6 +55,13 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
   // suppress browser-style overscroll and draggable images/links without
   // changing the native APK or ordinary PWA experience.
   document.documentElement.classList.add('telegram-mini-app');
+
+  // Telegram can finalize this inset after the first paint or after entering
+  // fullscreen. Mirror the live bridge value into our own stable CSS variable
+  // so the app header always begins below Telegram's floating controls.
+  syncTelegramContentSafeArea(webApp);
+  webApp.onEvent?.('contentSafeAreaChanged', () => syncTelegramContentSafeArea(webApp));
+  webApp.onEvent?.('fullscreenChanged', () => syncTelegramContentSafeArea(webApp));
 
   webApp.ready();
   webApp.expand();
