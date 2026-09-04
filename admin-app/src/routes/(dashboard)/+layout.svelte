@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.store.js';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -25,8 +26,12 @@
 {:else if $auth.isAuthenticated}
   <div class="min-h-[100dvh] bg-bg lg:flex">
     <Sidebar />
-    <main class="admin-reveal mx-auto w-full max-w-[1480px] flex-1 p-4 pb-10 md:p-7 xl:p-9">
-      <slot />
+    <main class="mx-auto w-full max-w-[1480px] flex-1 p-4 pb-10 md:p-7 xl:p-9">
+      {#key $page.url.pathname}
+        <div class="admin-route-enter">
+          <slot />
+        </div>
+      {/key}
     </main>
   </div>
 {/if}

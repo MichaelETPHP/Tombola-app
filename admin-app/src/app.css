@@ -80,6 +80,18 @@
   animation: admin-reveal 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.admin-route-enter {
+  animation: admin-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.admin-nav-item {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .admin-press {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -92,11 +104,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-reveal {
+  .admin-reveal,
+  .admin-route-enter {
     animation: none;
   }
 
-  .admin-press {
+  .admin-press,
+  .admin-nav-item {
     transition: none;
   }
 }

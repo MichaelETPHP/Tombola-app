@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { auth, clearAuth } from '../stores/auth.store.js';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import {
     ChartNoAxesCombined,
     ChevronRight,
@@ -30,6 +30,10 @@
 
   let menuOpen = false;
   $: current = $page.url.pathname;
+  afterNavigate(() => {
+    // Keep the mobile drawer in sync with browser and client-side navigation.
+    menuOpen = false;
+  });
   $: initials = ($auth.admin?.fullName ?? $auth.admin?.email ?? 'TA')
     .split(/\s+/)
     .slice(0, 2)
@@ -37,8 +41,8 @@
     .join('');
   $: roleLabel = $auth.admin?.role === 'owner' ? 'Super Admin' : 'Moderator';
 
-  function isActive(href: string, exact?: boolean) {
-    return exact ? current === href : current === href || current.startsWith(`${href}/`);
+  function isActive(pathname: string, href: string, exact?: boolean) {
+    return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   }
 
   function logout() {
@@ -97,13 +101,14 @@
         <a
           href={link.href}
           on:click={() => (menuOpen = false)}
-          class="admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(link.href, link.exact)
+          aria-current={isActive(current, link.href, link.exact) ? 'page' : undefined}
+          class="admin-nav-item admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(current, link.href, link.exact)
             ? 'bg-sidebar-active text-white shadow-[inset_3px_0_0_var(--color-primary)]'
             : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}"
         >
           <svelte:component this={link.icon} size={17} strokeWidth={2} />
           <span>{link.label}</span>
-          {#if isActive(link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
+          {#if isActive(current, link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
         </a>
       {/each}
     </nav>
@@ -139,13 +144,14 @@
     {#each links as link (link.href)}
       <a
         href={link.href}
-        class="admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(link.href, link.exact)
+        aria-current={isActive(current, link.href, link.exact) ? 'page' : undefined}
+        class="admin-nav-item admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(current, link.href, link.exact)
           ? 'bg-sidebar-active text-white shadow-[inset_3px_0_0_var(--color-primary)]'
           : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}"
       >
         <svelte:component this={link.icon} size={17} strokeWidth={2} />
         <span>{link.label}</span>
-        {#if isActive(link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
+        {#if isActive(current, link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
       </a>
     {/each}
   </nav>
