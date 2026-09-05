@@ -153,6 +153,36 @@
     }
   }
 
+  // Mirrors the API's own floor exactly (raffles.schema.ts / raffles.service.ts)
+  // — at max capacity, ticket revenue must be able to cover every prize
+  // tier, not just the headline one, since one pool funds all of them.
+  $: totalPrizeValue = (Number(prizeValue) || 0) + additionalPrizes.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+  $: minTicketCap = Number(ticketPrice) > 0 ? Math.ceil(totalPrizeValue / Number(ticketPrice)) : null;
+  $: ticketCapTooLow = minTicketCap !== null && Number(ticketCap) < minTicketCap;
+
+  // Owner can lock manually once the deadline has passed and at least the
+  // minimum (prize-covering) quota sold — mirrors the server-side rule in
+  // raffles.service.ts::changeRaffleStatus exactly, just gates the button.
+  $: canManualLock = Boolean(
+    raffle &&
+      raffle.status === 'open' &&
+      $auth.admin?.role === 'owner' &&
+      raffle.minTicketCap !== undefined &&
+      raffle.ticketsSold < raffle.ticketCap &&
+      raffle.ticketsSold >= raffle.minTicketCap &&
+      new Date(raffle.currentDeadline) <= new Date()
+  );
+
+  function apiErrorMessage(err: unknown, fallback: string): string {
+    if (!(err instanceof ApiError)) return 'Network error.';
+    try {
+      const body = JSON.parse(err.body) as { error?: string };
+      return body.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   async function saveDetails() {
     if (!raffle) return;
     saving = true; error = ''; success = '';
@@ -185,7 +215,7 @@
       success = 'Raffle details saved.';
       toast.success('Raffle details saved successfully.', 'Saved');
     } catch (err) {
-      error = err instanceof ApiError ? 'The raffle could not be updated. Check the values and current status.' : 'Network error.';
+      error = apiErrorMessage(err, 'The raffle could not be updated. Check the values and current status.');
       toast.error(error, 'Save Failed');
     } finally { saving = false; }
   }
@@ -199,7 +229,7 @@
       success = `Raffle is now ${status.replace('_', ' ')}.`;
       toast.success(`Raffle is now ${status.replace('_', ' ')}.`, 'Status Updated');
     } catch (err) {
-      error = err instanceof ApiError ? 'That status change is not allowed from the current stage.' : 'Network error.';
+      error = apiErrorMessage(err, 'That status change is not allowed from the current stage.');
       toast.error(error, 'Status Change Failed');
     } finally { action = ''; }
   }
@@ -233,7 +263,7 @@
   <div class="admin-reveal">
     <a href="/raffles" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to raffles</a>
     <header class="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div><div class="mb-2 flex items-center gap-2"><p class="text-xs font-bold uppercase tracking-[0.15em] text-primary">Raffle management</p><StatusBadge status={raffle.status} /></div><h1 class="max-w-3xl text-[28px] font-bold tracking-[-0.03em] text-ink">{raffle.title}</h1><p class="mt-2 text-sm text-muted">{raffle.ticketsSold} of {raffle.ticketCap} tickets sold · Deadline {new Date(raffle.currentDeadline).toLocaleString()}</p></div>
+      <div><div class="mb-2 flex items-center gap-2"><p class="text-xs font-bold uppercase tracking-[0.15em] text-primary">Raffle management</p><StatusBadge status={raffle.status} /></div><h1 class="max-w-3xl text-[28px] font-bold tracking-[-0.03em] text-ink">{raffle.title}</h1><p class="mt-2 text-sm text-muted">{raffle.ticketsSold} of {raffle.ticketCap} tickets sold{#if raffle.minTicketCap !== undefined} · min {raffle.minTicketCap}{/if} · Deadline {new Date(raffle.currentDeadline).toLocaleString()}</p></div>
       <a href="/raffles/{raffle.id}/room" class="admin-press inline-flex h-11 shrink-0 items-center gap-2 rounded-button border border-border bg-card px-5 text-xs font-bold text-ink"><MessageCircle size={15} class="text-primary" /> View room</a>
     </header>
 
@@ -344,7 +374,7 @@
 
           <div class="sm:col-span-2 mt-2 flex items-start justify-between gap-4 border-t border-border pt-6"><div><h3 class="text-sm font-bold text-ink">Ticket rules</h3><p class="mt-1 text-xs font-normal text-faint">These values define the published purchase contract.</p></div>{#if raffle.ticketsSold > 0}<span class="flex shrink-0 items-center gap-1.5 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning"><LockKeyhole size={11} /> Locked after first sale</span>{/if}</div>
           <label class={labelClass}>Ticket price (ETB)<input required type="number" min="0.01" step="0.01" disabled={raffle.ticketsSold > 0} bind:value={ticketPrice} class={inputClass} /><span class="font-normal text-faint">Price for one chance.</span></label>
-          <label class={labelClass}>Ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class={inputClass} /><span class="font-normal text-faint">Total tickets available.</span></label>
+          <label class={labelClass}>Maximum ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" />{#if minTicketCap !== null}<span class="font-normal {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">{ticketCapTooLow ? `Below minimum — needs at least ${minTicketCap.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.` : `Sales stop at sellout, or at deadline once the minimum ${minTicketCap.toLocaleString()} (covers ${totalPrizeValue.toLocaleString()} ETB) has sold.`}</span>{:else}<span class="font-normal text-faint">Total tickets available.</span>{/if}</label>
           <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="5" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Between 1 and 5.</span></label>
         </div>
         <button type="submit" disabled={saving} class="admin-press mt-6 flex h-11 items-center gap-2 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"><Save size={15} /> {saving ? 'Saving…' : 'Save changes'}</button>
@@ -356,7 +386,9 @@
           <p class="mt-1 text-xs leading-5 text-faint">Owner-only actions follow the server’s allowed status transitions.</p>
           <div class="mt-5 space-y-2.5">
             {#if raffle.status === 'draft'}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('open')}>{action === 'open' ? 'Publishing…' : 'Publish raffle'}</button>{/if}
+            {#if canManualLock}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('locked')}>{action === 'locked' ? 'Locking…' : `Lock now (min ${raffle.minTicketCap} reached)`}</button>{/if}
             {#if ['draft', 'open', 'locked', 'awaiting_trigger', 'drawing'].includes(raffle.status) && $auth.admin?.role === 'owner'}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button border border-danger/20 bg-danger-bg text-xs font-bold text-danger disabled:opacity-50" on:click={() => changeStatus('cancelled')}>{action === 'cancelled' ? 'Cancelling…' : 'Cancel raffle'}</button>{/if}
+            {#if raffle.status === 'open' && $auth.admin?.role === 'owner' && !canManualLock && new Date(raffle.currentDeadline) <= new Date() && raffle.minTicketCap !== undefined}<p class="text-[11px] leading-4 text-faint">Deadline has passed, but only {raffle.ticketsSold} of the required minimum {raffle.minTicketCap} tickets sold — extend the deadline or wait for more sales.</p>{/if}
           </div>
         </section>
 

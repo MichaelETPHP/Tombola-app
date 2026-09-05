@@ -66,6 +66,13 @@
   const rankLabels = ['1st', '2nd', '3rd'];
   const rankPlaceholders = ['Power bank 20000mAh', 'Flash drive 128GB'];
   const rankValuePlaceholders = ['3500', '900'];
+
+  // Mirrors the API's own floor exactly (raffles.schema.ts) — at max
+  // capacity, ticket revenue must be able to cover every prize tier, not
+  // just the headline one, since one pool funds all of them.
+  $: totalPrizeValue = (Number(prizeValue) || 0) + additionalPrizes.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+  $: minTicketCap = ticketPrice && Number(ticketPrice) > 0 ? Math.ceil(totalPrizeValue / Number(ticketPrice)) : null;
+  $: ticketCapTooLow = minTicketCap !== null && ticketCap !== '' && Number(ticketCap) < minTicketCap;
 </script>
 
 <form class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]" on:submit|preventDefault={handleSubmit}>
@@ -128,7 +135,15 @@
       <div class="mb-6 flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary-bg text-primary"><CircleDollarSign size={18} /></span><div><h2 class="text-sm font-bold text-ink">Ticket economics</h2><p class="mt-0.5 text-xs text-faint">Set the price and fixed number of available chances</p></div></div>
       <div class="grid gap-5 sm:grid-cols-2">
         <label class="flex flex-col gap-2"><span class={labelClass}>Price per ticket (ETB)</span><input id="ticketPrice" type="number" min="0" step="0.01" bind:value={ticketPrice} class={inputClass} placeholder="100" />{#if fieldErrors.ticketPrice}<span class="text-xs text-danger">{fieldErrors.ticketPrice}</span>{/if}</label>
-        <label class="flex flex-col gap-2"><span class={labelClass}>Total ticket quota</span><input id="ticketCap" type="number" min="10" step="1" bind:value={ticketCap} class={inputClass} placeholder="500" />{#if fieldErrors.ticketCap}<span class="text-xs text-danger">{fieldErrors.ticketCap}</span>{/if}</label>
+        <label class="flex flex-col gap-2">
+          <span class={labelClass}>Maximum ticket quota</span>
+          <input id="ticketCap" type="number" min="10" step="1" bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" placeholder="500" />
+          {#if fieldErrors.ticketCap}
+            <span class="text-xs text-danger">{fieldErrors.ticketCap}</span>
+          {:else if minTicketCap !== null}
+            <span class="text-[11px] leading-4 {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">Sales stop once this sells out, or the deadline passes with the minimum {minTicketCap.toLocaleString()} (covers {totalPrizeValue.toLocaleString()} ETB in prizes) already sold.</span>
+          {/if}
+        </label>
       </div>
     </section>
   </div>

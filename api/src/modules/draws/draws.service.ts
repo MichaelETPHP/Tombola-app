@@ -383,8 +383,8 @@ export async function getRaffleEngine(raffleId: string) {
       SELECT id, previous_deadline, new_deadline, reason, extended_at, tickets_sold_at_extension
       FROM raffle_extensions WHERE raffle_id = ${raffleId} ORDER BY extended_at DESC
     `,
-    sql<{ tier: number; prizeName: string; winningTicketNumber: number; winnerName: string | null; drawnAt: Date; finalSeedHash: string }[]>`
-      SELECT dr.tier, rp.name AS prize_name, dr.winning_ticket_number, u.full_name AS winner_name, dr.drawn_at, dr.final_seed_hash
+    sql<{ tier: number; prizeName: string; winningTicketNumber: number; winnerUserId: string; winnerName: string | null; winnerPhone: string; drawnAt: Date; finalSeedHash: string }[]>`
+      SELECT dr.tier, rp.name AS prize_name, dr.winning_ticket_number, u.id AS winner_user_id, u.full_name AS winner_name, u.phone_number AS winner_phone, dr.drawn_at, dr.final_seed_hash
       FROM draw_results dr
       JOIN users u ON u.id = dr.winner_user_id
       JOIN raffle_prizes rp ON rp.id = dr.prize_id

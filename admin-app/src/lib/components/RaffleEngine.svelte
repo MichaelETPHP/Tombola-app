@@ -58,7 +58,9 @@
       tier: number;
       prizeName: string;
       winningTicketCode: string;
+      winnerUserId: string;
       winnerName: string | null;
+      winnerPhone: string;
       drawnAt: string;
       finalSeedHash: string;
     }[];
@@ -95,6 +97,16 @@
   }
 
   const ticketCode = (number: number) => `${engine?.raffle.code}-${String(number).padStart(5, '0')}`;
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const medalFor = (tier: number) => medals[tier - 1] ?? '🏅';
+
+  // Which prize tier(s), if any, each participant won — drives the green
+  // highlight + medal badge in the Participant Directory below.
+  $: winningTiersByUserId = (engine?.draws ?? []).reduce<Record<string, number[]>>((byUser, draw) => {
+    (byUser[draw.winnerUserId] ??= []).push(draw.tier);
+    return byUser;
+  }, {});
 
   async function load() {
     try {
@@ -289,8 +301,19 @@
                 </div>
               </div>
               <div class="border-t border-success/15 pt-2 text-[11px] text-muted">
-                <p class="font-semibold text-ink">{draw.winnerName ?? 'Verified Participant'}</p>
-                <p class="text-[10px] text-faint mt-0.5">{new Date(draw.drawnAt).toLocaleString()}</p>
+                <p class="font-semibold text-ink">{medalFor(draw.tier)} {draw.winnerName ?? 'Verified Participant'}</p>
+                <div class="mt-1 flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
+                  <a href="tel:{draw.winnerPhone}" class="hover:text-primary hover:underline" title="Call winner">{draw.winnerPhone}</a>
+                  <button
+                    type="button"
+                    class="admin-press text-faint hover:text-ink transition-colors"
+                    title="Copy Winner Phone"
+                    on:click={() => copyToClipboard(draw.winnerPhone, 'Winner Phone')}
+                  >
+                    <Copy size={11} />
+                  </button>
+                </div>
+                <p class="text-[10px] text-faint mt-1">{new Date(draw.drawnAt).toLocaleString()}</p>
               </div>
             </div>
           {/each}
@@ -384,16 +407,22 @@
             <div class="divide-y divide-border">
               {#each filteredParticipants as participant (participant.id)}
                 {@const ticketList = participant.ticketNumbers ?? [participant.firstTicket]}
-                <div class="flex flex-col gap-3 p-4 transition-colors hover:bg-bg/40 sm:flex-row sm:items-start sm:justify-between">
+                {@const wonTiers = winningTiersByUserId[participant.id]}
+                <div class="flex flex-col gap-3 p-4 transition-colors sm:flex-row sm:items-start sm:justify-between {wonTiers ? 'bg-success-bg/60 hover:bg-success-bg/80' : 'hover:bg-bg/40'}">
                   <!-- User Info Strip -->
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
+                      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black {wonTiers ? 'bg-success/15 text-success' : 'bg-primary/10 text-primary'}">
                         {(participant.fullName?.[0] ?? 'P').toUpperCase()}
                       </div>
                       <div class="min-w-0">
-                        <p class="truncate text-xs font-extrabold text-ink">
+                        <p class="truncate text-xs font-extrabold text-ink flex items-center gap-1.5">
                           {participant.fullName ?? 'Participant (No Name)'}
+                          {#if wonTiers}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-black text-success">
+                              {wonTiers.map(medalFor).join(' ')} {wonTiers.length > 1 ? 'Winner' : `${ordinal(wonTiers[0])} Place`}
+                            </span>
+                          {/if}
                         </p>
                         <!-- Phone with quick actions -->
                         <div class="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-muted">

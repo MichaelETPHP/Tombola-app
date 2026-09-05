@@ -75,6 +75,19 @@ export const createRaffleSchema = z.object({
     .trim()
     .regex(/^https:\/\/t\.me\//, 'Must be a Telegram invite link (https://t.me/...)')
     .optional(),
+}).superRefine((data, ctx) => {
+  // The quota is the only lever that can guarantee ticket revenue actually
+  // covers what the raffle is obligated to pay out — every prize tier,
+  // not just the headline one, since one ticket pool funds all of them.
+  const totalPrizeValue = data.prizeValue + (data.additionalPrizes ?? []).reduce((sum, p) => sum + p.value, 0);
+  const minTickets = Math.ceil(totalPrizeValue / data.ticketPrice);
+  if (data.ticketCap < minTickets) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ticketCap'],
+      message: `Needs at least ${minTickets} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes at ${data.ticketPrice.toLocaleString()} ETB/ticket`,
+    });
+  }
 });
 
 export const rafflePrizeSchema = z.object({
@@ -100,6 +113,7 @@ export const raffleSchema = z.object({
   prizes: z.array(rafflePrizeSchema).optional(),
   ticketPrice: z.number(),
   ticketCap: z.number(),
+  minTicketCap: z.number().optional(),
   ticketsSold: z.number(),
   maxTicketsPerUser: z.number(),
   status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),

@@ -4,6 +4,7 @@
   export let disabled = false;
   export let loading = false;
   export let type: 'button' | 'submit' = 'button';
+  export let shine = false;
 
   const variantClasses = {
     primary:
@@ -39,6 +40,9 @@
       class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/45 via-white/10 to-transparent"
       aria-hidden="true"
     ></span>
+    {#if shine && !loading && !disabled}
+      <span class="glass-flash pointer-events-none absolute inset-y-0 left-0 w-[34%]" aria-hidden="true"></span>
+    {/if}
   {/if}
   <span class="relative z-10 inline-flex items-center gap-2">
     {#if loading}
@@ -52,3 +56,22 @@
     <slot />
   </span>
 </button>
+
+<style>
+  .glass-flash {
+    transform: translate3d(-170%, 0, 0) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.18), transparent);
+    filter: blur(0.5px);
+    animation: button-glass-flash 3.6s cubic-bezier(0.16, 1, 0.3, 1) 1s infinite;
+    will-change: transform;
+  }
+
+  @keyframes button-glass-flash {
+    0%, 68% { transform: translate3d(-170%, 0, 0) skewX(-18deg); }
+    88%, 100% { transform: translate3d(420%, 0, 0) skewX(-18deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glass-flash { animation: none; }
+  }
+</style>

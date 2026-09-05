@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { get } from 'svelte/store';
@@ -66,7 +66,7 @@
     stopAutoAdvance();
     if (rankedPrizes.length <= 1) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    autoAdvanceTimer = setInterval(() => goToCarousel((carouselIndex + 1) % rankedPrizes.length), 2800);
+    autoAdvanceTimer = setInterval(() => goToCarousel((carouselIndex + 1) % rankedPrizes.length), 2000);
   }
 
   function goBack() {
@@ -114,6 +114,8 @@
 
   function handleVisibilityChange() {
     pageVisible = !document.hidden;
+    if (pageVisible) startAutoAdvance();
+    else stopAutoAdvance();
   }
 
   async function fetchRaffle() {
@@ -138,11 +140,13 @@
     const hadCachedRaffle = !!raffle;
     if (hadCachedRaffle) {
       loading = false;
+      await tick();
       startAutoAdvance();
       fetchRaffle(); // silent revalidation, not awaited — content is already on screen
     } else {
       await fetchRaffle();
       loading = false;
+      await tick();
       startAutoAdvance();
     }
     const pending = getPendingPurchase();
@@ -297,7 +301,7 @@
           </div>
 
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
-          <div class="mt-3"><Button variant="glass" loading={purchasing} on:click={handleBuyClick}><Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB</Button></div>
+          <div class="mt-3"><Button variant="glass" shine loading={purchasing} on:click={handleBuyClick}><Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB</Button></div>
 
           <div class="terms-consent mt-2.5 flex min-h-11 items-stretch overflow-hidden rounded-[14px] bg-bg-start/65">
             <button type="button" role="checkbox" aria-checked={agreedToTerms} on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable flex min-h-11 min-w-0 flex-1 items-center gap-2.5 px-3 text-left">
@@ -375,8 +379,8 @@
 <style>
   :global(html.raffle-detail-lock),
   :global(html.raffle-detail-lock body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
-  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 108px - var(--safe-bottom)); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
-  .raffle-cover { flex: 1 1 32%; }
+  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px - var(--safe-bottom)); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
+  .raffle-cover { height: 166px; flex: 0 0 166px; }
   .prize-glass-flash {
     z-index: 1;
     transform: translate3d(-150%, 0, 0) skewX(-18deg);
@@ -394,7 +398,7 @@
     88%, 100% { transform: translate3d(380%, 0, 0) skewX(-18deg); }
   }
   @keyframes terms-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
-  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-cover { flex-basis: 25%; } .raffle-description, .purchase-note { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
-  @media (max-height: 630px) { .raffle-cover { min-height: 82px; } .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
+  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-description, .purchase-note { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
+  @media (max-height: 630px) { .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
   @media (prefers-reduced-motion: reduce) { .terms-shake, .prize-glass-flash { animation: none; } }
 </style>

@@ -37,6 +37,18 @@ export const createRaffleSchema = z.object({
   if (data.opensAt && data.deadlineAt && data.deadlineAt <= data.opensAt) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['deadlineAt'], message: 'Deadline must be after opening time' });
   }
+  // The quota is the only lever that can guarantee ticket revenue actually
+  // covers what the raffle is obligated to pay out — every prize tier,
+  // not just the headline one, since one ticket pool funds all of them.
+  const totalPrizeValue = data.prizeValue + (data.additionalPrizes ?? []).reduce((sum, p) => sum + p.value, 0);
+  const minTickets = Math.ceil(totalPrizeValue / data.ticketPrice);
+  if (data.ticketCap < minTickets) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ticketCap'],
+      message: `Needs at least ${minTickets} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes at ${data.ticketPrice.toLocaleString()} ETB/ticket`,
+    });
+  }
 });
 
 export const updateRaffleSchema = z.object({
