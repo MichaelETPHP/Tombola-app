@@ -48,6 +48,7 @@
   let carouselEl: HTMLDivElement;
   let carouselIndex = 0;
   let autoAdvanceTimer: ReturnType<typeof setInterval> | undefined;
+  let autoResumeTimer: ReturnType<typeof setTimeout> | undefined;
 
   function handleCarouselScroll() {
     if (!carouselEl) return;
@@ -56,17 +57,26 @@
     carouselIndex = Math.round(carouselEl.scrollLeft / w);
   }
   function goToCarousel(i: number) {
-    carouselEl?.scrollTo({ left: i * carouselEl.clientWidth, behavior: 'smooth' });
+    if (!carouselEl || rankedPrizes.length <= 1) return;
+    carouselIndex = ((i % rankedPrizes.length) + rankedPrizes.length) % rankedPrizes.length;
+    carouselEl.scrollTo({ left: carouselIndex * carouselEl.clientWidth, behavior: 'smooth' });
   }
   function stopAutoAdvance() {
     clearInterval(autoAdvanceTimer);
+    clearTimeout(autoResumeTimer);
     autoAdvanceTimer = undefined;
+    autoResumeTimer = undefined;
   }
   function startAutoAdvance() {
     stopAutoAdvance();
     if (rankedPrizes.length <= 1) return;
+    if (lightboxIndex !== null || !pageVisible) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     autoAdvanceTimer = setInterval(() => goToCarousel((carouselIndex + 1) % rankedPrizes.length), 2000);
+  }
+  function resumeAutoAdvance() {
+    clearTimeout(autoResumeTimer);
+    autoResumeTimer = setTimeout(startAutoAdvance, 2000);
   }
 
   function goBack() {
@@ -103,6 +113,7 @@
       carouselEl.scrollTo({ left: lightboxIndex * carouselEl.clientWidth, behavior: 'auto' });
     }
     lightboxIndex = null;
+    resumeAutoAdvance();
   }
   function lightboxContentParams() {
     const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -249,6 +260,10 @@
           bind:this={carouselEl}
           on:scroll={handleCarouselScroll}
           on:touchstart={stopAutoAdvance}
+          on:touchend={resumeAutoAdvance}
+          on:touchcancel={resumeAutoAdvance}
+          on:focusin={stopAutoAdvance}
+          on:focusout={resumeAutoAdvance}
           data-swipe-region
           role="region"
           aria-label="Prize tiers"
