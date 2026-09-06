@@ -53,7 +53,7 @@
       bind:this={trackEl}
       on:scroll={handleScroll}
       data-swipe-region
-      class="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 [scroll-padding-inline:1rem] [touch-action:pan-x]"
+      class="carousel-track no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 [scroll-padding-inline:1rem]"
     >
       {#each raffles as raffle, index (raffle.id)}
         <a
@@ -117,6 +117,14 @@
 {/if}
 
 <style>
+  .carousel-track {
+    /* Let the WebView lock each gesture to its natural direction: horizontal
+       drags move the carousel, while vertical drags continue scrolling the
+       Home page even when the finger starts directly on the artwork. */
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .featured-ticket {
     border: 1px solid rgba(255, 255, 255, 0.88);
     box-shadow: 0 18px 40px -25px rgba(17, 54, 44, 0.42), 0 5px 14px -10px rgba(17, 54, 44, 0.18);
