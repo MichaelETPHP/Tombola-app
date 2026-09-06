@@ -380,7 +380,7 @@
   :global(html.raffle-detail-lock),
   :global(html.raffle-detail-lock body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px - var(--safe-bottom)); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
-  .raffle-cover { height: 166px; flex: 0 0 166px; }
+  .raffle-cover { width: 100%; aspect-ratio: var(--raffle-artwork-ratio); flex: 0 0 auto; }
   .prize-glass-flash {
     z-index: 1;
     transform: translate3d(-150%, 0, 0) skewX(-18deg);

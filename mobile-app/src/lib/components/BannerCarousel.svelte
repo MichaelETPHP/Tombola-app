@@ -62,7 +62,7 @@
           class="featured-ticket pressable relative flex h-[346px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
           aria-label="Enter {raffle.title}"
         >
-          <div class="relative h-[166px] shrink-0 overflow-hidden bg-[#dff7ee]">
+          <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#dff7ee]">
             <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager={index === 0} />
 
             <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
@@ -121,6 +121,10 @@
     border: 1px solid rgba(255, 255, 255, 0.88);
     box-shadow: 0 18px 40px -25px rgba(17, 54, 44, 0.42), 0 5px 14px -10px rgba(17, 54, 44, 0.18);
     transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
+  }
+
+  .raffle-artwork {
+    aspect-ratio: var(--raffle-artwork-ratio);
   }
 
   .featured-ticket:active {
