@@ -12,7 +12,7 @@
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { User, MessageCircle, ChevronRight, Pencil, Ticket as TicketIcon, Check } from 'lucide-svelte';
+  import { User, MessageCircle, ChevronRight, Pencil, Ticket as TicketIcon, Check, Info } from 'lucide-svelte';
   import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
@@ -273,6 +273,21 @@
             ? 'Your ticket numbers and receipts'
             : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'} across ${raffleCount} raffle${raffleCount === 1 ? '' : 's'}`}
         </p>
+      </div>
+      <ChevronRight size={16} class="shrink-0 text-muted" />
+    </a>
+
+    <a
+      href="/about"
+      on:click={hapticLight}
+      class="tappable pressable flex items-center gap-3 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
+    >
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-start text-primary-dark">
+        <Info size={18} />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-ink">About YeneEta</p>
+        <p class="text-xs text-muted">Support, FAQs and official channels</p>
       </div>
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
