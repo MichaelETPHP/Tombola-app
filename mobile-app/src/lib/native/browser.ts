@@ -46,6 +46,19 @@ export function paymentReturnTarget(): 'native' | 'web' {
   return Capacitor.isNativePlatform() ? 'native' : 'web';
 }
 
+// Mirrors BottomNav.svelte + app.css's .native-bottom-nav-position exactly
+// (76px bar, floating 16px above the safe-area bottom inset) — read the
+// live --safe-bottom value via a probe element rather than hardcoding a
+// device-specific inset, since it already varies by device by design.
+function bottomNavFootprintPx(): number {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;height:var(--safe-bottom, 0px);';
+  document.body.appendChild(probe);
+  const safeBottom = parseFloat(getComputedStyle(probe).height) || 0;
+  probe.remove();
+  return 76 + 16 + safeBottom;
+}
+
 /**
  * Opens the Chapa checkout URL for the payment flow specifically — unlike
  * openExternal's Custom Tab (which still shows Chrome's own toolbar/URL
@@ -67,6 +80,12 @@ export async function openCheckout(url: string): Promise<{ opensSeparately: bool
   }
 
   if (Capacitor.isNativePlatform()) {
+    // Stops short of the very bottom of the screen so the app's own
+    // BottomNav — rendered underneath, in the host WebView — stays
+    // visible and tappable rather than being fully covered by checkout.
+    // Taps in that now-exposed strip pass through to the host app; taps
+    // on the checkout itself still go to Chapa's page as normal.
+    const height = Math.max(320, window.innerHeight - bottomNavFootprintPx());
     await InAppBrowser.openWebView({
       url,
       title: 'Secure checkout',
@@ -80,6 +99,7 @@ export async function openCheckout(url: string): Promise<{ opensSeparately: bool
       // status bar's own icons/clock.
       enabledSafeTopMargin: true,
       useTopInset: true,
+      height,
     });
     return { opensSeparately: true };
   }
