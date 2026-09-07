@@ -111,8 +111,20 @@ function bottomNavFootprintPx(): number {
  * native path) can pick up the result and land on the receipt the instant
  * the user switches back — sometimes before they even do, since the app
  * never actually stopped running to poll from.
+ *
+ * Plain web/PWA is the one surface where a truly in-app checkout IS safe:
+ * routes/(app)/checkout renders Chapa's own Inline.js widget, which talks
+ * to Chapa via Bearer-token fetch/FormData calls (not cookies) and appends
+ * plain DOM elements to our own page — no iframe, no cross-origin browsing
+ * context, so none of the CSRF/cookie restrictions that broke the earlier
+ * iframe attempt apply here.
  */
-export async function openCheckout(url: string, paymentId: string): Promise<{ opensSeparately: boolean }> {
+export async function openCheckout(
+  url: string,
+  paymentId: string,
+  amount: number,
+  txRef: string
+): Promise<{ opensSeparately: boolean }> {
   // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
   // same-origin handling as openExternal, so local testing isn't forced
   // through a native webview it doesn't need.
@@ -162,6 +174,7 @@ export async function openCheckout(url: string, paymentId: string): Promise<{ op
     return { opensSeparately: true };
   }
 
-  window.location.href = url;
+  const params = new URLSearchParams({ paymentId, amount: String(amount), txRef, checkoutUrl: url });
+  await goto(`/checkout?${params.toString()}`);
   return { opensSeparately: false };
 }
