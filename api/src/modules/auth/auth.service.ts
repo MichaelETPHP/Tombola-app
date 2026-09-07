@@ -37,7 +37,10 @@ function generateOtpCode(): string {
   return String(100000 + (values[0] % 900000));
 }
 
-export async function requestOtp(phone: string, locale: Locale = 'en'): Promise<{ messageKey: string; expiresIn: number }> {
+export async function requestOtp(
+  phone: string,
+  locale: Locale = 'en'
+): Promise<{ messageKey: string; expiresIn: number; demoOtpEnabled: boolean }> {
   const code = generateOtpCode();
   const existingUser = await findUserByPhone(phone);
   const codeHash = await Bun.password.hash(code, { algorithm: 'bcrypt', cost: 8 });
@@ -57,7 +60,13 @@ export async function requestOtp(phone: string, locale: Locale = 'en'): Promise<
   }
 
   logger.info(`OTP requested for ${phone}`);
-  return { messageKey: 'auth.otpSent', expiresIn: OTP_EXPIRY_MS / 1000 };
+  return {
+    messageKey: 'auth.otpSent',
+    expiresIn: OTP_EXPIRY_MS / 1000,
+    // The client may streamline private test deployments, but only when the
+    // server explicitly confirms that the demo-code bypass is enabled.
+    demoOtpEnabled: env.DEMO_OTP_ENABLED,
+  };
 }
 
 function publicUser(user: DbUser, isNewUser = false) {

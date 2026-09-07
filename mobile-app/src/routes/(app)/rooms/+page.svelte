@@ -134,7 +134,7 @@
               {/if}
             </div>
             <p class="mt-0.5 truncate text-xs text-muted">
-              {room.lastMessagePreview ?? 'No messages yet — say hi 👋'}
+              {room.lastMessagePreview ?? 'No messages yet — start the conversation'}
             </p>
           </div>
         </button>

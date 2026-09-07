@@ -5,9 +5,12 @@ import {
   processPaymentFailure,
   getPaymentStatus,
   getMyPayments,
+  verifyAndReconcileChapaPayment,
+  verifyPaymentForUser,
 } from './payments.service.js';
 import { verifyChapaWebhookSignature, verifyMockPaymentSecret } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 import { logger } from '../../lib/logger.js';
 import { env } from '../../config/env.js';
 import type { AppEnv } from '../../types/hono.js';
@@ -24,6 +27,21 @@ paymentsRoutes.get('/mine', authMiddleware, async (c) => {
   const user = c.get('user');
   const payments = await getMyPayments(user.id);
   return c.json({ payments });
+});
+
+/** Chapa's per-transaction callback is a GET, not the signed POST webhook. */
+paymentsRoutes.get('/callback/chapa', async (c) => {
+  const txRef = c.req.query('trx_ref') || c.req.query('tx_ref');
+  if (!txRef) return c.json({ error: 'Missing transaction reference' }, 400);
+  await verifyAndReconcileChapaPayment(txRef);
+  return c.json({ received: true }, 200);
+});
+
+/** Return-page fallback when Chapa's asynchronous notification is delayed. */
+paymentsRoutes.post('/:id/verify', authMiddleware, rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
+  const user = c.get('user');
+  const payment = await verifyPaymentForUser(c.req.param('id'), user.id);
+  return c.json({ payment });
 });
 
 /**
@@ -48,7 +66,8 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
   const rawBody = await c.req.text();
 
   // Verify webhook signature
-  const signature = c.req.header('x-chapa-signature') || c.req.header('chapa-signature') || '';
+  const payloadSignature = c.req.header('x-chapa-signature') || '';
+  const secretSignature = c.req.header('chapa-signature') || '';
 
   // Signature verification is mandatory UNLESS this is provably a mock
   // deployment (MOCK_PAYMENTS=true) that is ALSO not production — both
@@ -76,11 +95,14 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
   const isAuthorizedMockTest = env.MOCK_PAYMENTS && verifyMockPaymentSecret(mockSecret);
 
   if (!isMockDeployment && !isAuthorizedMockTest) {
-    if (!signature) {
+    if (!payloadSignature && !secretSignature) {
       logger.warn('Missing Chapa webhook signature');
       return c.json({ error: 'Missing signature' }, 401);
     }
-    const isValid = await verifyChapaWebhookSignature(rawBody, signature);
+    const isValid = verifyChapaWebhookSignature(rawBody, {
+      payload: payloadSignature,
+      secret: secretSignature,
+    });
     if (!isValid) {
       logger.warn('Invalid Chapa webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
@@ -90,10 +112,13 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
   // Parse and validate the payload
   const payload = chapaWebhookSchema.parse(JSON.parse(rawBody));
 
-  if (payload.status === 'success') {
-    await processPaymentSuccess(payload.tx_ref);
+  if (isMockDeployment || isAuthorizedMockTest) {
+    if (payload.status === 'success') await processPaymentSuccess(payload.tx_ref);
+    else await processPaymentFailure(payload.tx_ref);
   } else {
-    await processPaymentFailure(payload.tx_ref);
+    // The signed event wakes the reconciliation flow; Chapa's verify API,
+    // not the event body, remains authoritative for every state change.
+    await verifyAndReconcileChapaPayment(payload.tx_ref);
   }
 
   // Always return 200 to acknowledge receipt

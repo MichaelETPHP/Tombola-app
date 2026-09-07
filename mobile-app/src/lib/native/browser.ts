@@ -40,3 +40,7 @@ export async function openExternal(url: string): Promise<{ opensSeparately: bool
   window.location.href = url;
   return { opensSeparately: false };
 }
+
+export function paymentReturnTarget(): 'native' | 'web' {
+  return Capacitor.isNativePlatform() ? 'native' : 'web';
+}

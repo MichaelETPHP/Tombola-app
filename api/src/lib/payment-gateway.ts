@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
@@ -21,6 +21,7 @@ export interface ChapaInitPayload {
     raffleTitle: string;
     ticketCount: number;
     unitPrice: number;
+    callbackUrl?: string;
   };
 }
 
@@ -29,6 +30,20 @@ export interface ChapaInitResponse {
   message: string;
   data?: {
     checkout_url: string;
+  };
+}
+
+export interface ChapaVerifyResponse {
+  status: string;
+  message?: string;
+  data?: {
+    status?: string;
+    tx_ref?: string;
+    amount?: string | number;
+    currency?: string;
+    mode?: string;
+    reference?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -46,7 +61,7 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
     const mockParams = new URLSearchParams({
       tx_ref: payload.tx_ref,
       amount: String(payload.amount),
-      callback_url: payload.callback_url,
+      callback_url: payload.mock?.callbackUrl ?? payload.callback_url,
       return_url: payload.return_url ?? '',
       title: payload.customization?.title ?? 'YeneEta',
       raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? 'YeneEta raffle',
@@ -73,6 +88,7 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
   const { mock: _mock, ...gatewayPayload } = payload;
   const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
     method: 'POST',
+    signal: AbortSignal.timeout(15_000),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${env.CHAPA_SECRET_KEY}`,
@@ -93,18 +109,19 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
 /**
  * Verify a Chapa payment by transaction reference.
  */
-export async function chapaVerify(txRef: string): Promise<Record<string, unknown>> {
+export async function chapaVerify(txRef: string): Promise<ChapaVerifyResponse> {
   if (!env.CHAPA_SECRET_KEY) {
     throw new Error('CHAPA_SECRET_KEY not configured');
   }
 
   const response = await fetch(`https://api.chapa.co/v1/transaction/verify/${txRef}`, {
+    signal: AbortSignal.timeout(15_000),
     headers: {
       'Authorization': `Bearer ${env.CHAPA_SECRET_KEY}`,
     },
   });
 
-  const data = await response.json() as Record<string, unknown>;
+  const data = await response.json() as ChapaVerifyResponse;
 
   if (!response.ok) {
     logger.error(`Chapa verify failed for ${txRef}: ${JSON.stringify(data)}`);
@@ -118,28 +135,19 @@ export async function chapaVerify(txRef: string): Promise<Record<string, unknown
  * Verify the webhook signature from Chapa.
  * Compares the hash of the request body with the provided signature header.
  */
-export async function verifyChapaWebhookSignature(
+export function verifyChapaWebhookSignature(
   body: string,
-  signature: string
-): Promise<boolean> {
+  signatures: { payload?: string; secret?: string }
+): boolean {
   if (!env.CHAPA_WEBHOOK_SECRET) {
-    logger.warn('CHAPA_WEBHOOK_SECRET not configured — skipping signature verification');
+    logger.warn('CHAPA_WEBHOOK_SECRET not configured — rejecting webhook');
     return false;
   }
 
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(env.CHAPA_WEBHOOK_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
-  const computedHash = Array.from(new Uint8Array(signatureBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  const computedHash = createHmac('sha256', env.CHAPA_WEBHOOK_SECRET).update(body).digest('hex');
+  const computedSecretHash = createHmac('sha256', env.CHAPA_WEBHOOK_SECRET)
+    .update(env.CHAPA_WEBHOOK_SECRET)
+    .digest('hex');
 
   // A plain `===` here leaks how many leading bytes matched through
   // response timing — enough samples let an attacker forge a valid
@@ -147,9 +155,14 @@ export async function verifyChapaWebhookSignature(
   // then POST a fake "payment succeeded" webhook. timingSafeEqual takes
   // the same time regardless of where the strings first differ.
   const computedBuf = Buffer.from(computedHash, 'utf8');
-  const signatureBuf = Buffer.from(signature, 'utf8');
-  if (computedBuf.length !== signatureBuf.length) return false;
-  return timingSafeEqual(computedBuf, signatureBuf);
+  const payloadSignatureBuf = Buffer.from((signatures.payload ?? '').trim().toLowerCase(), 'utf8');
+  const secretHashBuf = Buffer.from(computedSecretHash, 'utf8');
+  const secretSignatureBuf = Buffer.from((signatures.secret ?? '').trim().toLowerCase(), 'utf8');
+  const payloadMatches = computedBuf.length === payloadSignatureBuf.length
+    && timingSafeEqual(computedBuf, payloadSignatureBuf);
+  const secretMatches = secretHashBuf.length === secretSignatureBuf.length
+    && timingSafeEqual(secretHashBuf, secretSignatureBuf);
+  return payloadMatches || secretMatches;
 }
 
 /**

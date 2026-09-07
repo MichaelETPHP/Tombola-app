@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
 
   export let length = 6;
   export let value = '';
@@ -10,10 +10,6 @@
   let digits: string[] = Array(length).fill('');
   let boxes: HTMLInputElement[] = [];
   let dispatchedFor = '';
-
-  onMount(() => {
-    boxes[0]?.focus();
-  });
 
   function syncValue() {
     value = digits.join('');
@@ -59,10 +55,12 @@
     }
   }
 
-  // Reset the boxes if the parent clears `value` (e.g. after a failed attempt).
-  $: if (value === '' && digits.some((d) => d)) {
-    digits = Array(length).fill('');
-    dispatchedFor = '';
+  // Keep programmatic values (the server-authorized demo code and parent
+  // resets) visible without focusing a box or opening the mobile keyboard.
+  $: if (value !== digits.join('')) {
+    const normalized = value.replace(/\D/g, '').slice(0, length);
+    digits = Array.from({ length }, (_, index) => normalized[index] ?? '');
+    dispatchedFor = normalized.length === length ? normalized : '';
   }
 </script>
 
@@ -75,8 +73,10 @@
       on:keydown={(e) => onKeydown(i, e)}
       type="text"
       inputmode="numeric"
+      enterkeyhint={i === length - 1 ? 'done' : 'next'}
       maxlength={i === 0 ? length : 1}
       autocomplete={i === 0 ? 'one-time-code' : 'off'}
+      aria-label="Verification code digit {i + 1} of {length}"
       {disabled}
       class="h-14 w-11 rounded-button bg-bg-start text-center font-display text-2xl font-semibold text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] focus:ring-primary disabled:opacity-60"
     />

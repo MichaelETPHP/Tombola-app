@@ -50,7 +50,14 @@ authRoutes.post(
     const { phone } = requestOtpSchema.parse(body);
 
     const result = await requestOtp(phone, c.get('locale'));
-    return c.json({ message: c.get('t')(result.messageKey), expiresIn: result.expiresIn }, 200);
+    return c.json(
+      {
+        message: c.get('t')(result.messageKey),
+        expiresIn: result.expiresIn,
+        demoOtpEnabled: result.demoOtpEnabled,
+      },
+      200
+    );
   }
 );
 

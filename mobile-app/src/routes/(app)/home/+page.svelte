@@ -7,7 +7,6 @@
   import BannerSkeleton from '$lib/components/BannerSkeleton.svelte';
   import RaffleCard from '$lib/components/RaffleCard.svelte';
   import RaffleCardSkeleton from '$lib/components/RaffleCardSkeleton.svelte';
-  import WinnersMarquee from '$lib/components/WinnersMarquee.svelte';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { ArrowRight } from 'lucide-svelte';
 
@@ -98,13 +97,6 @@
     {/if}
   </section>
 
-  <section class="flex flex-col gap-3">
-    <div>
-      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">Real people, real prizes</h2>
-      <p class="mt-1 text-[10px] font-medium text-[#586660]">Live activity across YeneEta</p>
-    </div>
-    <WinnersMarquee />
-  </section>
 </div>
 
 <style>

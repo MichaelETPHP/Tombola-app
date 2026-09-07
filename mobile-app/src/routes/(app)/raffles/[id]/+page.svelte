@@ -14,7 +14,7 @@
   import RaffleDetailSkeleton from '$lib/components/RaffleDetailSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
-  import { openExternal } from '$lib/native/browser.js';
+  import { openExternal, paymentReturnTarget } from '$lib/native/browser.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { CalendarClock, Check, ChevronLeft, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
@@ -207,7 +207,7 @@
     try {
       const result = await api.post<{ paymentId: string; checkoutUrl?: string }>(
         `/raffles/${raffle.id}/tickets`,
-        { quantity, paymentGateway: 'chapa' }
+        { quantity, paymentGateway: 'chapa', returnTarget: paymentReturnTarget() }
       );
       if (!result.checkoutUrl) throw new Error('No checkout URL returned');
       clearPendingPurchase();

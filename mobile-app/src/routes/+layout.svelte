@@ -1,5 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { App } from '@capacitor/app';
+  import { Browser } from '@capacitor/browser';
+  import { Capacitor } from '@capacitor/core';
   import { useRegisterSW } from 'virtual:pwa-register/svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth, setAuth, setAuthLoading } from '$lib/stores/auth.store.js';
@@ -21,6 +25,20 @@
     user: { id: string; phone: string; fullName: string | null; preferredLanguage?: 'en' | 'am' };
   };
 
+  async function handleNativePaymentReturn(rawUrl: string | undefined): Promise<void> {
+    if (!rawUrl) return;
+    try {
+      const url = new URL(rawUrl);
+      if (url.protocol !== 'yeneeta:' || url.hostname !== 'payment-return') return;
+      const paymentId = url.searchParams.get('payment_id') ?? '';
+      if (!/^[0-9a-f-]{36}$/i.test(paymentId)) return;
+      await Browser.close().catch(() => undefined);
+      await goto(`/payments/${paymentId}`, { replaceState: true });
+    } catch {
+      // Ignore unrelated or malformed operating-system URLs.
+    }
+  }
+
   async function restorePhoneSession(): Promise<void> {
     const refreshed = await api.post<{ accessToken: string }>('/auth/refresh', undefined, { skipAuth: true });
     const me = await api.get<MeResponse>('/users/me');
@@ -35,6 +53,10 @@
    * method from leaking into the other.
    */
   onMount(async () => {
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener('appUrlOpen', ({ url }) => handleNativePaymentReturn(url));
+      void App.getLaunchUrl().then((launch) => handleNativePaymentReturn(launch?.url));
+    }
     initBackButtonHandling();
     disableZoom();
     initLanguage();

@@ -114,9 +114,14 @@
 
     loading = true;
     try {
-      await api.post('/auth/otp/request', { phone: fullPhone }, { skipAuth: true });
+      const otp = await api.post<{ demoOtpEnabled?: boolean }>(
+        '/auth/otp/request',
+        { phone: fullPhone },
+        { skipAuth: true }
+      );
       const params = new URLSearchParams({ phone: fullPhone });
       if (returnTo) params.set('returnTo', returnTo);
+      if (otp.demoOtpEnabled) params.set('demo', '1');
       goto(`/verify?${params}`);
     } catch (err) {
       error = err instanceof ApiError ? 'Could not send code. Please try again.' : 'Network error.';
@@ -187,7 +192,7 @@
   }
 </script>
 
-<div class="safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-7 p-6">
+<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-7 overflow-y-auto p-6">
   <button
     type="button"
     aria-label="Back to home"
@@ -299,10 +304,13 @@
             id="phone"
             type="tel"
             inputmode="numeric"
+            enterkeyhint="send"
             placeholder="9XXXXXXXX"
             value={phone}
             on:input={(e) => (phone = e.currentTarget.value.replace(/\D/g, '').slice(0, 10))}
             autocomplete="tel-national"
+            autocapitalize="none"
+            spellcheck="false"
             maxlength="10"
             class="h-full min-w-0 flex-1 rounded-r-button border-none bg-transparent pl-3 pr-4 font-sans text-base text-ink outline-none placeholder:text-muted"
           />
@@ -393,6 +401,14 @@
 {/if}
 
 <style>
+  /* A resized Telegram/Android viewport can become shorter than the form.
+     Move focused content to a scrollable top-aligned layout instead of
+     allowing the IME to cover the active field or submit action. */
+  .auth-screen:focus-within {
+    justify-content: flex-start;
+    padding-top: max(88px, calc(var(--safe-top, 0px) + 64px));
+  }
+
   .terms-shake {
     animation: terms-shake 400ms ease-in-out;
   }

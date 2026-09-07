@@ -205,14 +205,20 @@
     </div>
 
     {#if editOpen}
-      <div
+      <form
         class="flex flex-col gap-3 rounded-card bg-card p-4 shadow-card"
         transition:slide={{ duration: 220, easing: cubicOut }}
+        on:submit|preventDefault={save}
       >
         <label for="name" class="text-[13px] font-semibold text-muted">Full name</label>
         <input
           id="name"
           type="text"
+          enterkeyhint="done"
+          autocomplete="name"
+          autocapitalize="words"
+          spellcheck="true"
+          maxlength="100"
           bind:value={fullName}
           placeholder="Add your name"
           class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] placeholder:text-muted focus:ring-primary"
@@ -239,8 +245,8 @@
           <p class="text-[13px] text-coral-start">{error}</p>
         {/if}
 
-        <Button variant="secondary" loading={saving} on:click={save}>Save changes</Button>
-      </div>
+        <Button type="submit" variant="secondary" loading={saving}>Save changes</Button>
+      </form>
     {/if}
 
     <a

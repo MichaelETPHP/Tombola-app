@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fly } from 'svelte/transition';
@@ -19,6 +19,7 @@
   let error = '';
   let loading = false;
   let returnTo = '';
+  let demoOtpEnabled = false;
 
   const RESEND_COOLDOWN_S = 30;
   let resendCooldown = RESEND_COOLDOWN_S;
@@ -39,8 +40,18 @@
     hapticLight();
     resending = true;
     try {
-      await api.post('/auth/otp/request', { phone }, { skipAuth: true });
+      const otp = await api.post<{ demoOtpEnabled?: boolean }>(
+        '/auth/otp/request',
+        { phone },
+        { skipAuth: true }
+      );
       startResendCooldown();
+      if (otp.demoOtpEnabled) {
+        demoOtpEnabled = true;
+        code = '123456';
+        await tick();
+        await verifyCode(code);
+      }
     } catch {
       error = 'Could not resend the code. Please try again.';
     } finally {
@@ -55,11 +66,19 @@
     goto(`/login${params.toString() ? `?${params}` : ''}`);
   }
 
-  onMount(() => {
+  onMount(async () => {
     phone = $page.url.searchParams.get('phone') ?? '';
     returnTo = $page.url.searchParams.get('returnTo') ?? '';
+    demoOtpEnabled = $page.url.searchParams.get('demo') === '1';
     // A code was already sent by the login screen right before landing here.
     startResendCooldown();
+    if (demoOtpEnabled) {
+      code = '123456';
+      // Paint the complete code without focusing an input, then continue
+      // through the exact same verification endpoint as a manually typed OTP.
+      await tick();
+      await verifyCode(code);
+    }
   });
 
   onDestroy(() => clearInterval(resendTimer));
@@ -67,7 +86,11 @@
   // No submit button — 6 digits is the whole input, so the code being
   // complete already tells us the user is done. One less tap.
   async function handleComplete(e: CustomEvent<string>) {
-    const enteredCode = e.detail;
+    await verifyCode(e.detail);
+  }
+
+  async function verifyCode(enteredCode: string) {
+    if (loading) return;
     error = '';
     const parsed = verifyOtpSchema.safeParse({ phone, code: enteredCode });
     if (!parsed.success) {
@@ -98,13 +121,15 @@
       showBanner('Login successful');
     } catch (err) {
       error = err instanceof ApiError ? 'Invalid or expired code.' : 'Network error.';
-      code = ''; // clears the boxes so the user can retype
+      // A demo deployment can immediately offer its known test code again;
+      // a real OTP is cleared so the user can safely retype it.
+      code = demoOtpEnabled ? '123456' : '';
       loading = false;
     }
   }
 </script>
 
-<div class="safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-8 p-6">
+<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-8 overflow-y-auto p-6">
   <button
     type="button"
     aria-label="Back to login"
@@ -130,6 +155,9 @@
     in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
   >
     <OtpInput bind:value={code} disabled={loading} on:complete={handleComplete} />
+    {#if demoOtpEnabled && !error}
+      <p class="text-center text-[11px] font-semibold text-primary-dark">Test code filled automatically</p>
+    {/if}
     {#if error}
       <p class="text-[13px] text-coral-start">{error}</p>
     {:else if loading}
@@ -148,3 +176,10 @@
     </button>
   </div>
 </div>
+
+<style>
+  .auth-screen:focus-within {
+    justify-content: flex-start;
+    padding-top: max(88px, calc(var(--safe-top, 0px) + 64px));
+  }
+</style>

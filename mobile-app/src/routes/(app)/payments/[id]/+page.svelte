@@ -39,10 +39,13 @@
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
-  async function checkStatus() {
+  async function checkStatus(verifyGateway = false) {
     checking = true;
     try {
-      const res = await api.get<{ payment: PaymentStatus }>(`/payments/${$page.params.id}`);
+      const path = `/payments/${$page.params.id}`;
+      const res = verifyGateway
+        ? await api.post<{ payment: PaymentStatus }>(`${path}/verify`)
+        : await api.get<{ payment: PaymentStatus }>(path);
       payment = res.payment;
       loadError = false;
       if (res.payment.status !== 'pending') stopPolling();
@@ -70,7 +73,7 @@
     timedOut = false;
     loadError = false;
     stopPolling();
-    checkStatus();
+    checkStatus(true);
     pollTimer = setInterval(checkStatus, POLL_INTERVAL_MS);
     timeoutTimer = setTimeout(() => { timedOut = true; stopPolling(); }, TIMEOUT_MS);
   }
@@ -87,10 +90,15 @@
 
   onMount(() => {
     restartPolling();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && payment?.status === 'pending') checkStatus(true);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     // Already polls on its own every 1.8s — a pull gesture here would be
     // redundant, so this page opts out rather than inheriting whatever
     // the previously-visited page left registered.
     pullRefresh.set(null);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   });
   onDestroy(stopPolling);
 </script>

@@ -5,6 +5,8 @@ import {
   listUserPayments,
   updatePaymentStatus,
 } from '../../db/queries/payments.queries.js';
+import { env } from '../../config/env.js';
+import { chapaVerify } from '../../lib/payment-gateway.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
@@ -64,4 +66,69 @@ export async function processPaymentFailure(txRef: string): Promise<void> {
   if (payment.status !== 'pending') return;
   await updatePaymentStatus(payment.id, 'failed');
   logger.info(`Payment failed: ${txRef}`);
+}
+
+function amountInCents(value: string | number): number | null {
+  const normalized = String(value).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, fraction = ''] = normalized.split('.');
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/**
+ * Re-query Chapa and reconcile only authoritative transaction data.
+ * Shared by the callback, signed webhook, and authenticated return page.
+ */
+export async function verifyAndReconcileChapaPayment(txRef: string): Promise<void> {
+  const payment = await findPaymentByTxRef(txRef);
+  if (!payment) throw new AppError(404, 'Payment not found');
+  if (payment.gateway !== 'chapa') throw new AppError(409, 'Payment gateway mismatch');
+  if (payment.status === 'completed' || payment.status === 'refunded') return;
+
+  const verification = await chapaVerify(txRef);
+  const data = verification.data;
+  if (verification.status !== 'success' || !data) {
+    throw new AppError(502, 'Unable to verify payment with Chapa');
+  }
+
+  const verifiedAmount = data.amount === undefined ? null : amountInCents(data.amount);
+  const expectedAmount = amountInCents(payment.amount);
+  const verifiedCurrency = data.currency?.toUpperCase();
+  const verifiedMode = data.mode?.toLowerCase();
+
+  if (
+    data.tx_ref !== txRef
+    || verifiedAmount === null
+    || expectedAmount === null
+    || verifiedAmount !== expectedAmount
+    || verifiedCurrency !== 'ETB'
+    || (verifiedMode && verifiedMode !== env.CHAPA_MODE)
+  ) {
+    logger.error('Chapa verification data did not match the reserved payment', {
+      txRef,
+      verifiedTxRef: data.tx_ref,
+      expectedAmount,
+      verifiedAmount,
+      verifiedCurrency,
+      verifiedMode,
+    });
+    throw new AppError(409, 'Verified payment details do not match the order');
+  }
+
+  const status = data.status?.toLowerCase();
+  if (status === 'success') {
+    await processPaymentSuccess(txRef);
+  } else if (status && ['failed', 'cancelled', 'failed/cancelled'].includes(status)) {
+    await processPaymentFailure(txRef);
+  }
+}
+
+export async function verifyPaymentForUser(id: string, userId: string) {
+  const payment = await findPaymentReceiptById(id);
+  if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
+  if (payment.status === 'pending' && payment.gateway === 'chapa' && payment.gatewayRef) {
+    await verifyAndReconcileChapaPayment(payment.gatewayRef);
+  }
+  return getPaymentStatus(id, userId);
 }

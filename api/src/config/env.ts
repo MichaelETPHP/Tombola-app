@@ -50,6 +50,7 @@ const envSchema = z.object({
   // Payment - Chapa
   CHAPA_SECRET_KEY: z.string().optional(),
   CHAPA_WEBHOOK_SECRET: z.string().optional(),
+  CHAPA_MODE: z.enum(['live', 'test']).default('live'),
 
   // Mobile app origin — Chapa redirects the user's browser here (return_url)
   // after checkout, separate from CALLBACK_URL/webhook which is server-to-server.

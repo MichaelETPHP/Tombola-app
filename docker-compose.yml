@@ -52,7 +52,9 @@ services:
       # Chapa keys once that integration is actually ready.
       CHAPA_SECRET_KEY: ${CHAPA_SECRET_KEY:-your-chapa-secret-key}
       CHAPA_WEBHOOK_SECRET: ${CHAPA_WEBHOOK_SECRET:-your-chapa-webhook-secret}
+      CHAPA_MODE: ${CHAPA_MODE:-live}
       MOCK_PAYMENTS: ${MOCK_PAYMENTS:-true}
+      MOCK_PAYMENTS_SECRET: ${MOCK_PAYMENTS_SECRET:-}
       TELEBIRR_APP_ID: ${TELEBIRR_APP_ID:-your-telebirr-app-id}
       TELEBIRR_APP_KEY: ${TELEBIRR_APP_KEY:-your-telebirr-app-key}
       MOBILE_APP_URL: ${MOBILE_APP_URL}

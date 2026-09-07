@@ -174,6 +174,16 @@
   textarea {
     -webkit-user-select: text;
     user-select: text;
+    scroll-margin-block: 88px;
+  }
+
+  /* When the on-screen keyboard owns the lower viewport, the navigation
+     bar must not compete with the focused field or chat composer. Modern
+     Android WebView and Telegram both support :has(); older engines simply
+     retain the existing layout as a safe fallback. */
+  html:has(input:focus, textarea:focus) .bottom-nav {
+    visibility: hidden;
+    pointer-events: none;
   }
 
   button,

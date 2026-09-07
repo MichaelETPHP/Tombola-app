@@ -10,7 +10,7 @@
   import { hapticLight } from '$lib/native/haptics.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
-  import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check, ExternalLink } from 'lucide-svelte';
+  import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check, ExternalLink, MessageCircle } from 'lucide-svelte';
   import type { Raffle, RoomMessage } from '$lib/schemas/index.js';
   import { playChatSound, isChatSoundMuted, setChatSoundMuted } from '$lib/native/chatSound.js';
   import { markRoomSeen } from '$lib/stores/unreadRooms.js';
@@ -60,11 +60,20 @@
   // scroller" ambiguity entirely (document.scrollingElement disagreed with
   // where the page actually visibly scrolled to in testing here) — the
   // browser resolves the right scroll container on its own either way.
-  async function scrollToBottom() {
+  async function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
     await tick();
-    bottomSentinel?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    bottomSentinel?.scrollIntoView({ behavior, block: 'end' });
     atBottom = true;
     unreadCount = 0;
+  }
+
+  function handleViewportResize() {
+    if (inputFocused) requestAnimationFrame(() => scrollToBottom('auto'));
+  }
+
+  function handleInputFocus() {
+    inputFocused = true;
+    requestAnimationFrame(() => scrollToBottom('auto'));
   }
 
   function handleScroll() {
@@ -142,6 +151,7 @@
   onMount(() => {
     soundMuted = isChatSoundMuted();
     document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.visualViewport?.addEventListener('resize', handleViewportResize, { passive: true });
     loadRoomMeta();
     loadInitial().then(() => {
       if (!cancelled) pollTimer = setInterval(pollNewMessages, POLL_INTERVAL_MS);
@@ -152,6 +162,7 @@
     cancelled = true;
     clearInterval(pollTimer);
     document.removeEventListener('scroll', handleScroll, true);
+    window.visualViewport?.removeEventListener('resize', handleViewportResize);
   });
 
   async function send() {
@@ -229,8 +240,7 @@
   }
 
   // A message made up of only emoji (and whitespace) renders large and
-  // bare, the same visual shorthand Telegram/WhatsApp use — a lone 🎉
-  // says more without a bubble crowding it.
+  // bare, matching the compact treatment used by familiar chat apps.
   const EMOJI_ONLY_RE =
     /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|‍|️|\s){1,8}$/u;
   function isEmojiOnly(content: string): boolean {
@@ -410,7 +420,9 @@
             </div>
           {:else}
             <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <span class="text-3xl">👋</span>
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-bg-start text-primary-dark">
+                <MessageCircle size={21} />
+              </span>
               <p class="text-[13px] font-medium text-muted">No messages yet — be the first to say hi</p>
             </div>
           {/each}
@@ -420,7 +432,7 @@
       {#if unreadCount > 0}
         <button
           type="button"
-          on:click={scrollToBottom}
+          on:click={() => scrollToBottom()}
           in:scale={{ duration: 180, easing: backOut, start: 0.8 }}
           class="tappable pressable sticky left-1/2 z-20 flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white shadow-nav"
           style="bottom: calc(164px + var(--safe-bottom, 0px));"
@@ -440,18 +452,22 @@
     {:else}
       <form
         on:submit|preventDefault={send}
-        class="sticky z-20 flex items-center gap-2 rounded-button bg-card p-2 shadow-card-light transition-shadow duration-200 {inputFocused ? 'ring-2 ring-primary/40' : ''}"
-        style="bottom: calc(92px + var(--safe-bottom, 0px));"
+        class="chat-composer sticky z-20 flex items-center gap-2 rounded-button bg-card p-2 shadow-card-light {inputFocused ? 'is-keyboard-active ring-2 ring-primary/40' : ''}"
       >
         <input
           bind:this={inputEl}
           type="text"
+          inputmode="text"
+          enterkeyhint="send"
+          autocomplete="off"
+          autocapitalize="sentences"
+          spellcheck="true"
           bind:value={draft}
           maxlength="500"
-          placeholder="Text or emoji only — no links"
-          on:focus={() => (inputFocused = true)}
+          placeholder="Write a message — no links"
+          on:focus={handleInputFocus}
           on:blur={() => (inputFocused = false)}
-          class="h-11 min-w-0 flex-1 rounded-button border-none bg-bg-start px-3.5 font-sans text-[14px] text-ink outline-none placeholder:text-muted"
+          class="chat-input h-11 min-w-0 flex-1 rounded-button border-none bg-bg-start px-3.5 font-sans text-base text-ink outline-none placeholder:text-muted"
         />
         <button
           type="submit"
@@ -471,6 +487,14 @@
 </div>
 
 <style>
+  .chat-composer {
+    bottom: calc(92px + var(--safe-bottom, 0px));
+  }
+
+  .chat-composer.is-keyboard-active {
+    bottom: max(8px, var(--safe-bottom, 0px));
+  }
+
   .live-dot {
     animation: live-pulse 1.8s ease-in-out infinite;
   }

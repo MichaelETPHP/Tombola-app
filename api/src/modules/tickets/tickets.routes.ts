@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { purchaseTicketsSchema } from './tickets.schema.js';
 import { purchaseTickets, getUserTickets } from './tickets.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 
 // Mounted at /raffles in index.ts — purchasing is scoped to a specific raffle.
@@ -13,7 +14,7 @@ ticketsRoutes.use('*', authMiddleware);
  * POST /raffles/:id/tickets
  * Purchase tickets for a raffle.
  */
-ticketsRoutes.post('/:id/tickets', async (c) => {
+ticketsRoutes.post('/:id/tickets', rateLimit({ max: 10, windowSeconds: 60 }), async (c) => {
   const raffleId = c.req.param('id');
   const user = c.get('user');
   const body = await c.req.json();
