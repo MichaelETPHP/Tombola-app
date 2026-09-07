@@ -9,7 +9,7 @@ import { processPrizeImage } from '../../lib/image.js';
 import { deleteUploadedImage, saveUploadedImage, uploadedImagePathFromPublicUrl } from '../../lib/uploads.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
-import { generateTriggerLink, getRaffleEngine } from '../draws/draws.service.js';
+import { generateSecureLink, sendDrawTrigger, reassignDrawTrigger, getRaffleEngine } from '../draws/draws.service.js';
 
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
@@ -63,14 +63,29 @@ adminRafflesRoutes.get('/:id/engine', async (c) => {
   return c.json({ engine: await getRaffleEngine(c.req.param('id')) });
 });
 
-// Same endpoint serves both "generate this tier's first link" and
-// "reassign this tier's link to someone else" — generateTriggerLink
-// already expires-and-replaces whatever was pending for that tier and
-// automatically avoids re-picking whoever just held it.
+// Step 1 of 2 — creates the secure link and picks who it goes to, but
+// does not send it yet. Only ever the tier immediately after the last
+// completed one (or tier 1) is allowed to generate.
 adminRafflesRoutes.post('/:id/draw-trigger', requireRole('owner'), async (c) => {
   const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
-  const trigger = await generateTriggerLink(c.req.param('id'), data.tier, c.get('admin').id, data.reason);
+  const trigger = await generateSecureLink(c.req.param('id'), data.tier, c.get('admin').id, data.reason);
   return c.json({ trigger }, 201);
+});
+
+// Step 2 of 2 — dispatches an already-generated ('ready') link over SMS
+// and starts its expiration clock.
+adminRafflesRoutes.post('/:id/draw-trigger/:triggerId/send', requireRole('owner'), async (c) => {
+  const trigger = await sendDrawTrigger(c.req.param('id'), c.req.param('triggerId'), c.get('admin').id);
+  return c.json({ trigger });
+});
+
+// Replaces whatever link a tier currently has with a fresh one for a
+// different random participant and sends it immediately — used when the
+// selected person doesn't respond in time.
+adminRafflesRoutes.post('/:id/draw-trigger/reassign', requireRole('owner'), async (c) => {
+  const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
+  const trigger = await reassignDrawTrigger(c.req.param('id'), data.tier, c.get('admin').id, data.reason);
+  return c.json({ trigger });
 });
 
 adminRafflesRoutes.post('/', async (c) => {

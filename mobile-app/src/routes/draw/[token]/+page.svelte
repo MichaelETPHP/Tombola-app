@@ -163,9 +163,9 @@
           {#if result}
             <div in:fade={{ duration: 220 }} class="flex flex-col items-center gap-2 px-4">
               <CheckCircle2 size={26} class="text-[#0c9f7d]" />
-              <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">Winner</p>
-              <p class="text-2xl font-black tracking-[-0.02em] tabular-nums text-[#142a25]">{result.winnerPhone}</p>
-              <p class="text-[11px] font-semibold text-[#60746f]">{result.winnerTicketCode}</p>
+              <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">Winning ticket</p>
+              <p class="text-2xl font-black tracking-[-0.02em] tabular-nums text-[#142a25]">{result.winnerTicketCode}</p>
+              <p class="text-[11px] font-semibold text-[#60746f]">{result.winnerPhone}</p>
             </div>
           {:else if error}
             <div in:fade={{ duration: 150 }} class="flex flex-col items-center gap-2 px-5">

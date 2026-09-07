@@ -4,7 +4,7 @@ import {
   findRafflesReadyForDraw,
   lockRaffleForScheduledDraw,
 } from '../db/queries/raffles.queries.js';
-import { generateTriggerLink, listPrizeTiers } from '../modules/draws/draws.service.js';
+import { generateSecureLink, sendDrawTrigger, listPrizeTiers } from '../modules/draws/draws.service.js';
 import { logger } from '../lib/logger.js';
 
 const CHECK_INTERVAL_MS = 60_000;
@@ -18,13 +18,14 @@ async function checkRaffles(): Promise<void> {
     }
 
     for (const raffle of await findRafflesReadyForDraw()) {
-      // One independent link per prize tier — generateTriggerLink itself
-      // reads current DB state to avoid re-picking anyone who already
-      // holds another tier's pending link for this same raffle.
-      for (const prize of await listPrizeTiers(raffle.id)) {
-        await generateTriggerLink(raffle.id, prize.tier, null, 'Scheduled draw time reached; trigger selected automatically');
-      }
-      logger.info(`Scheduled draw link(s) generated for raffle ${raffle.id}`);
+      // Prizes draw strictly in order now — only the first tier starts
+      // automatically. Every later tier waits for the admin to generate
+      // its link once the tier before it has a recorded winner.
+      const [firstTier] = await listPrizeTiers(raffle.id);
+      if (!firstTier) continue;
+      const trigger = await generateSecureLink(raffle.id, firstTier.tier, null, 'Scheduled draw time reached; trigger selected automatically');
+      await sendDrawTrigger(raffle.id, trigger.triggerId, null);
+      logger.info(`Scheduled draw link generated and sent for raffle ${raffle.id} tier ${firstTier.tier}`);
     }
 
     // Extension is always a recorded Platform Owner decision. Checkout has

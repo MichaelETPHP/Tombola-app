@@ -66,8 +66,13 @@ export async function purchaseTickets(
         callback_url: `${env.API_BASE_URL}/payments/callback/chapa`,
         return_url: returnUrl.toString(),
         customization: {
-          title: `YeneEta: ${raffle.title}`,
-          description: `${input.quantity} ticket(s) for "${raffle.title}"`,
+          // Chapa only accepts letters, numbers, hyphens, underscores,
+          // spaces, and dots here (and caps title around 16 chars) — kept
+          // short and punctuation-free at the source; chapaInitialize
+          // still sanitizes defensively since raffle.title is
+          // admin-entered free text with no charset restriction of its own.
+          title: 'YeneEta',
+          description: `${input.quantity} ticket${input.quantity === 1 ? '' : 's'} for ${raffle.title}`,
         },
         mock: {
           raffleTitle: raffle.title,

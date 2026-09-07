@@ -1,6 +1,6 @@
 import { sql } from '../client.js';
 
-export type DrawTriggerStatus = 'pending' | 'clicked' | 'expired';
+export type DrawTriggerStatus = 'ready' | 'pending' | 'clicked' | 'expired';
 
 /**
  * The "pull the lever" link sent to a randomly selected participant.

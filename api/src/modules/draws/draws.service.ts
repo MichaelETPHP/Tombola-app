@@ -4,7 +4,7 @@ import { findDrawTriggerByToken } from '../../db/queries/draws.queries.js';
 import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
-import { sendTriggerLink } from '../../lib/sms.js';
+import { sendTriggerLink as sendTriggerSms } from '../../lib/sms.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -31,6 +31,18 @@ function maskPhone(phone: string): string {
   const suffix = rest.slice(-4);
   const maskedLen = Math.max(3, rest.length - 7);
   return `${country} ${prefix}${'*'.repeat(maskedLen)}${suffix}`;
+}
+
+// 1st, 2nd, 3rd, 4th, 11th, 21st, ... — used only in error messages here.
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
 }
 
 interface PrizeTier {
@@ -82,7 +94,68 @@ export async function getDrawContext(token: string) {
   };
 }
 
-export async function generateTriggerLink(raffleId: string, tier: number, adminId: string | null, reason: string) {
+// A tier can only be generated once the tier immediately before it has
+// concluded — prizes now draw strictly in order (1st, then 2nd, then
+// 3rd), never all at once and never out of sequence.
+async function assertTierUnlocked(raffleId: string, tier: number): Promise<void> {
+  if (tier <= 1) return;
+  const [{ drawn }] = await sql<{ drawn: number }[]>`
+    SELECT COUNT(*)::int AS drawn FROM draw_results WHERE raffle_id = ${raffleId} AND tier = ${tier - 1}
+  `;
+  if (drawn === 0) {
+    throw new AppError(409, `Complete the ${ordinal(tier - 1)} prize draw before generating the ${ordinal(tier)} prize link.`);
+  }
+}
+
+/**
+ * Picks the one participant a tier's link will go to. Excludes anyone who
+ * has already won an earlier tier in this same raffle — a previous winner
+ * never gets a second shot — and optionally one more specific person (the
+ * outgoing holder, when this call is replacing their unused link). Never
+ * falls back to re-including an excluded winner just to fill the pool:
+ * an empty pool here is a real "nobody left" condition, not a hiccup to
+ * paper over.
+ */
+async function selectEligibleParticipant(raffleId: string, excludeUserId?: string): Promise<{ userId: string }> {
+  const participants = await sql<{ userId: string }[]>`
+    SELECT DISTINCT user_id FROM tickets WHERE raffle_id = ${raffleId} ORDER BY user_id
+  `;
+  if (participants.length === 0) throw new AppError(409, 'This raffle has no paid participants');
+
+  const previousWinners = await sql<{ winnerUserId: string }[]>`
+    SELECT DISTINCT winner_user_id AS "winnerUserId" FROM draw_results WHERE raffle_id = ${raffleId}
+  `;
+  const excludeSet = new Set(previousWinners.map((w) => w.winnerUserId));
+  if (excludeUserId) excludeSet.add(excludeUserId);
+
+  const eligible = participants.filter((p) => !excludeSet.has(p.userId));
+  if (eligible.length === 0) {
+    throw new AppError(
+      409,
+      previousWinners.length > 0
+        ? 'No eligible participants remain — everyone left in this raffle has already won an earlier prize.'
+        : 'This raffle has no eligible participants.'
+    );
+  }
+  return eligible[secureRandomIndex(eligible.length)];
+}
+
+/**
+ * Step 1 of 2: creates a secure, single-use link for one prize tier and
+ * randomly selects who it goes to — but does NOT send it yet. The token
+ * is stored in the clear (token_is_hashed = false) for this brief
+ * "generated, not yet sent" window only, so the admin can still copy the
+ * link in demo/dev mode; sendDrawTrigger hashes it the moment it actually
+ * goes out. Selecting the recipient here rather than at send time keeps
+ * the two steps simple: send just dispatches whoever was already picked.
+ */
+export async function generateSecureLink(
+  raffleId: string,
+  tier: number,
+  adminId: string | null,
+  reason: string,
+  opts: { excludeUserId?: string; skipActiveCheck?: boolean } = {}
+) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
   if (!['locked', 'awaiting_trigger'].includes(raffle.status)) {
@@ -90,40 +163,22 @@ export async function generateTriggerLink(raffleId: string, tier: number, adminI
   }
   const prize = (await listPrizeTiers(raffleId)).find((p) => p.tier === tier);
   if (!prize) throw new AppError(404, `This raffle has no tier ${tier} prize configured`);
+  await assertTierUnlocked(raffleId, tier);
 
-  const participants = await sql<{ userId: string }[]>`
-    SELECT DISTINCT user_id FROM tickets WHERE raffle_id = ${raffleId} ORDER BY user_id
-  `;
-  if (participants.length === 0) throw new AppError(409, 'This raffle has no paid participants');
+  if (!opts.skipActiveCheck) {
+    const [existingActive] = await sql<{ id: string }[]>`
+      SELECT id FROM draw_triggers WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status IN ('ready', 'pending') LIMIT 1
+    `;
+    if (existingActive) throw new AppError(409, 'This tier already has an active link — send it, or reassign to replace it.');
+  }
 
-  // Reassigning (or auto-replacing an expired link) biases away from
-  // whoever just held this exact tier's link — otherwise "pick someone
-  // else" could randomly re-pick the same unresponsive person.
-  const [previousHolder] = await sql<{ selectedUserId: string }[]>`
-    SELECT selected_user_id AS "selectedUserId" FROM draw_triggers
-    WHERE raffle_id = ${raffleId} AND tier = ${tier} ORDER BY attempt_number DESC LIMIT 1
-  `;
-  const isReassignment = Boolean(previousHolder);
-  // Every OTHER tier's currently pending recipient is excluded too — read
-  // fresh from the DB on every call (rather than passed in by the caller)
-  // so this is correct no matter how "generate all tiers" orchestrates its
-  // per-tier calls: each new tier link automatically avoids anyone who
-  // already has a still-pending link for a different prize in this raffle.
-  const otherPendingHolders = await sql<{ selectedUserId: string }[]>`
-    SELECT DISTINCT selected_user_id AS "selectedUserId" FROM draw_triggers
-    WHERE raffle_id = ${raffleId} AND tier != ${tier} AND status = 'pending'
-  `;
-  const excludeSet = new Set(otherPendingHolders.map((h) => h.selectedUserId));
-  if (previousHolder) excludeSet.add(previousHolder.selectedUserId);
-  // Falls back to the full pool only when there are genuinely fewer
-  // participants than needed for full distinctness (e.g. 2 people, 3
-  // prizes) — a raffle that small still needs its draw to proceed.
-  const eligible = participants.filter((p) => !excludeSet.has(p.userId));
-  const pool = eligible.length > 0 ? eligible : participants;
-  const selected = pool[secureRandomIndex(pool.length)];
+  const selected = await selectEligibleParticipant(raffleId, opts.excludeUserId);
   const rawToken = nanoid(48);
-  const tokenHash = await sha256(rawToken);
-  const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
+  // Placeholder only — sendDrawTrigger overwrites this with a real TTL
+  // the moment the link actually goes out. A trigger sitting unsent
+  // can't be spun anyway (status isn't 'pending'), so this value is never
+  // load-bearing on its own.
+  const provisionalExpiry = new Date(Date.now() + TRIGGER_TTL_MS);
 
   const trigger = await sql.begin(async (tx) => {
     const [current] = await tx<{ drawServerSeedHash: string | null }[]>`
@@ -142,7 +197,6 @@ export async function generateTriggerLink(raffleId: string, tier: number, adminI
       const serverSeedHash = await commitServerSeed(serverSeed);
       await tx`UPDATE raffles SET draw_server_seed = ${serverSeed}, draw_server_seed_hash = ${serverSeedHash} WHERE id = ${raffleId}`;
     }
-    await tx`UPDATE draw_triggers SET status = 'expired' WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status = 'pending'`;
     const [attempt] = await tx<{ next: number }[]>`
       SELECT COALESCE(MAX(attempt_number), 0)::int + 1 AS next FROM draw_triggers WHERE raffle_id = ${raffleId} AND tier = ${tier}
     `;
@@ -151,45 +205,120 @@ export async function generateTriggerLink(raffleId: string, tier: number, adminI
         raffle_id, tier, prize_id, selected_user_id, attempt_number, link_token, token_is_hashed,
         status, expires_at, generated_by, generation_reason
       ) VALUES (
-        ${raffleId}, ${tier}, ${prize.id}, ${selected.userId}, ${attempt.next}, ${tokenHash}, true,
-        'pending', ${expiresAt}, ${adminId}, ${reason}
+        ${raffleId}, ${tier}, ${prize.id}, ${selected.userId}, ${attempt.next}, ${rawToken}, false,
+        'ready', ${provisionalExpiry}, ${adminId}, ${reason}
       ) RETURNING id
     `;
-    // Only flip a still-locked raffle — this runs once per tier, so it
-    // must be a no-op once another tier's call has already advanced it.
-    await tx`UPDATE raffles SET status = 'awaiting_trigger', updated_at = NOW() WHERE id = ${raffleId} AND status = 'locked'`;
     await tx`
       INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
       VALUES (
-        ${adminId ? 'admin' : 'system'}, ${adminId},
-        ${isReassignment ? 'draw.trigger_reassigned' : 'draw.trigger_generated'}, 'raffle', ${raffleId},
-        ${tx.json({ triggerId: created.id, tier, attempt: attempt.next, expiresAt: expiresAt.toISOString(), reason })}
+        ${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_generated', 'raffle', ${raffleId},
+        ${tx.json({ triggerId: created.id, tier, attempt: attempt.next, reason })}
       )
     `;
     return { id: created.id, attemptNumber: attempt.next };
   });
 
   const user = await findUserById(selected.userId);
-  const link = `${env.MOBILE_APP_URL}/draw/${rawToken}`;
+  return {
+    triggerId: trigger.id,
+    tier,
+    prizeName: prize.name,
+    attemptNumber: trigger.attemptNumber,
+    status: 'ready' as const,
+    selectedParticipant: user ? { id: user.id, phone: maskPhone(user.phoneNumber) } : null,
+  };
+}
+
+/**
+ * Step 2 of 2: dispatches a 'ready' trigger's link over SMS (real phone
+ * number — Telegram-linked or not, everyone here already has a verified
+ * Ethiopian phone number, so there's no separate delivery channel to
+ * branch on) and starts its expiration clock. This is also the only
+ * moment the token is ever exposed outside the DB, so it's hashed
+ * immediately after being read.
+ */
+export async function sendDrawTrigger(raffleId: string, triggerId: string, adminId: string | null) {
+  const raffle = await findRaffleById(raffleId);
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+
+  const dispatch = await sql.begin(async (tx) => {
+    const [trigger] = await tx<{ id: string; tier: number; status: string; linkToken: string; selectedUserId: string }[]>`
+      SELECT id, tier, status, link_token AS "linkToken", selected_user_id AS "selectedUserId"
+      FROM draw_triggers WHERE id = ${triggerId} AND raffle_id = ${raffleId} FOR UPDATE
+    `;
+    if (!trigger) throw new AppError(404, 'Draw link not found');
+    if (trigger.status !== 'ready') throw new AppError(409, 'This link has already been sent, used, or replaced');
+
+    const rawToken = trigger.linkToken;
+    const tokenHash = await sha256(rawToken);
+    const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
+    await tx`
+      UPDATE draw_triggers
+      SET link_token = ${tokenHash}, token_is_hashed = true, status = 'pending', sent_at = NOW(), expires_at = ${expiresAt}
+      WHERE id = ${triggerId}
+    `;
+    // Only flip a still-locked raffle — a no-op once an earlier tier's
+    // send already advanced it.
+    await tx`UPDATE raffles SET status = 'awaiting_trigger', updated_at = NOW() WHERE id = ${raffleId} AND status = 'locked'`;
+    await tx`
+      INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_sent', 'raffle', ${raffleId},
+        ${tx.json({ triggerId, tier: trigger.tier, expiresAt: expiresAt.toISOString() })})
+    `;
+    return { rawToken, tier: trigger.tier, selectedUserId: trigger.selectedUserId, expiresAt };
+  });
+
+  const user = await findUserById(dispatch.selectedUserId);
+  const link = `${env.MOBILE_APP_URL}/draw/${dispatch.rawToken}`;
   let delivery: 'sent' | 'demo' | 'failed' = env.DEMO_OTP_ENABLED ? 'demo' : 'failed';
   if (user && !env.DEMO_OTP_ENABLED) {
     try {
-      const result = await sendTriggerLink(user.phoneNumber, link);
+      const result = await sendTriggerSms(user.phoneNumber, link);
       delivery = result.success ? 'sent' : 'failed';
     } catch (error) {
       logger.error('Could not deliver draw trigger SMS', error);
     }
   }
   return {
-    triggerId: trigger.id,
-    tier,
-    prizeName: prize.name,
-    attemptNumber: trigger.attemptNumber,
-    expiresAt,
+    triggerId,
+    tier: dispatch.tier,
+    expiresAt: dispatch.expiresAt,
     selectedParticipant: user ? { id: user.id, phone: maskPhone(user.phoneNumber) } : null,
+    status: 'pending' as const,
     delivery,
     link,
   };
+}
+
+/**
+ * Replaces whatever link a tier currently has (unsent, sent-but-unclicked,
+ * or expired) with a fresh one for a different random participant, and
+ * sends it immediately — this is the one action that still does
+ * generate-and-send in a single step, since an admin reassigning an
+ * unresponsive link is explicitly asking the system to act now, not to
+ * pause for a second confirmation click.
+ */
+export async function reassignDrawTrigger(raffleId: string, tier: number, adminId: string | null, reason: string) {
+  const [previousHolder] = await sql<{ selectedUserId: string }[]>`
+    SELECT selected_user_id AS "selectedUserId" FROM draw_triggers
+    WHERE raffle_id = ${raffleId} AND tier = ${tier} ORDER BY attempt_number DESC LIMIT 1
+  `;
+  await sql`
+    UPDATE draw_triggers SET status = 'expired'
+    WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status IN ('ready', 'pending')
+  `;
+  const generated = await generateSecureLink(raffleId, tier, adminId, reason, {
+    excludeUserId: previousHolder?.selectedUserId,
+    skipActiveCheck: true,
+  });
+  const sent = await sendDrawTrigger(raffleId, generated.triggerId, adminId);
+  await sql`
+    INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_reassigned', 'raffle', ${raffleId},
+      ${sql.json({ triggerId: generated.triggerId, tier, reason })})
+  `;
+  return { ...sent, prizeName: generated.prizeName, attemptNumber: generated.attemptNumber };
 }
 
 export async function executeDraw(token: string, clickedIp: string | null = null) {

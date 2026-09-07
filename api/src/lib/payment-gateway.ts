@@ -47,6 +47,17 @@ export interface ChapaVerifyResponse {
   };
 }
 
+// Chapa rejects customization.title/description containing anything
+// outside letters, numbers, hyphens, underscores, spaces, and dots (an
+// admin-entered raffle title can contain anything — quotes, colons,
+// emoji, parentheses — so this is a hard backstop regardless of what the
+// caller already tried to keep clean). Title is also capped well under
+// Chapa's ~16-character limit.
+function sanitizeChapaText(text: string, maxLength: number): string {
+  const cleaned = text.replace(/[^A-Za-z0-9\-_. ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (cleaned || 'YeneEta').slice(0, maxLength);
+}
+
 /**
  * Initialize a Chapa payment transaction.
  *
@@ -86,6 +97,13 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
   }
 
   const { mock: _mock, ...gatewayPayload } = payload;
+  if (gatewayPayload.customization) {
+    const { title, description } = gatewayPayload.customization;
+    gatewayPayload.customization = {
+      ...(title ? { title: sanitizeChapaText(title, 16) } : {}),
+      ...(description ? { description: sanitizeChapaText(description, 100) } : {}),
+    };
+  }
   const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
     method: 'POST',
     signal: AbortSignal.timeout(15_000),
