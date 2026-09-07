@@ -2,18 +2,16 @@ import { Browser } from '@capacitor/browser';
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
-import { getTelegramMiniApp } from '$lib/telegram.js';
 import { api } from '$lib/api/client.js';
 import { showBanner } from '$lib/stores/banner.store.js';
 
 /**
- * Shared "user backed out of checkout" handler for every surface (native
- * close button, the Telegram in-app checkout page's back button). Cancels
- * the payment server-side — atomically conditioned on it still being
- * 'pending', so this can never race a webhook/verify call that completed
- * it in the same instant — then routes accordingly: to the real receipt
- * if it turns out the payment had already gone through, otherwise Home
- * with a toast confirming nothing was charged.
+ * "User backed out of checkout" handler for the native close button.
+ * Cancels the payment server-side — atomically conditioned on it still
+ * being 'pending', so this can never race a webhook/verify call that
+ * completed it in the same instant — then routes accordingly: to the real
+ * receipt if it turns out the payment had already gone through, otherwise
+ * Home with a toast confirming nothing was charged.
  */
 export async function cancelPaymentAndReturnHome(paymentId: string): Promise<void> {
   let completed = false;
@@ -99,14 +97,14 @@ function bottomNavFootprintPx(): number {
  * page, both keep working unchanged — the plugin forwards that custom
  * scheme to the OS exactly like a normal browser would.
  *
- * Inside the Telegram Mini App there is no Capacitor host and no native
- * plugin to size — Telegram's own external-link handling is entirely
- * outside this app's control, so a raw redirect there would blank out the
- * whole app (bottom nav included). Checkout instead opens on an in-app
- * route that iframes it alongside the normal (app) shell — see
- * routes/(app)/checkout/+page.svelte for why that page polls for
- * completion itself rather than trusting Chapa's return_url, which lands
- * *inside* the iframe, not on this outer page.
+ * Deliberately NOT iframed anywhere (Telegram Mini App included, even
+ * though it has no native host to size a WebView in): a payment gateway's
+ * CSRF protection depends on its own session cookie, and third-party
+ * cookies inside a cross-origin iframe are exactly what browsers/WebViews
+ * restrict by default — Chapa's checkout reliably fails with a CSRF error
+ * when framed this way. It needs its own real top-level browsing context,
+ * so the Telegram case falls through to the same full-page redirect as
+ * plain web below, same as it always did.
  */
 export async function openCheckout(url: string, paymentId: string): Promise<{ opensSeparately: boolean }> {
   // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
@@ -115,11 +113,6 @@ export async function openCheckout(url: string, paymentId: string): Promise<{ op
   if (new URL(url, window.location.origin).origin === window.location.origin) {
     const path = url.replace(window.location.origin, '');
     await goto(path);
-    return { opensSeparately: false };
-  }
-
-  if (getTelegramMiniApp()) {
-    await goto(`/checkout?paymentId=${encodeURIComponent(paymentId)}&url=${encodeURIComponent(url)}`);
     return { opensSeparately: false };
   }
 
