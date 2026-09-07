@@ -18,6 +18,13 @@
 
   const CHAPA_SCRIPT_SRC = 'https://js.chapa.co/v1/inline.js';
   const CONTAINER_ID = 'chapa-inline-form';
+  // How long to wait for the widget to actually paint its form before
+  // treating it as failed. A script-tag load failure is easy to detect;
+  // the widget silently not rendering anything into the container (no
+  // error thrown, just nothing) is a different failure mode that needs
+  // its own check — otherwise the page is left on a spinner forever with
+  // no way out, which reads exactly like "won't load."
+  const RENDER_TIMEOUT_MS = 6000;
   // Mobile-money methods only. Chapa's generic 'chapa' (card) option falls
   // back to a hidden-form POST that navigates the whole page to
   // api.chapa.co — exactly the "opens in a browser" experience this page
@@ -33,6 +40,8 @@
   let ready = false;
   let resolved = false;
   let cancelling = false;
+  let renderObserver: MutationObserver | undefined;
+  let renderTimeout: ReturnType<typeof setTimeout> | undefined;
 
   function loadChapaScript(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -100,7 +109,6 @@
       return;
     }
 
-    ready = true;
     const chapa = new window.ChapaCheckout({
       publicKey,
       amount: String(amount),
@@ -132,9 +140,33 @@
       },
     });
     chapa.initialize(CONTAINER_ID);
+
+    // Confirm the widget actually painted something — a script that loads
+    // fine but fails silently inside (bad public key, Chapa API outage,
+    // an unsupported browser feature) looks identical to "still loading"
+    // otherwise, forever.
+    const container = document.getElementById(CONTAINER_ID);
+    if (container) {
+      renderObserver = new MutationObserver(() => {
+        if (container.childElementCount > 0) {
+          ready = true;
+          renderObserver?.disconnect();
+          clearTimeout(renderTimeout);
+        }
+      });
+      renderObserver.observe(container, { childList: true });
+    }
+    renderTimeout = setTimeout(() => {
+      if (!ready) {
+        scriptError = true;
+        renderObserver?.disconnect();
+      }
+    }, RENDER_TIMEOUT_MS);
   });
 
   onDestroy(() => {
+    renderObserver?.disconnect();
+    clearTimeout(renderTimeout);
     // Covers leaving any other way (hardware/gesture back) — fire-and-
     // forget, no redirect here since some other navigation is already in
     // flight; this only makes sure the payment doesn't linger as
