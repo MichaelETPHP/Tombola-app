@@ -2,5 +2,5 @@
   import SplashScreen from '$lib/components/SplashScreen.svelte';
 </script>
 
-<SplashScreen autoRedirect={false} />
+<SplashScreen />
 

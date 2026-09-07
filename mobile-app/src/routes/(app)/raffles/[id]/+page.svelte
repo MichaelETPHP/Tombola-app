@@ -31,6 +31,7 @@
   let loading = !raffle;
   let quantity = 1;
   let purchasing = false;
+  let purchaseStage: 'reserving' | 'opening' = 'reserving';
   let error = '';
   let resumedFromAuth = false;
   let agreedToTerms = false;
@@ -204,6 +205,7 @@
     }
     error = '';
     purchasing = true;
+    purchaseStage = 'reserving';
     try {
       const result = await api.post<{ paymentId: string; checkoutUrl?: string }>(
         `/raffles/${raffle.id}/tickets`,
@@ -211,6 +213,7 @@
       );
       if (!result.checkoutUrl) throw new Error('No checkout URL returned');
       clearPendingPurchase();
+      purchaseStage = 'opening';
       const { opensSeparately } = await openCheckout(result.checkoutUrl);
       if (opensSeparately) goto(`/payments/${result.paymentId}`);
     } catch (cause) {
@@ -316,7 +319,15 @@
           </div>
 
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
-          <div class="mt-3"><Button variant="glass" shine loading={purchasing} on:click={handleBuyClick}><Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB</Button></div>
+          <div class="mt-3">
+            <Button variant="glass" shine loading={purchasing} on:click={handleBuyClick}>
+              {#if purchasing}
+                <span>{purchaseStage === 'opening' ? 'Opening secure checkout…' : 'Reserving your tickets…'}</span>
+              {:else}
+                <Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB
+              {/if}
+            </Button>
+          </div>
 
           <div class="terms-consent mt-2.5 flex min-h-11 items-stretch overflow-hidden rounded-[14px] bg-bg-start/65">
             <button type="button" role="checkbox" aria-checked={agreedToTerms} on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable flex min-h-11 min-w-0 flex-1 items-center gap-2.5 px-3 text-left">

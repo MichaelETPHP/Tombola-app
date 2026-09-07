@@ -73,6 +73,13 @@ export async function openCheckout(url: string): Promise<{ opensSeparately: bool
       toolbarType: ToolBarType.COMPACT,
       toolbarColor: '#00D3A0',
       toolbarTextColor: '#ffffff',
+      // The toolbar (and its close button) must never sit under the
+      // system status bar — without both of these, some Android versions
+      // render the toolbar flush with the top edge before the safe-area
+      // inset is applied, leaving the close button hidden behind the
+      // status bar's own icons/clock.
+      enabledSafeTopMargin: true,
+      useTopInset: true,
     });
     return { opensSeparately: true };
   }
