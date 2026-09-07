@@ -25,6 +25,7 @@
         "@capacitor/splash-screen": "^8.0.2",
         "@capacitor/status-bar": "^8.0.3",
         "@capacitor/toast": "^8",
+        "@capgo/capacitor-inappbrowser": "^8.16.5",
         "@dicebear/avataaars": "^9.4.2",
         "@dicebear/core": "^9.0.0",
         "lucide-svelte": "^1.0.1",
@@ -271,6 +272,8 @@
     "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "", {}, "sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw=="],
 
     "@capacitor/toast": ["@capacitor/toast@8.0.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-0uoyftoAeFjtOMiozBo7YXEo+zcpQCAxtBONSvrljJ05SKdlb1A8OFHaV/DZfIpGt+19kzUGaEaUemLdll4wUw=="],
+
+    "@capgo/capacitor-inappbrowser": ["@capgo/capacitor-inappbrowser@8.16.5", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-5xYqf9VxIGdBCrEr6g6itr6shvES1ufoAecN1cS1mjloOV9D/KpqbKc70aGU3nBtlPR9BFfIig1WnadipAP8wQ=="],
 
     "@dicebear/avataaars": ["@dicebear/avataaars@9.4.2", "", { "peerDependencies": { "@dicebear/core": "^9.0.0" } }, "sha512-3x9jKFkOkFSPmpTbt9xvhiU2E1GX7beCSsX0tXRUShj8x6+5Ks9yBRT1VlkySbnXrZ/GglADGg7vJ/D2uIx1Yw=="],
 

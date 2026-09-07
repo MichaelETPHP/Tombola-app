@@ -14,7 +14,7 @@
   import RaffleDetailSkeleton from '$lib/components/RaffleDetailSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
-  import { openExternal, paymentReturnTarget } from '$lib/native/browser.js';
+  import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { CalendarClock, Check, ChevronLeft, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
@@ -211,7 +211,7 @@
       );
       if (!result.checkoutUrl) throw new Error('No checkout URL returned');
       clearPendingPurchase();
-      const { opensSeparately } = await openExternal(result.checkoutUrl);
+      const { opensSeparately } = await openCheckout(result.checkoutUrl);
       if (opensSeparately) goto(`/payments/${result.paymentId}`);
     } catch (cause) {
       error = cause instanceof ApiError ? apiMessage(cause) : 'Network error. Check your connection and try again.';

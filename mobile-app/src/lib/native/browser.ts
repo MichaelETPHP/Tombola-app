@@ -1,4 +1,5 @@
 import { Browser } from '@capacitor/browser';
+import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
 
@@ -43,4 +44,39 @@ export async function openExternal(url: string): Promise<{ opensSeparately: bool
 
 export function paymentReturnTarget(): 'native' | 'web' {
   return Capacitor.isNativePlatform() ? 'native' : 'web';
+}
+
+/**
+ * Opens the Chapa checkout URL for the payment flow specifically — unlike
+ * openExternal's Custom Tab (which still shows Chrome's own toolbar/URL
+ * bar and reads as "leaving the app"), this renders the checkout page in
+ * a managed native WebView presented as part of the app itself, with just
+ * a plain close button and no address bar. Chapa's own return_url
+ * redirect, and this app's existing yeneeta:// hand-off from that return
+ * page, both keep working unchanged — the plugin forwards that custom
+ * scheme to the OS exactly like a normal browser would.
+ */
+export async function openCheckout(url: string): Promise<{ opensSeparately: boolean }> {
+  // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
+  // same-origin handling as openExternal, so local testing isn't forced
+  // through a native webview it doesn't need.
+  if (new URL(url, window.location.origin).origin === window.location.origin) {
+    const path = url.replace(window.location.origin, '');
+    await goto(path);
+    return { opensSeparately: false };
+  }
+
+  if (Capacitor.isNativePlatform()) {
+    await InAppBrowser.openWebView({
+      url,
+      title: 'Secure checkout',
+      toolbarType: ToolBarType.COMPACT,
+      toolbarColor: '#00D3A0',
+      toolbarTextColor: '#ffffff',
+    });
+    return { opensSeparately: true };
+  }
+
+  window.location.href = url;
+  return { opensSeparately: false };
 }

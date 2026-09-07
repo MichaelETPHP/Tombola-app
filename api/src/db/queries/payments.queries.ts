@@ -158,6 +158,19 @@ export async function findPaymentByTxRef(gatewayRef: string): Promise<DbPayment 
 }
 
 /**
+ * Pending Chapa payments old enough that Chapa's webhook/callback has had
+ * a fair chance to arrive on its own — candidates for the background
+ * reconciliation sweep, not something a normal user-facing query needs.
+ */
+export async function findStalePendingChapaPayments(olderThanMs: number): Promise<DbPayment[]> {
+  return sql<DbPayment[]>`
+    SELECT * FROM payments
+    WHERE status = 'pending' AND gateway = 'chapa' AND gateway_ref IS NOT NULL
+      AND created_at < NOW() - (${olderThanMs} || ' milliseconds')::interval
+  `;
+}
+
+/**
  * Find a payment by ID.
  */
 export async function findPaymentById(id: string): Promise<DbPayment | null> {

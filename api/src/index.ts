@@ -15,6 +15,7 @@ import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/ro
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
+import { startStalePaymentCheck } from './jobs/stale-payment-check.job.js';
 import { closeDb } from './db/client.js';
 import { logger } from './lib/logger.js';
 import { languageMiddleware } from './lib/i18n.js';
@@ -169,6 +170,7 @@ app.notFound((c) => c.json({
 if (env.NODE_ENV !== 'test') {
   startRaffleDeadlineCheck();
   startTriggerExpiryCheck();
+  startStalePaymentCheck();
 }
 
 // ─── Graceful Shutdown ────────────────────────────────────────────

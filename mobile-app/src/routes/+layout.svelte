@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { App } from '@capacitor/app';
   import { Browser } from '@capacitor/browser';
+  import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
   import { Capacitor } from '@capacitor/core';
   import { useRegisterSW } from 'virtual:pwa-register/svelte';
   import { api, ApiError } from '$lib/api/client.js';
@@ -32,6 +33,10 @@
       if (url.protocol !== 'yeneeta:' || url.hostname !== 'payment-return') return;
       const paymentId = url.searchParams.get('payment_id') ?? '';
       if (!/^[0-9a-f-]{36}$/i.test(paymentId)) return;
+      // Checkout runs in the in-app WebView (InAppBrowser); Browser.close()
+      // is kept alongside it as a harmless no-op for any older/other flow
+      // that still used a Custom Tab.
+      await InAppBrowser.close().catch(() => undefined);
       await Browser.close().catch(() => undefined);
       await goto(`/payments/${paymentId}`, { replaceState: true });
     } catch {
