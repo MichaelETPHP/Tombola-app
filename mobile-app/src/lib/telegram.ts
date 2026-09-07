@@ -25,6 +25,13 @@ interface TelegramWebApp {
   // actual number is never exposed here, it goes to the bot's backend
   // instead (see api/src/lib/telegram.ts's extractSharedContact).
   requestContact?(callback?: (shared: boolean) => void): void;
+  // Opens a link in Telegram's own external browser WITHOUT closing this
+  // Mini App — it keeps running in the background exactly as it was, so
+  // returning to it (rather than following whatever return_url that
+  // external browser eventually lands on) is instant, not a fresh reload.
+  // try_instant_view must stay off: that mode is for read-only articles
+  // and would break an interactive payment form.
+  openLink?(url: string, options?: { try_instant_view?: boolean }): void;
 }
 
 function syncTelegramContentSafeArea(webApp: TelegramWebApp): void {

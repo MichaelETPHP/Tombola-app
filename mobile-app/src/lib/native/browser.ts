@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
 import { api } from '$lib/api/client.js';
 import { showBanner } from '$lib/stores/banner.store.js';
+import { getTelegramMiniApp } from '$lib/telegram.js';
 
 /**
  * "User backed out of checkout" handler for the native close button.
@@ -97,14 +98,19 @@ function bottomNavFootprintPx(): number {
  * page, both keep working unchanged — the plugin forwards that custom
  * scheme to the OS exactly like a normal browser would.
  *
- * Deliberately NOT iframed anywhere (Telegram Mini App included, even
- * though it has no native host to size a WebView in): a payment gateway's
- * CSRF protection depends on its own session cookie, and third-party
- * cookies inside a cross-origin iframe are exactly what browsers/WebViews
- * restrict by default — Chapa's checkout reliably fails with a CSRF error
- * when framed this way. It needs its own real top-level browsing context,
- * so the Telegram case falls through to the same full-page redirect as
- * plain web below, same as it always did.
+ * Deliberately NOT iframed anywhere: a payment gateway's CSRF protection
+ * depends on its own session cookie, and third-party cookies inside a
+ * cross-origin iframe are exactly what browsers/WebViews restrict by
+ * default — Chapa's checkout reliably fails with a CSRF error when framed
+ * this way. It needs its own real top-level browsing context.
+ *
+ * Inside the Telegram Mini App, that context is Telegram's own external
+ * browser via WebApp.openLink() — which, per Telegram's own guarantee,
+ * does NOT close this Mini App. It keeps running in the background exactly
+ * as it was, so /payments/:id's own polling (started below, same as the
+ * native path) can pick up the result and land on the receipt the instant
+ * the user switches back — sometimes before they even do, since the app
+ * never actually stopped running to poll from.
  */
 export async function openCheckout(url: string, paymentId: string): Promise<{ opensSeparately: boolean }> {
   // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
@@ -114,6 +120,12 @@ export async function openCheckout(url: string, paymentId: string): Promise<{ op
     const path = url.replace(window.location.origin, '');
     await goto(path);
     return { opensSeparately: false };
+  }
+
+  const telegram = getTelegramMiniApp();
+  if (telegram?.openLink) {
+    telegram.openLink(url);
+    return { opensSeparately: true };
   }
 
   if (Capacitor.isNativePlatform()) {
