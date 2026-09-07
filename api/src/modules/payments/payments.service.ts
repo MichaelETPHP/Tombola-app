@@ -1,4 +1,5 @@
 import {
+  cancelPendingPayment,
   completePaymentAndIssueTickets,
   findPaymentByTxRef,
   findPaymentReceiptById,
@@ -39,6 +40,23 @@ export async function getPaymentStatus(id: string, userId: string) {
     status: payment.status,
     createdAt: payment.createdAt,
   };
+}
+
+/**
+ * User backed out of checkout (tapped back/close before finishing). Only
+ * ever touches a still-'pending' row — if it already resolved (a webhook
+ * or verify call beat this request), that outcome stands untouched and no
+ * ticket this raced against is ever clawed back. Callers should check the
+ * returned status: a payment that turns out 'completed' here means the
+ * user should land on their receipt instead of a "cancelled" message.
+ */
+export async function cancelPaymentForUser(id: string, userId: string) {
+  const payment = await findPaymentReceiptById(id);
+  if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
+  if (payment.status === 'pending') {
+    await cancelPendingPayment(id);
+  }
+  return getPaymentStatus(id, userId);
 }
 
 export async function getMyPayments(userId: string, limit = 50, offset = 0) {

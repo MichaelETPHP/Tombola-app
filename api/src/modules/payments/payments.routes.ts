@@ -7,6 +7,7 @@ import {
   getMyPayments,
   verifyAndReconcileChapaPayment,
   verifyPaymentForUser,
+  cancelPaymentForUser,
 } from './payments.service.js';
 import { verifyChapaWebhookSignature, verifyMockPaymentSecret } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
@@ -41,6 +42,13 @@ paymentsRoutes.get('/callback/chapa', async (c) => {
 paymentsRoutes.post('/:id/verify', authMiddleware, rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const user = c.get('user');
   const payment = await verifyPaymentForUser(c.req.param('id'), user.id);
+  return c.json({ payment });
+});
+
+/** User backed out of checkout (back/close) before finishing payment. */
+paymentsRoutes.post('/:id/cancel', authMiddleware, rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
+  const user = c.get('user');
+  const payment = await cancelPaymentForUser(c.req.param('id'), user.id);
   return c.json({ payment });
 });
 

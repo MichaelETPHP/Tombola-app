@@ -17,6 +17,13 @@
     invalid = !/^[0-9a-f-]{36}$/i.test(paymentId);
     if (invalid) return;
 
+    // Chapa's return_url lands inside the checkout iframe when this page
+    // was opened via routes/(app)/checkout (Telegram Mini App flow) — a
+    // goto() here would render a full nested copy of this app inside the
+    // iframe. That outer page is already polling for completion on its
+    // own, so this instance just sits idle and lets it take over instead.
+    if (window.self !== window.top) return;
+
     if (target === 'native') {
       // Android hands this URL back to the installed app. If the app cannot
       // be opened, the HTTPS receipt remains as a usable fallback.

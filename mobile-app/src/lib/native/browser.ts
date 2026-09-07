@@ -3,6 +3,35 @@ import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
 import { getTelegramMiniApp } from '$lib/telegram.js';
+import { api } from '$lib/api/client.js';
+import { showBanner } from '$lib/stores/banner.store.js';
+
+/**
+ * Shared "user backed out of checkout" handler for every surface (native
+ * close button, the Telegram in-app checkout page's back button). Cancels
+ * the payment server-side — atomically conditioned on it still being
+ * 'pending', so this can never race a webhook/verify call that completed
+ * it in the same instant — then routes accordingly: to the real receipt
+ * if it turns out the payment had already gone through, otherwise Home
+ * with a toast confirming nothing was charged.
+ */
+export async function cancelPaymentAndReturnHome(paymentId: string): Promise<void> {
+  let completed = false;
+  try {
+    const { payment } = await api.post<{ payment: { status: string } }>(`/payments/${paymentId}/cancel`);
+    completed = payment.status === 'completed';
+  } catch {
+    // Best-effort — even if this specific request fails, the background
+    // stale-payment sweep (api/src/jobs/stale-payment-check.job.ts) still
+    // guarantees the payment never lingers as 'pending' forever.
+  }
+  if (completed) {
+    await goto(`/payments/${paymentId}`, { replaceState: true });
+    return;
+  }
+  await goto('/home', { replaceState: true });
+  showBanner('Payment was cancelled');
+}
 
 /**
  * Open an external URL (Chapa checkout) for the payment flow. Native apps
@@ -101,7 +130,7 @@ export async function openCheckout(url: string, paymentId: string): Promise<{ op
     // Taps in that now-exposed strip pass through to the host app; taps
     // on the checkout itself still go to Chapa's page as normal.
     const height = Math.max(320, window.innerHeight - bottomNavFootprintPx());
-    await InAppBrowser.openWebView({
+    const { id } = await InAppBrowser.openWebView({
       url,
       title: 'Secure checkout',
       toolbarType: ToolBarType.COMPACT,
@@ -115,6 +144,15 @@ export async function openCheckout(url: string, paymentId: string): Promise<{ op
       enabledSafeTopMargin: true,
       useTopInset: true,
       height,
+    });
+    // closeEvent fires specifically for the toolbar close-button tap — not
+    // for the programmatic InAppBrowser.close() the successful-payment
+    // deep-link handler (routes/+layout.svelte) calls once Chapa confirms
+    // payment, so this only ever fires on a genuine user cancel.
+    const handle = await InAppBrowser.addListener('closeEvent', async (event) => {
+      if (event.id && event.id !== id) return;
+      await handle.remove();
+      await cancelPaymentAndReturnHome(paymentId);
     });
     return { opensSeparately: true };
   }

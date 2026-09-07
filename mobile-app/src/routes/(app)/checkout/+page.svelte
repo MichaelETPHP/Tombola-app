@@ -6,6 +6,7 @@
   import { cubicOut } from 'svelte/easing';
   import { api } from '$lib/api/client.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
+  import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
   import { ArrowLeft, ShieldCheck, AlertCircle, ExternalLink } from 'lucide-svelte';
 
   const pullRefresh = getPullRefreshContext();
@@ -23,6 +24,8 @@
   let paymentId = '';
   let checkoutUrl = '';
   let invalid = false;
+  let resolved = false;
+  let cancelling = false;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -36,6 +39,7 @@
     try {
       const res = await api.get<{ payment: { status: string } }>(`/payments/${paymentId}`);
       if (res.payment.status !== 'pending') {
+        resolved = true;
         stopPolling();
         await goto(`/payments/${paymentId}`, { replaceState: true });
       }
@@ -53,9 +57,19 @@
     window.location.href = checkoutUrl;
   }
 
-  function cancel() {
-    if (paymentId) goto(`/payments/${paymentId}`, { replaceState: true });
-    else goto('/raffles');
+  async function cancel() {
+    if (cancelling) return;
+    if (!paymentId) {
+      await goto('/raffles');
+      return;
+    }
+    cancelling = true;
+    resolved = true;
+    stopPolling();
+    // Handles the race itself — lands on the real receipt instead of a
+    // "cancelled" toast if the payment actually went through right as the
+    // user tapped back.
+    await cancelPaymentAndReturnHome(paymentId);
   }
 
   onMount(() => {
@@ -82,14 +96,31 @@
       timeoutTimer = setTimeout(stopPolling, POLL_TIMEOUT_MS);
     }
   });
-  onDestroy(stopPolling);
+  onDestroy(() => {
+    stopPolling();
+    // Covers leaving any other way (hardware/gesture back, switching
+    // tabs) — fire-and-forget, no redirect here since some other
+    // navigation is already in flight; this only makes sure the payment
+    // doesn't linger as 'pending'. The explicit cancel() above already
+    // handles its own case via cancelPaymentAndReturnHome and sets
+    // `resolved` first, so this never double-fires for that path.
+    if (!resolved && !invalid && paymentId) {
+      api.post(`/payments/${paymentId}/cancel`).catch(() => undefined);
+    }
+  });
 </script>
 
 <svelte:head><title>Secure checkout · YeneEta</title></svelte:head>
 
 <div class="checkout-page flex flex-col" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
   <header class="flex h-11 shrink-0 items-center justify-between">
-    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink" aria-label="Back" on:click={cancel}>
+    <button
+      type="button"
+      class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink disabled:opacity-50"
+      aria-label="Back"
+      disabled={cancelling}
+      on:click={cancel}
+    >
       <ArrowLeft size={20} />
     </button>
     <p class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">

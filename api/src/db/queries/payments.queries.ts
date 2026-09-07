@@ -209,6 +209,21 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
 }
 
 /**
+ * Cancels a payment the user backed out of before completing checkout —
+ * atomically conditioned on it still being 'pending' so this can never
+ * clobber a payment a webhook/verify call completed in the same instant
+ * (e.g. the user closed the checkout screen right as Chapa confirmed it).
+ */
+export async function cancelPendingPayment(id: string): Promise<DbPayment | null> {
+  const rows = await sql<DbPayment[]>`
+    UPDATE payments SET status = 'failed', updated_at = NOW()
+    WHERE id = ${id} AND status = 'pending'
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
+
+/**
  * Update payment status.
  */
 export async function updatePaymentStatus(
