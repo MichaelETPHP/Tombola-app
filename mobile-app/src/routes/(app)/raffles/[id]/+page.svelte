@@ -214,7 +214,7 @@
       if (!result.checkoutUrl) throw new Error('No checkout URL returned');
       clearPendingPurchase();
       purchaseStage = 'opening';
-      const { opensSeparately } = await openCheckout(result.checkoutUrl);
+      const { opensSeparately } = await openCheckout(result.checkoutUrl, result.paymentId);
       if (opensSeparately) goto(`/payments/${result.paymentId}`);
     } catch (cause) {
       error = cause instanceof ApiError ? apiMessage(cause) : 'Network error. Check your connection and try again.';

@@ -2,6 +2,7 @@ import { Browser } from '@capacitor/browser';
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser';
 import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
+import { getTelegramMiniApp } from '$lib/telegram.js';
 
 /**
  * Open an external URL (Chapa checkout) for the payment flow. Native apps
@@ -68,14 +69,28 @@ function bottomNavFootprintPx(): number {
  * redirect, and this app's existing yeneeta:// hand-off from that return
  * page, both keep working unchanged — the plugin forwards that custom
  * scheme to the OS exactly like a normal browser would.
+ *
+ * Inside the Telegram Mini App there is no Capacitor host and no native
+ * plugin to size — Telegram's own external-link handling is entirely
+ * outside this app's control, so a raw redirect there would blank out the
+ * whole app (bottom nav included). Checkout instead opens on an in-app
+ * route that iframes it alongside the normal (app) shell — see
+ * routes/(app)/checkout/+page.svelte for why that page polls for
+ * completion itself rather than trusting Chapa's return_url, which lands
+ * *inside* the iframe, not on this outer page.
  */
-export async function openCheckout(url: string): Promise<{ opensSeparately: boolean }> {
+export async function openCheckout(url: string, paymentId: string): Promise<{ opensSeparately: boolean }> {
   // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
   // same-origin handling as openExternal, so local testing isn't forced
   // through a native webview it doesn't need.
   if (new URL(url, window.location.origin).origin === window.location.origin) {
     const path = url.replace(window.location.origin, '');
     await goto(path);
+    return { opensSeparately: false };
+  }
+
+  if (getTelegramMiniApp()) {
+    await goto(`/checkout?paymentId=${encodeURIComponent(paymentId)}&url=${encodeURIComponent(url)}`);
     return { opensSeparately: false };
   }
 
