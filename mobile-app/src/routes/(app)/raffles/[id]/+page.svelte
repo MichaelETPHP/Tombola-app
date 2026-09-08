@@ -207,14 +207,20 @@
     purchasing = true;
     purchaseStage = 'reserving';
     try {
-      const result = await api.post<{ paymentId: string; checkoutUrl?: string; txRef: string; amount: number }>(
+      const result = await api.post<{
+        paymentId: string;
+        checkoutUrl?: string;
+        txRef: string;
+        amount: number;
+        ticketCount: number;
+        raffleTitle: string;
+      }>(
         `/raffles/${raffle.id}/tickets`,
         { quantity, paymentGateway: 'chapa', returnTarget: paymentReturnTarget() }
       );
-      if (!result.checkoutUrl) throw new Error('No checkout URL returned');
       clearPendingPurchase();
       purchaseStage = 'opening';
-      await openCheckout(result.checkoutUrl, result.paymentId, result.amount, result.txRef);
+      await openCheckout(result.checkoutUrl, result.paymentId);
     } catch (cause) {
       error = cause instanceof ApiError ? apiMessage(cause) : 'Network error. Check your connection and try again.';
     } finally {

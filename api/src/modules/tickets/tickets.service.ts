@@ -52,6 +52,21 @@ export async function purchaseTickets(
 
   if (input.paymentGateway === 'chapa') {
     try {
+      // Chapa Inline.js performs the real direct-charge initialization in
+      // the embedded mobile form. Initializing a hosted transaction here
+      // as well would reuse tx_ref across two competing checkout flows.
+      if (!env.MOCK_PAYMENTS) {
+        if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
+        return {
+          paymentId: payment.id,
+          txRef,
+          amount,
+          ticketCount: input.quantity,
+          raffleTitle: raffle.title,
+          checkoutMode: 'inline' as const,
+        };
+      }
+
       const returnUrl = new URL('/payment-return', env.MOBILE_APP_URL);
       returnUrl.searchParams.set('payment_id', payment.id);
       returnUrl.searchParams.set('target', input.returnTarget);
@@ -90,7 +105,15 @@ export async function purchaseTickets(
         throw new Error('Chapa returned an insecure checkout URL');
       }
 
-      return { paymentId: payment.id, checkoutUrl, txRef, amount, ticketCount: input.quantity };
+      return {
+        paymentId: payment.id,
+        checkoutUrl,
+        txRef,
+        amount,
+        ticketCount: input.quantity,
+        raffleTitle: raffle.title,
+        checkoutMode: 'mock' as const,
+      };
     } catch (error) {
       // A failed gateway initialization must not reserve raffle inventory.
       await updatePaymentStatus(payment.id, 'failed');

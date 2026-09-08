@@ -37,6 +37,7 @@ export async function getPaymentStatus(id: string, userId: string) {
     ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${String(number).padStart(5, '0')}`),
     amount: payment.amount,
     gateway: payment.gateway,
+    txRef: payment.gatewayRef,
     status: payment.status,
     createdAt: payment.createdAt,
   };

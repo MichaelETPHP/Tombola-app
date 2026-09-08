@@ -93,16 +93,19 @@ export function paymentReturnTarget(): 'native' | 'web' {
  * Always navigates itself (there's no "opens separately" case anymore —
  * every path lands in-app), so the caller doesn't need to.
  */
-export async function openCheckout(url: string, paymentId: string, amount: number, txRef: string): Promise<void> {
+export async function openCheckout(
+  url: string | undefined,
+  paymentId: string
+): Promise<void> {
   // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
   // same-origin handling as openExternal, so local testing isn't forced
   // through the inline widget it doesn't need.
-  if (new URL(url, window.location.origin).origin === window.location.origin) {
+  if (url && new URL(url, window.location.origin).origin === window.location.origin) {
     const path = url.replace(window.location.origin, '');
     await goto(path);
     return;
   }
 
-  const params = new URLSearchParams({ paymentId, amount: String(amount), txRef, checkoutUrl: url });
+  const params = new URLSearchParams({ paymentId });
   await goto(`/checkout?${params.toString()}`);
 }
