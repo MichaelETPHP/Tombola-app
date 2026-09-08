@@ -5,6 +5,7 @@
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { api, API_BASE } from '$lib/api/client.js';
+  import { auth } from '$lib/stores/auth.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
@@ -35,8 +36,20 @@
   let amount = 0;
   let txRef = '';
   let fallbackUrl = '';
+  // Shown on-screen (not just console) so a real failure reason can be
+  // read off the device itself — this page is mostly opened on phones,
+  // where checking devtools isn't realistic.
+  type FailureReason = 'script-load' | 'no-class' | 'no-key' | 'render-timeout';
+  const FAILURE_MESSAGES: Record<FailureReason, string> = {
+    'script-load': "Chapa's checkout script failed to load (network or ad-blocker).",
+    'no-class': "Chapa's checkout script loaded, but didn't define the expected checkout widget.",
+    'no-key': 'No Chapa public key is configured for this app.',
+    'render-timeout': "Chapa's checkout widget didn't display its form in time.",
+  };
+
   let invalid = false;
   let scriptError = false;
+  let failureReason: FailureReason | null = null;
   let ready = false;
   let resolved = false;
   let cancelling = false;
@@ -96,16 +109,19 @@
       await loadChapaScript();
     } catch {
       scriptError = true;
+      failureReason = 'script-load';
       return;
     }
     if (!window.ChapaCheckout) {
       scriptError = true;
+      failureReason = 'no-class';
       return;
     }
 
     const publicKey = import.meta.env.VITE_CHAPA_PUBLIC_KEY as string | undefined;
     if (!publicKey) {
       scriptError = true;
+      failureReason = 'no-key';
       return;
     }
 
@@ -114,6 +130,7 @@
       amount: String(amount),
       currency: 'ETB',
       tx_ref: txRef,
+      mobile: $auth.user?.phone || undefined,
       availablePaymentMethods: PAYMENT_METHODS,
       customizations: {
         buttonText: 'Pay now',
@@ -168,6 +185,7 @@
     renderTimeout = setTimeout(() => {
       if (!ready) {
         scriptError = true;
+        failureReason = 'render-timeout';
         renderObserver?.disconnect();
       }
     }, RENDER_TIMEOUT_MS);
@@ -218,6 +236,11 @@
       <span class="flex h-14 w-14 items-center justify-center rounded-[20px] bg-pink-bg text-pink"><AlertCircle size={24} /></span>
       <p class="text-sm font-bold text-ink">Couldn't load the secure checkout form.</p>
       <p class="max-w-[280px] text-xs leading-5 text-muted">Check your connection, or use the full checkout page instead.</p>
+      {#if failureReason}
+        <p class="max-w-[280px] rounded-button bg-bg-start px-3 py-2 font-mono text-[10px] leading-4 text-muted">
+          {failureReason} — {FAILURE_MESSAGES[failureReason]}
+        </p>
+      {/if}
       {#if fallbackUrl}
         <button type="button" class="pressable mt-2 flex h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={openFallback}>
           Open full checkout <ExternalLink size={15} />

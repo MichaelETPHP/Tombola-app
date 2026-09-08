@@ -85,3 +85,26 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
     message: `🎉 You've been selected to trigger the raffle draw! Tap here: ${link} — This link expires in 1 hour.`,
   });
 }
+
+/** Send one prize tier's single-use draw invitation with its context. */
+export async function sendDrawInvitation(
+  phone: string,
+  details: {
+    link: string;
+    raffleName: string;
+    prizeLabel: string;
+    prizeName: string;
+    drawAt: Date;
+    expiresAt: Date;
+  }
+): Promise<SmsGatewayResponse> {
+  const format = new Intl.DateTimeFormat('en-ET', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Addis_Ababa',
+  });
+  return sendSms({
+    to: phone,
+    message: `YeneEta draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}". Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw. Link expires ${format.format(details.expiresAt)}.`,
+  });
+}

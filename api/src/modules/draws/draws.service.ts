@@ -4,7 +4,7 @@ import { findDrawTriggerByToken } from '../../db/queries/draws.queries.js';
 import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
-import { sendTriggerLink as sendTriggerSms } from '../../lib/sms.js';
+import { sendDrawInvitation } from '../../lib/sms.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -70,9 +70,9 @@ export async function getDrawContext(token: string) {
   // link, so the mobile page can say exactly which prize is being spun for
   // rather than defaulting to the raffle's headline prize.
   const ownPrize = prizes.find((p) => p.tier === trigger.tier);
-  const participants = await sql<{ phone: string }[]>`
-    SELECT DISTINCT u.phone_number AS phone FROM tickets t JOIN users u ON u.id = t.user_id
-    WHERE t.raffle_id = ${raffle.id}
+  const [{ registeredUsers }] = await sql<{ registeredUsers: number }[]>`
+    SELECT COUNT(DISTINCT user_id)::int AS "registeredUsers"
+    FROM tickets WHERE raffle_id = ${raffle.id}
   `;
   return {
     raffleId: raffle.id,
@@ -83,14 +83,14 @@ export async function getDrawContext(token: string) {
     prizeImageUrl: ownPrize?.imageUrl ?? raffle.prizeImageUrl,
     prizes,
     ticketCount: raffle.ticketsSold,
-    registeredUsers: participants.length,
+    registeredUsers,
     // Masked, for the spin-reel's cycling animation — never the winner's
     // identity ahead of time, just enough plausible noise to spin through.
-    participantPhones: participants.map((p) => maskPhone(p.phone)),
+    drawDateTime: trigger.sentAt,
     drawCommitment: raffle.drawServerSeedHash,
     status: trigger.status,
     expiresAt: trigger.expiresAt,
-    canSpin: trigger.status === 'pending' && trigger.expiresAt > new Date() && raffle.status === 'awaiting_trigger',
+    canSpin: trigger.status === 'pending' && !!trigger.expiresAt && trigger.expiresAt > new Date() && raffle.status === 'awaiting_trigger',
   };
 }
 
@@ -172,13 +172,12 @@ export async function generateSecureLink(
     if (existingActive) throw new AppError(409, 'This tier already has an active link — send it, or reassign to replace it.');
   }
 
-  const selected = await selectEligibleParticipant(raffleId, opts.excludeUserId);
-  const rawToken = nanoid(48);
+  // Prepare only; recipient selection happens atomically when Send is pressed.
+  const placeholderHash = await sha256(nanoid(48));
   // Placeholder only — sendDrawTrigger overwrites this with a real TTL
   // the moment the link actually goes out. A trigger sitting unsent
   // can't be spun anyway (status isn't 'pending'), so this value is never
   // load-bearing on its own.
-  const provisionalExpiry = new Date(Date.now() + TRIGGER_TTL_MS);
 
   const trigger = await sql.begin(async (tx) => {
     const [current] = await tx<{ drawServerSeedHash: string | null }[]>`
@@ -205,8 +204,8 @@ export async function generateSecureLink(
         raffle_id, tier, prize_id, selected_user_id, attempt_number, link_token, token_is_hashed,
         status, expires_at, generated_by, generation_reason
       ) VALUES (
-        ${raffleId}, ${tier}, ${prize.id}, ${selected.userId}, ${attempt.next}, ${rawToken}, false,
-        'ready', ${provisionalExpiry}, ${adminId}, ${reason}
+        ${raffleId}, ${tier}, ${prize.id}, ${null}, ${attempt.next}, ${placeholderHash}, true,
+        'ready', ${null}, ${adminId}, ${reason}
       ) RETURNING id
     `;
     await tx`
@@ -219,14 +218,13 @@ export async function generateSecureLink(
     return { id: created.id, attemptNumber: attempt.next };
   });
 
-  const user = await findUserById(selected.userId);
   return {
     triggerId: trigger.id,
     tier,
     prizeName: prize.name,
     attemptNumber: trigger.attemptNumber,
     status: 'ready' as const,
-    selectedParticipant: user ? { id: user.id, phone: maskPhone(user.phoneNumber) } : null,
+    selectedParticipant: null,
   };
 }
 
@@ -238,24 +236,32 @@ export async function generateSecureLink(
  * moment the token is ever exposed outside the DB, so it's hashed
  * immediately after being read.
  */
-export async function sendDrawTrigger(raffleId: string, triggerId: string, adminId: string | null) {
+export async function sendDrawTrigger(
+  raffleId: string,
+  triggerId: string,
+  adminId: string | null,
+  excludeUserId?: string
+) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
+  const selected = await selectEligibleParticipant(raffleId, excludeUserId);
+  const rawToken = nanoid(48);
 
   const dispatch = await sql.begin(async (tx) => {
-    const [trigger] = await tx<{ id: string; tier: number; status: string; linkToken: string; selectedUserId: string }[]>`
-      SELECT id, tier, status, link_token AS "linkToken", selected_user_id AS "selectedUserId"
+    const [trigger] = await tx<{ id: string; tier: number; status: string }[]>`
+      SELECT id, tier, status
       FROM draw_triggers WHERE id = ${triggerId} AND raffle_id = ${raffleId} FOR UPDATE
     `;
     if (!trigger) throw new AppError(404, 'Draw link not found');
     if (trigger.status !== 'ready') throw new AppError(409, 'This link has already been sent, used, or replaced');
 
-    const rawToken = trigger.linkToken;
     const tokenHash = await sha256(rawToken);
+    const sentAt = new Date();
     const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
     await tx`
       UPDATE draw_triggers
-      SET link_token = ${tokenHash}, token_is_hashed = true, status = 'pending', sent_at = NOW(), expires_at = ${expiresAt}
+      SET selected_user_id = ${selected.userId}, link_token = ${tokenHash}, token_is_hashed = true,
+          status = 'pending', sent_at = ${sentAt}, expires_at = ${expiresAt}
       WHERE id = ${triggerId}
     `;
     // Only flip a still-locked raffle — a no-op once an earlier tier's
@@ -266,7 +272,7 @@ export async function sendDrawTrigger(raffleId: string, triggerId: string, admin
       VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_sent', 'raffle', ${raffleId},
         ${tx.json({ triggerId, tier: trigger.tier, expiresAt: expiresAt.toISOString() })})
     `;
-    return { rawToken, tier: trigger.tier, selectedUserId: trigger.selectedUserId, expiresAt };
+    return { rawToken, tier: trigger.tier, selectedUserId: selected.userId, sentAt, expiresAt };
   });
 
   const user = await findUserById(dispatch.selectedUserId);
@@ -274,11 +280,29 @@ export async function sendDrawTrigger(raffleId: string, triggerId: string, admin
   let delivery: 'sent' | 'demo' | 'failed' = env.DEMO_OTP_ENABLED ? 'demo' : 'failed';
   if (user && !env.DEMO_OTP_ENABLED) {
     try {
-      const result = await sendTriggerSms(user.phoneNumber, link);
+      const prize = (await listPrizeTiers(raffleId)).find((item) => item.tier === dispatch.tier);
+      const result = await sendDrawInvitation(user.phoneNumber, {
+        link,
+        raffleName: raffle.title,
+        prizeLabel: `${ordinal(dispatch.tier)} Prize`,
+        prizeName: prize?.name ?? raffle.prizeName,
+        drawAt: dispatch.sentAt,
+        expiresAt: dispatch.expiresAt,
+      });
       delivery = result.success ? 'sent' : 'failed';
     } catch (error) {
       logger.error('Could not deliver draw trigger SMS', error);
     }
+  }
+  if (delivery === 'failed') {
+    const safePlaceholder = await sha256(nanoid(48));
+    await sql`
+      UPDATE draw_triggers
+      SET selected_user_id = NULL, link_token = ${safePlaceholder}, token_is_hashed = true,
+          status = 'ready', sent_at = NULL, expires_at = NULL
+      WHERE id = ${triggerId} AND status = 'pending'
+    `;
+    throw new AppError(502, 'SMS delivery failed. The link was secured and is ready to send again.');
   }
   return {
     triggerId,
@@ -300,7 +324,7 @@ export async function sendDrawTrigger(raffleId: string, triggerId: string, admin
  * pause for a second confirmation click.
  */
 export async function reassignDrawTrigger(raffleId: string, tier: number, adminId: string | null, reason: string) {
-  const [previousHolder] = await sql<{ selectedUserId: string }[]>`
+  const [previousHolder] = await sql<{ selectedUserId: string | null }[]>`
     SELECT selected_user_id AS "selectedUserId" FROM draw_triggers
     WHERE raffle_id = ${raffleId} AND tier = ${tier} ORDER BY attempt_number DESC LIMIT 1
   `;
@@ -309,10 +333,10 @@ export async function reassignDrawTrigger(raffleId: string, tier: number, adminI
     WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status IN ('ready', 'pending')
   `;
   const generated = await generateSecureLink(raffleId, tier, adminId, reason, {
-    excludeUserId: previousHolder?.selectedUserId,
+    excludeUserId: previousHolder?.selectedUserId ?? undefined,
     skipActiveCheck: true,
   });
-  const sent = await sendDrawTrigger(raffleId, generated.triggerId, adminId);
+  const sent = await sendDrawTrigger(raffleId, generated.triggerId, adminId, previousHolder?.selectedUserId ?? undefined);
   await sql`
     INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
     VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_reassigned', 'raffle', ${raffleId},
@@ -366,6 +390,13 @@ export async function executeDraw(token: string, clickedIp: string | null = null
       SELECT id, tier, name, value FROM raffle_prizes WHERE raffle_id = ${raffle.id} AND tier = ${trigger.tier}
     `;
     if (!prize) throw new AppError(409, 'This prize tier is no longer configured');
+    if (prize.tier > 1) {
+      const [{ drawn }] = await tx<{ drawn: number }[]>`
+        SELECT COUNT(*)::int AS drawn FROM draw_results
+        WHERE raffle_id = ${raffle.id} AND tier = ${prize.tier - 1}
+      `;
+      if (drawn === 0) throw new AppError(409, `The ${ordinal(prize.tier - 1)} prize must finish first`);
+    }
 
     // Every OTHER tier's already-drawn ticket may still be in this raffle's
     // pool — tiers now resolve independently (whoever clicks their own
@@ -375,8 +406,8 @@ export async function executeDraw(token: string, clickedIp: string | null = null
     const pool = await tx<{ ticketNumber: number; userId: string }[]>`
       SELECT ticket_number, user_id FROM tickets
       WHERE raffle_id = ${raffle.id}
-        AND ticket_number NOT IN (
-          SELECT winning_ticket_number FROM draw_results WHERE raffle_id = ${raffle.id}
+        AND user_id NOT IN (
+          SELECT winner_user_id FROM draw_results WHERE raffle_id = ${raffle.id}
         )
       ORDER BY ticket_number
     `;
@@ -420,10 +451,6 @@ export async function executeDraw(token: string, clickedIp: string | null = null
       )
     `;
 
-    const [winnerUser] = await tx<{ phoneNumber: string }[]>`
-      SELECT phone_number AS "phoneNumber" FROM users WHERE id = ${winningTicket.userId}
-    `;
-    const winnerPhone = maskPhone(winnerUser.phoneNumber);
     const winnerTicketCode = `${raffle.publicCode}-${String(winningTicket.ticketNumber).padStart(5, '0')}`;
 
     // Atomic check-and-set: the row is already locked by the FOR UPDATE
@@ -473,7 +500,6 @@ export async function executeDraw(token: string, clickedIp: string | null = null
       prizeName: prize.name,
       winnerTicketNumber: winningTicket.ticketNumber,
       winnerTicketCode,
-      winnerPhone,
       totalTickets,
       // Withheld until every tier has been drawn — see comment above.
       serverSeed: allTiersDrawn ? serverSeed : null,
@@ -503,9 +529,9 @@ export async function getRaffleEngine(raffleId: string) {
       GROUP BY u.id ORDER BY MIN(t.ticket_number)
     `,
     listPrizeTiers(raffleId),
-    sql<{ id: string; tier: number; attemptNumber: number; status: string; sentAt: Date; expiresAt: Date; clickedAt: Date | null; phone: string }[]>`
+    sql<{ id: string; tier: number; attemptNumber: number; status: string; sentAt: Date | null; expiresAt: Date | null; clickedAt: Date | null; phone: string | null }[]>`
       SELECT dt.id, dt.tier, dt.attempt_number, dt.status, dt.sent_at, dt.expires_at, dt.clicked_at, u.phone_number AS phone
-      FROM draw_triggers dt JOIN users u ON u.id = dt.selected_user_id
+      FROM draw_triggers dt LEFT JOIN users u ON u.id = dt.selected_user_id
       WHERE dt.raffle_id = ${raffleId} ORDER BY dt.tier ASC, dt.attempt_number DESC
     `,
     sql<{ id: string; previousDeadline: Date; newDeadline: Date; reason: string; extendedAt: Date; ticketsSoldAtExtension: number }[]>`
@@ -549,7 +575,7 @@ export async function getRaffleEngine(raffleId: string) {
       .map((trigger) => ({
         ...trigger,
         phone: trigger.phone,
-        maskedPhone: maskPhone(trigger.phone),
+        maskedPhone: trigger.phone ? maskPhone(trigger.phone) : null,
       })),
     extensions,
     draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${String(d.winningTicketNumber).padStart(5, '0')}` })),

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { toast } from '$lib/stores/toast.store.js';
@@ -7,7 +7,7 @@
   import {
     Check, Clipboard, Clock3, Fingerprint, Link2, RefreshCw,
     ShieldCheck, Ticket, Users, Search, Copy, Phone, ExternalLink,
-    X, Sparkles, AlertCircle, CalendarDays, Send
+    X, Sparkles, AlertCircle, CalendarDays, Send, Trophy
   } from 'lucide-svelte';
 
   export let raffleId: string;
@@ -40,8 +40,8 @@
       tier: number;
       attemptNumber: number;
       status: string;
-      sentAt: string;
-      expiresAt: string;
+      sentAt: string | null;
+      expiresAt: string | null;
       clickedAt: string | null;
       phone: string;
       maskedPhone?: string;
@@ -66,7 +66,7 @@
     }[];
   };
 
-  // Step 1: created, recipient already chosen, nothing sent yet.
+  // Step 1 prepares a tier only. The recipient is selected on Send.
   type GenerateResponse = {
     trigger: {
       triggerId: string;
@@ -122,8 +122,7 @@
 
   const ticketCode = (number: number) => `${engine?.raffle.code}-${String(number).padStart(5, '0')}`;
 
-  const medals = ['🥇', '🥈', '🥉'];
-  const medalFor = (tier: number) => medals[tier - 1] ?? '🏅';
+  const prizeLabel = (tier: number) => `${ordinal(tier)} prize`;
 
   // Which prize tier(s), if any, each participant won — drives the green
   // highlight + medal badge in the Participant Directory below.
@@ -159,9 +158,8 @@
     if (!engine || generatingTier !== null) return;
     generatingTier = tier;
     try {
-      const response = await api.post<GenerateResponse>(`/admin/raffles/${raffleId}/draw-trigger`, { tier, reason });
-      const recipient = response.trigger.selectedParticipant?.phone ?? 'a random participant';
-      toast.success(`${ordinal(tier)} place: secure link created for ${recipient}. Ready to send.`, 'Link Generated');
+      await api.post<GenerateResponse>(`/admin/raffles/${raffleId}/draw-trigger`, { tier, reason });
+      toast.success(`${ordinal(tier)} prize is prepared. Press Send to randomly select the recipient.`, 'Tier Ready');
       await load();
     } catch (cause) {
       toast.error(apiErrorMessage(cause, `Could not generate the ${ordinal(tier)} place link.`), 'Generation Failed');
@@ -228,7 +226,12 @@
 
   $: totalTicketsInRoster = (engine?.participants ?? []).reduce((sum, p) => sum + p.ticketCount, 0);
 
-  onMount(load);
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  onMount(() => {
+    void load();
+    pollTimer = setInterval(() => void load(), 4000);
+  });
+  onDestroy(() => { if (pollTimer) clearInterval(pollTimer); });
 </script>
 
 <section class="mt-5 rounded-card border border-border bg-card p-5 sm:p-6 shadow-sm">
@@ -317,7 +320,7 @@
     <!-- ── Finalized Winners Banner (if drawn) ── -->
     {#if engine.draws.length > 0}
       <div class="mt-5">
-        <h3 class="mb-2.5 text-xs font-bold uppercase tracking-[0.12em] text-success">🏆 Official Draw Winners</h3>
+        <h3 class="mb-2.5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-success"><Trophy size={14} /> Official Draw Winners</h3>
         <div class="grid gap-3 {engine.draws.length > 1 ? 'sm:grid-cols-3' : ''}">
           {#each engine.draws as draw (draw.tier)}
             <div class="flex flex-col justify-between gap-3 rounded-button border border-success/30 bg-success-bg/80 p-4.5 shadow-xs">
@@ -342,7 +345,7 @@
                 </div>
               </div>
               <div class="border-t border-success/15 pt-2 text-[11px] text-muted">
-                <p class="font-semibold text-ink">{medalFor(draw.tier)} {draw.winnerName ?? 'Verified Participant'}</p>
+                <p class="font-semibold text-ink">{prizeLabel(draw.tier)} · {draw.winnerName ?? 'Verified Participant'}</p>
                 <div class="mt-1 flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
                   <a href="tel:{draw.winnerPhone}" class="hover:text-primary hover:underline" title="Call winner">{draw.winnerPhone}</a>
                   <button
@@ -451,7 +454,7 @@
                           {participant.fullName ?? 'Participant (No Name)'}
                           {#if wonTiers}
                             <span class="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-black text-success">
-                              {wonTiers.map(medalFor).join(' ')} {wonTiers.length > 1 ? 'Winner' : `${ordinal(wonTiers[0])} Place`}
+                              {wonTiers.length > 1 ? 'Multiple prize winner' : `${ordinal(wonTiers[0])} prize winner`}
                             </span>
                           {/if}
                         </p>
@@ -565,7 +568,7 @@
                   <p class="mt-3 text-[11px] leading-4 text-faint">Unlocks once the {ordinal(prize.tier - 1)} prize has been drawn.</p>
                 {/if}
 
-                {#if trigger}
+                {#if trigger?.phone}
                   <div class="mt-3 rounded-button border border-border/70 bg-bg/40 p-2.5 text-[11px]">
                     <div class="flex items-center justify-between">
                       <span class="text-faint">Representative Phone:</span>
@@ -581,19 +584,23 @@
                         </button>
                       </div>
                     </div>
-                    {#if trigger.status === 'pending' || drawn}
+                    {#if (trigger.status === 'pending' || drawn) && trigger.sentAt}
                       <div class="mt-1 flex items-center justify-between text-[10px] text-faint">
                         <span>Dispatched:</span>
                         <span>{new Date(trigger.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     {/if}
-                    {#if trigger.status === 'pending' && !drawn}
+                    {#if trigger.status === 'pending' && !drawn && trigger.expiresAt}
                       <div class="mt-0.5 flex items-center justify-between text-[10px] text-faint">
                         <span>Expires:</span>
                         <span class="text-warning font-semibold">{new Date(trigger.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     {/if}
                   </div>
+                {:else if trigger?.status === 'ready'}
+                  <p class="mt-3 rounded-button border border-warning/25 bg-warning-bg/60 p-2.5 text-[11px] leading-4 text-muted">
+                    Recipient not selected yet. Press Send to choose one eligible participant at random and dispatch the SMS.
+                  </p>
                 {/if}
 
                 <!-- Generated Link Bar (demo mode / manual copy fallback) -->
@@ -622,7 +629,7 @@
                       class="admin-press flex h-9 w-full items-center justify-center gap-1.5 rounded-button bg-primary text-[11px] font-bold text-white shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Link2 size={12} class={generatingTier === prize.tier ? 'animate-spin' : ''} />
-                      {generatingTier === prize.tier ? 'Selecting a random representative…' : 'Generate secure link'}
+                      {generatingTier === prize.tier ? 'Preparing tier…' : 'Generate secure link'}
                     </button>
                   </div>
                 {:else if canAct && trigger?.status === 'ready'}

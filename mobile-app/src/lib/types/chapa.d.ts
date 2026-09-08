@@ -10,6 +10,7 @@ interface ChapaCheckoutOptions {
   amount: string;
   currency: string;
   tx_ref: string;
+  mobile?: string;
   availablePaymentMethods: string[];
   customizations?: { buttonText?: string; styles?: string; successMessage?: string };
   callbackUrl?: string;

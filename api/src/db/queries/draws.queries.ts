@@ -10,12 +10,12 @@ export type DrawTriggerStatus = 'ready' | 'pending' | 'clicked' | 'expired';
 export interface DbDrawTrigger {
   id: string;
   raffleId: string;
-  selectedUserId: string;
+  selectedUserId: string | null;
   attemptNumber: number;
   linkToken: string;
   status: DrawTriggerStatus;
-  sentAt: Date;
-  expiresAt: Date;
+  sentAt: Date | null;
+  expiresAt: Date | null;
   clickedAt: Date | null;
   clickedIp: string | null;
   tokenIsHashed: boolean;
