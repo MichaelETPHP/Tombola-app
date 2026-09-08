@@ -14,6 +14,14 @@
   const CONTAINER_ID = 'chapa-inline-form';
   const PAYMENT_METHODS = ['telebirr', 'cbebirr', 'ebirr', 'mpesa'];
   const LOAD_TIMEOUT_MS = 15000;
+  // Chapa's own initialize() usually paints #chapa-pay-button synchronously,
+  // but not always — a slower connection/device can add a real beat before
+  // its internal setup finishes. The old code checked once, immediately
+  // after initialize(), and failed the whole checkout if that single check
+  // missed by even a few hundred ms. This grace period lets the observer
+  // that's already watching the container actually catch a delayed render
+  // instead of racing it.
+  const RENDER_GRACE_MS = 8000;
   // Chapa public keys are intentionally shipped to clients. The environment
   // value supports key rotation; this live key keeps deployed Docker builds
   // working even when a Vite build variable was not configured.
@@ -103,15 +111,6 @@
 
       // Chapa owns this element completely. Keep Svelte loading UI outside it.
       container.replaceChildren();
-      const markReady = () => {
-        if (container.querySelector('#chapa-pay-button')) {
-          ready = true;
-          loading = false;
-          renderObserver?.disconnect();
-        }
-      };
-      renderObserver = new MutationObserver(markReady);
-      renderObserver.observe(container, { childList: true, subtree: true });
 
       const chapa = new window.ChapaCheckout({
         publicKey: CHAPA_PUBLIC_KEY,
@@ -127,10 +126,14 @@
           successMessage: 'Payment received. Confirming your tickets…',
           styles: `
             #chapa-inline-form { color: #1a1d29; font-family: inherit; }
-            .chapa-phone-input-wrapper { min-height: 54px; margin-bottom: 16px; border: 1px solid #d9dce3; border-radius: 14px; box-shadow: none; }
+            /* The +251 prefix badge and the typed digits were rendering on
+               top of each other — the wrapper needed to actually lay its
+               children out side by side instead of leaving that to
+               whatever positioning the input itself came with. */
+            .chapa-phone-input-wrapper { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 14px; margin-bottom: 16px; border: 1px solid #d9dce3; border-radius: 14px; box-shadow: none; }
             .chapa-phone-input-wrapper:hover { border-color: #00b589; box-shadow: 0 0 0 3px rgba(0,181,137,.12); }
-            .chapa-phone-prefix { font-size: 15px; color: #555b6e; }
-            .chapa-phone-input { min-height: 44px; font-size: 16px; color: #1a1d29; }
+            .chapa-phone-prefix { flex: 0 0 auto; font-size: 15px; color: #555b6e; white-space: nowrap; }
+            .chapa-phone-input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 16px; color: #1a1d29; }
             .chapa-payment-methods-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 12px 0 18px; }
             .chapa-payment-method { box-sizing: border-box; width: 100%; height: 76px; padding: 8px 4px; border: 1px solid #e1e4ea; border-radius: 14px; box-shadow: none; }
             .chapa-payment-method:active { transform: scale(.97); }
@@ -158,10 +161,29 @@
       });
 
       chapa.initialize(CONTAINER_ID);
-      // initialize() renders synchronously in Chapa Inline.js. Check now so
-      // we cannot miss the mutation before the observer starts.
-      markReady();
-      if (!ready) throw new Error('Chapa did not render the payment form');
+
+      const rendered = container.querySelector('#chapa-pay-button')
+        ? true
+        : await new Promise<boolean>((resolve) => {
+            const observer = new MutationObserver(() => {
+              if (container.querySelector('#chapa-pay-button')) {
+                observer.disconnect();
+                clearTimeout(graceTimer);
+                resolve(true);
+              }
+            });
+            renderObserver = observer;
+            observer.observe(container, { childList: true, subtree: true });
+            const graceTimer = setTimeout(() => {
+              observer.disconnect();
+              resolve(false);
+            }, RENDER_GRACE_MS);
+          });
+
+      if (!rendered) throw new Error('Chapa did not render the payment form');
+      ready = true;
+      loading = false;
+      renderObserver?.disconnect();
     } catch (cause) {
       loading = false;
       loadError = cause instanceof Error ? cause.message : 'The secure payment form could not be loaded';
@@ -260,21 +282,24 @@
       <button type="button" class="pressable mt-5 min-h-11 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={cancel}>Back to raffles</button>
     </div>
   {:else}
-    <div class="mt-3 flex items-start justify-between gap-4 border-b border-dot-inactive/70 pb-4">
-      <div class="min-w-0">
-        <h1 class="line-clamp-2 text-lg font-extrabold leading-6 tracking-[-0.025em] text-ink">{raffleTitle || 'Raffle tickets'}</h1>
-        <p class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted"><Ticket size={14} /> {ticketCount} ticket{ticketCount === 1 ? '' : 's'}</p>
+    <div class="mt-3 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
+      <div class="flex items-start justify-between gap-4 p-4">
+        <div class="min-w-0">
+          <h1 class="line-clamp-2 text-base font-extrabold leading-6 tracking-[-0.025em] text-ink">{raffleTitle || 'Raffle tickets'}</h1>
+          <p class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
+            <Ticket size={13} /> {ticketCount} ticket{ticketCount === 1 ? '' : 's'}{#if ticketCount > 0} · {formatEtb(amount / ticketCount)} ETB each{/if}
+          </p>
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Total</p>
+          <p class="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatEtb(amount)}</p>
+          <p class="text-[10px] font-bold text-muted">ETB</p>
+        </div>
       </div>
-      <div class="shrink-0 text-right">
-        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Total</p>
-        <p class="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatEtb(amount)}</p>
-        <p class="text-[10px] font-bold text-muted">ETB</p>
+      <div class="flex items-center gap-2 border-t border-dot-inactive/60 bg-bg-start/60 px-4 py-2.5 text-xs font-semibold text-muted">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>
+        Select a payment method and confirm on your phone
       </div>
-    </div>
-
-    <div class="mt-4 flex items-center gap-2 text-xs font-semibold text-muted">
-      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>
-      Select a payment method and confirm on your phone
     </div>
 
     {#if paymentError}
@@ -305,8 +330,11 @@
       <div id={CONTAINER_ID} class:hidden={!ready} class="chapa-inline-container pb-4" aria-label="Chapa payment form"></div>
     </div>
 
-    <footer class="flex shrink-0 items-center justify-center gap-1.5 border-t border-dot-inactive/60 py-3 text-[11px] font-semibold text-muted">
-      <ShieldCheck size={13} class="text-primary-dark" /> Payment status is verified before tickets are issued
+    <footer class="shrink-0 border-t border-dot-inactive/60 pb-1 pt-3">
+      <p class="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-muted">
+        <ShieldCheck size={13} class="text-primary-dark" /> Payment status is verified before tickets are issued
+      </p>
+      <p class="mt-1 text-center text-[10px] font-medium text-muted/70">Secured by Chapa · Telebirr, CBE Birr, Ebirr &amp; M-Pesa</p>
     </footer>
   {/if}
 </section>
