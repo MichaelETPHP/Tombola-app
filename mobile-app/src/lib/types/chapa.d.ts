@@ -11,7 +11,11 @@ interface ChapaCheckoutOptions {
   currency: string;
   tx_ref: string;
   availablePaymentMethods: string[];
-  customizations?: { buttonText?: string; styles?: string };
+  customizations?: { buttonText?: string; styles?: string; successMessage?: string };
+  callbackUrl?: string;
+  returnUrl?: string;
+  showFlag?: boolean;
+  showPaymentMethodsNames?: boolean;
   onSuccessfulPayment?: (result: unknown, refId: string) => void;
   onPaymentFailure?: (message: string) => void;
   onClose?: () => void;

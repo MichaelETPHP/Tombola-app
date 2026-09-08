@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { api } from '$lib/api/client.js';
+  import { api, API_BASE } from '$lib/api/client.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
@@ -118,7 +118,16 @@
       customizations: {
         buttonText: 'Pay now',
         styles: `.chapa-pay-button { background-color: #00D3A0; color: #ffffff; }`,
+        successMessage: 'Payment received — confirming your tickets…',
       },
+      // Explicit per-transaction, rather than relying on whatever webhook
+      // URL happens to be set account-wide in the Chapa dashboard.
+      callbackUrl: `${API_BASE}/payments/webhook/chapa`,
+      // Only a safety net: onSuccessfulPayment already handles completion
+      // via JS callback with no navigation. Mirrors the hosted-checkout
+      // flow's own return_url shape (payment-return/+page.svelte) in case
+      // any payment method here ever does redirect instead.
+      returnUrl: `${window.location.origin}/payment-return?payment_id=${encodeURIComponent(paymentId)}&target=web`,
       onSuccessfulPayment: (_result, refId) => {
         if (refId && refId !== txRef) {
           // The widget settled on a different reference than the one this
