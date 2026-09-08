@@ -1,328 +1,321 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { fly } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
-  import { api, API_BASE, ApiError } from '$lib/api/client.js';
+  import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
-  import { showBanner } from '$lib/stores/banner.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
-  import { ArrowLeft, ShieldCheck, AlertCircle, RotateCcw } from 'lucide-svelte';
+  import { AlertCircle, ArrowLeft, Check, LockKeyhole, RefreshCw, ShieldCheck, Ticket } from 'lucide-svelte';
 
   const pullRefresh = getPullRefreshContext();
-
-  // Window.ChapaCheckout is declared globally in $lib/types/chapa.d.ts —
-  // Chapa's own Inline.js widget (github.com/Chapa-Et/inline.js), loaded
-  // from their CDN at runtime, never bundled.
-
   const CHAPA_SCRIPT_SRC = 'https://js.chapa.co/v1/inline.js';
   const CONTAINER_ID = 'chapa-inline-form';
-  // How long to wait for the widget to actually paint its form before
-  // treating it as failed. A script-tag load failure is easy to detect;
-  // the widget silently not rendering anything into the container (no
-  // error thrown, just nothing) is a different failure mode that needs
-  // its own check — otherwise the page is left on a spinner forever with
-  // no way out, which reads exactly like "won't load."
-  const RENDER_TIMEOUT_MS = 6000;
-  // Mobile-money methods only. Chapa's generic 'chapa' (card) option falls
-  // back to a hidden-form POST that navigates the whole page to
-  // api.chapa.co — exactly the "opens in a browser" experience this page
-  // exists to avoid — so it's deliberately excluded here.
   const PAYMENT_METHODS = ['telebirr', 'cbebirr', 'ebirr', 'mpesa'];
-
-  // Shown on-screen (not just console) so a real failure reason can be
-  // read off the device itself — this page is mostly opened on phones,
-  // where checking devtools isn't realistic.
-  type FailureReason = 'script-load' | 'no-class' | 'no-key' | 'render-timeout';
-  const FAILURE_MESSAGES: Record<FailureReason, string> = {
-    'script-load': "Chapa's checkout script failed to load (network or ad-blocker).",
-    'no-class': "Chapa's checkout script loaded, but didn't define the expected checkout widget.",
-    'no-key': 'No Chapa public key is configured for this app.',
-    'render-timeout': "Chapa's checkout widget didn't display its form in time.",
-  };
-
-  // The widget's own UI already shows a fixed +251 country prefix next to
-  // the phone field — prefilling with the full +251/251-prefixed number
-  // this app stores internally would show it twice (e.g. "+251 +251911…").
-  // Chapa's own form expects the LOCAL 0-prefixed form here instead.
-  function toLocalEthiopianPhone(phone: string): string | undefined {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('251') && digits.length === 12) return `0${digits.slice(3)}`;
-    if (digits.length === 9) return `0${digits}`;
-    if (digits.length === 10 && digits.startsWith('0')) return digits;
-    return undefined;
-  }
+  const LOAD_TIMEOUT_MS = 15000;
+  // Chapa public keys are intentionally shipped to clients. The environment
+  // value supports key rotation; this live key keeps deployed Docker builds
+  // working even when a Vite build variable was not configured.
+  const CHAPA_PUBLIC_KEY = (import.meta.env.VITE_CHAPA_PUBLIC_KEY as string | undefined)
+    || 'CHAPUBK-c6qHDsRX8gS7SmcXPD4oWzdXKRvusOR0';
 
   let paymentId = '';
   let amount = 0;
   let txRef = '';
-  let loadingPayment = true;
+  let ticketCount = 0;
+  let raffleTitle = '';
   let invalid = false;
-  let scriptError = false;
-  let failureReason: FailureReason | null = null;
+  let reservationError = false;
+  let reservationLoaded = false;
   let ready = false;
-  let resolved = false;
+  let loading = true;
   let cancelling = false;
+  let resolved = false;
+  let loadError = '';
+  let paymentError = '';
   let renderObserver: MutationObserver | undefined;
-  let renderTimeout: ReturnType<typeof setTimeout> | undefined;
+  let scriptTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  function loadChapaScript(): Promise<void> {
+  type ReservedPayment = {
+    id: string;
+    raffleTitle: string;
+    ticketCount: number;
+    amount: number;
+    gateway: string;
+    txRef: string | null;
+    status: string;
+  };
+
+  function clearRuntimeChecks(): void {
+    renderObserver?.disconnect();
+    clearTimeout(scriptTimeout);
+  }
+
+  function loadChapaScript(forceReload = false): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (window.ChapaCheckout) {
+      if (window.ChapaCheckout && !forceReload) {
         resolve();
         return;
       }
-      const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHAPA_SCRIPT_SRC}"]`);
-      if (existing) {
-        existing.addEventListener('load', () => resolve());
-        existing.addEventListener('error', () => reject(new Error('load-failed')));
-        return;
+
+      let script = document.querySelector<HTMLScriptElement>(`script[src="${CHAPA_SCRIPT_SRC}"]`);
+      if (forceReload && script) {
+        script.remove();
+        script = null;
       }
-      const script = document.createElement('script');
-      script.src = CHAPA_SCRIPT_SRC;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('load-failed'));
-      document.head.appendChild(script);
+
+      const finish = () => {
+        clearTimeout(scriptTimeout);
+        window.ChapaCheckout ? resolve() : reject(new Error('Chapa checkout did not initialize'));
+      };
+      const fail = () => {
+        clearTimeout(scriptTimeout);
+        reject(new Error('Chapa checkout script could not be loaded'));
+      };
+
+      if (!script) {
+        script = document.createElement('script');
+        script.src = CHAPA_SCRIPT_SRC;
+        script.async = true;
+        script.dataset.chapaInline = 'true';
+        document.head.appendChild(script);
+      }
+      script.addEventListener('load', finish, { once: true });
+      script.addEventListener('error', fail, { once: true });
+      scriptTimeout = setTimeout(fail, LOAD_TIMEOUT_MS);
     });
   }
 
-  async function cancel() {
+  async function initializeCheckout(forceReload = false): Promise<void> {
+    if (invalid) return;
+    clearRuntimeChecks();
+    ready = false;
+    loading = true;
+    loadError = '';
+    paymentError = '';
+
+    try {
+      await loadChapaScript(forceReload);
+      if (!window.ChapaCheckout) throw new Error('Chapa checkout is unavailable');
+      const container = document.getElementById(CONTAINER_ID);
+      if (!container) throw new Error('Payment form container is unavailable');
+
+      // Chapa owns this element completely. Keep Svelte loading UI outside it.
+      container.replaceChildren();
+      const markReady = () => {
+        if (container.querySelector('#chapa-pay-button')) {
+          ready = true;
+          loading = false;
+          renderObserver?.disconnect();
+        }
+      };
+      renderObserver = new MutationObserver(markReady);
+      renderObserver.observe(container, { childList: true, subtree: true });
+
+      const chapa = new window.ChapaCheckout({
+        publicKey: CHAPA_PUBLIC_KEY,
+        amount: String(amount),
+        currency: 'ETB',
+        tx_ref: txRef,
+        mobile: $auth.user?.phone || undefined,
+        availablePaymentMethods: PAYMENT_METHODS,
+        showFlag: true,
+        showPaymentMethodsNames: true,
+        customizations: {
+          buttonText: `Pay ${formatEtb(amount)} ETB`,
+          successMessage: 'Payment received. Confirming your tickets…',
+          styles: `
+            #chapa-inline-form { color: #1a1d29; font-family: inherit; }
+            .chapa-phone-input-wrapper { min-height: 54px; margin-bottom: 16px; border: 1px solid #d9dce3; border-radius: 14px; box-shadow: none; }
+            .chapa-phone-input-wrapper:hover { border-color: #00b589; box-shadow: 0 0 0 3px rgba(0,181,137,.12); }
+            .chapa-phone-prefix { font-size: 15px; color: #555b6e; }
+            .chapa-phone-input { min-height: 44px; font-size: 16px; color: #1a1d29; }
+            .chapa-payment-methods-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 12px 0 18px; }
+            .chapa-payment-method { box-sizing: border-box; width: 100%; height: 76px; padding: 8px 4px; border: 1px solid #e1e4ea; border-radius: 14px; box-shadow: none; }
+            .chapa-payment-method:active { transform: scale(.97); }
+            .chapa-payment-icon { width: 34px; height: 34px; object-fit: contain; margin-bottom: 5px; }
+            .chapa-payment-name { font-size: 10px; font-weight: 700; color: #555b6e; }
+            .chapa-selected { background: #dff7ee; border-color: #00b589; box-shadow: inset 0 0 0 1px #00b589; }
+            .chapa-pay-button { min-height: 54px; border: 0; border-radius: 16px; background: #00d3a0; color: #10211d; font-size: 15px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(0,105,80,.72), inset 0 1px 0 rgba(255,255,255,.72); }
+            .chapa-pay-button:hover { background: #00c496; }
+            .chapa-pay-button:disabled { opacity: .58; cursor: wait; }
+            .chapa-error { margin: 8px 0 12px; color: #c33c57; font-size: 12px; line-height: 1.5; }
+            .chapa-loading { margin-top: 14px; color: #555b6e; font-size: 12px; }
+            .chapa-spinner { border-top-color: #00b589; }
+            @media (max-width: 360px) { .chapa-payment-methods-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+          `,
+        },
+        // This remains on our own origin inside the same WebView. It verifies
+        // the server-side payment before showing the issued ticket receipt.
+        returnUrl: `${window.location.origin}/payment-return?payment_id=${encodeURIComponent(paymentId)}&target=web`,
+        onSuccessfulPayment: () => {
+          resolved = true;
+        },
+        onPaymentFailure: (message) => {
+          paymentError = message || 'Payment was not completed. Check the number and try again.';
+        },
+      });
+
+      chapa.initialize(CONTAINER_ID);
+      // initialize() renders synchronously in Chapa Inline.js. Check now so
+      // we cannot miss the mutation before the observer starts.
+      markReady();
+      if (!ready) throw new Error('Chapa did not render the payment form');
+    } catch (cause) {
+      loading = false;
+      loadError = cause instanceof Error ? cause.message : 'The secure payment form could not be loaded';
+      clearRuntimeChecks();
+    }
+  }
+
+  async function cancel(): Promise<void> {
     if (cancelling) return;
     cancelling = true;
     resolved = true;
-    if (paymentId) {
-      await cancelPaymentAndReturnHome(paymentId);
-    } else {
-      await goto('/raffles');
-    }
+    if (paymentId) await cancelPaymentAndReturnHome(paymentId);
+    else await goto('/raffles');
   }
 
-  async function retry() {
-    scriptError = false;
-    failureReason = null;
-    ready = false;
-    await startCheckout();
-  }
-
-  async function startCheckout() {
+  async function loadReservation(): Promise<void> {
+    loading = true;
+    reservationError = false;
     try {
-      await loadChapaScript();
-    } catch {
-      scriptError = true;
-      failureReason = 'script-load';
-      return;
-    }
-    if (!window.ChapaCheckout) {
-      scriptError = true;
-      failureReason = 'no-class';
-      return;
-    }
-
-    const publicKey = import.meta.env.VITE_CHAPA_PUBLIC_KEY as string | undefined;
-    if (!publicKey) {
-      scriptError = true;
-      failureReason = 'no-key';
-      return;
-    }
-
-    const chapa = new window.ChapaCheckout({
-      publicKey,
-      amount: String(amount),
-      currency: 'ETB',
-      tx_ref: txRef,
-      mobile: $auth.user?.phone ? toLocalEthiopianPhone($auth.user.phone) : undefined,
-      availablePaymentMethods: PAYMENT_METHODS,
-      customizations: {
-        buttonText: 'Pay now',
-        styles: `.chapa-pay-button { background-color: #00D3A0; color: #ffffff; }`,
-        successMessage: 'Payment received — confirming your tickets…',
-      },
-      // Explicit per-transaction, rather than relying on whatever webhook
-      // URL happens to be set account-wide in the Chapa dashboard.
-      callbackUrl: `${API_BASE}/payments/webhook/chapa`,
-      // Only a safety net: onSuccessfulPayment already handles completion
-      // via JS callback with no navigation. Mirrors the hosted-checkout
-      // flow's own return_url shape (payment-return/+page.svelte) in case
-      // any payment method here ever does redirect instead.
-      returnUrl: `${window.location.origin}/payment-return?payment_id=${encodeURIComponent(paymentId)}&target=web`,
-      onSuccessfulPayment: (_result, refId) => {
-        if (refId && refId !== txRef) {
-          // The widget settled on a different reference than the one this
-          // payment was reserved under — our webhook keys off OUR tx_ref,
-          // so this specific charge could otherwise strand itself as
-          // 'pending' forever. Surfaced loudly rather than silently
-          // trusted, since /payments/:id's own polling+verify (not this
-          // callback) is what actually confirms and issues tickets.
-          console.error('Chapa inline tx_ref mismatch', { expected: txRef, actual: refId });
-        }
-        resolved = true;
-        showBanner('Payment successful — confirming your tickets…');
-        goto(`/payments/${paymentId}`, { replaceState: true });
-      },
-      onPaymentFailure: () => {
-        cancel();
-      },
-      onClose: () => {
-        cancel();
-      },
-    });
-    chapa.initialize(CONTAINER_ID);
-
-    // Confirm the widget actually painted something — a script that loads
-    // fine but fails silently inside (bad public key, Chapa API outage,
-    // an unsupported browser feature) looks identical to "still loading"
-    // otherwise, forever.
-    const container = document.getElementById(CONTAINER_ID);
-    if (container) {
-      renderObserver = new MutationObserver(() => {
-        if (container.childElementCount > 0) {
-          ready = true;
-          renderObserver?.disconnect();
-          clearTimeout(renderTimeout);
-        }
-      });
-      renderObserver.observe(container, { childList: true });
-    }
-    renderTimeout = setTimeout(() => {
-      if (!ready) {
-        scriptError = true;
-        failureReason = 'render-timeout';
-        renderObserver?.disconnect();
-      }
-    }, RENDER_TIMEOUT_MS);
-  }
-
-  onMount(async () => {
-    // The widget renders its own form and manages its own scroll/touch —
-    // a pull-to-refresh gesture over it would just fight that.
-    pullRefresh.set(null);
-
-    paymentId = $page.url.searchParams.get('paymentId') ?? '';
-    if (!paymentId) {
-      invalid = true;
-      loadingPayment = false;
-      return;
-    }
-
-    try {
-      const res = await api.get<{ payment: { status: string; amount: number; txRef: string } }>(`/payments/${paymentId}`);
-      if (res.payment.status !== 'pending') {
-        // Already resolved (e.g. a stale/reopened link) — go straight to
-        // the real receipt instead of re-running checkout on a done deal.
+      const { payment } = await api.get<{ payment: ReservedPayment }>(`/payments/${paymentId}`);
+      if (payment.status === 'completed') {
         resolved = true;
         await goto(`/payments/${paymentId}`, { replaceState: true });
         return;
       }
-      amount = Number(res.payment.amount);
-      txRef = res.payment.txRef;
-      invalid = !txRef || !(amount > 0);
-    } catch (cause) {
-      invalid = true;
-      if (!(cause instanceof ApiError)) console.error('Could not load payment details', cause);
-    } finally {
-      loadingPayment = false;
+      amount = Number(payment.amount);
+      txRef = payment.txRef ?? '';
+      ticketCount = Number(payment.ticketCount);
+      raffleTitle = payment.raffleTitle?.trim() ?? '';
+      reservationLoaded = true;
+      invalid = payment.gateway !== 'chapa'
+        || payment.status !== 'pending'
+        || !txRef
+        || !Number.isFinite(amount)
+        || amount <= 0
+        || !Number.isInteger(ticketCount)
+        || ticketCount < 1
+        || ticketCount > 5;
+      if (invalid) loading = false;
+      else await initializeCheckout();
+    } catch {
+      reservationError = true;
+      reservationLoaded = false;
+      loading = false;
     }
+  }
 
-    if (!invalid) await startCheckout();
+  onMount(async () => {
+    pullRefresh.set(null);
+    const params = $page.url.searchParams;
+    paymentId = params.get('paymentId') ?? '';
+    invalid = !/^[0-9a-f-]{36}$/i.test(paymentId);
+    if (invalid) {
+      loading = false;
+      return;
+    }
+    await loadReservation();
   });
 
   onDestroy(() => {
-    renderObserver?.disconnect();
-    clearTimeout(renderTimeout);
-    // Covers leaving any other way (hardware/gesture back) — fire-and-
-    // forget, no redirect here since some other navigation is already in
-    // flight; this only makes sure the payment doesn't linger as
-    // 'pending'. cancel() above already handles its own case and sets
-    // `resolved` first, so this never double-fires for that path.
-    if (!resolved && !invalid && paymentId) {
-      api.post(`/payments/${paymentId}/cancel`).catch(() => undefined);
-    }
+    clearRuntimeChecks();
+    if (!resolved && !invalid && paymentId) api.post(`/payments/${paymentId}/cancel`).catch(() => undefined);
   });
 </script>
 
 <svelte:head><title>Secure checkout · YeneEta</title></svelte:head>
 
-<div class="checkout-page flex flex-col" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
-  <header class="flex h-11 shrink-0 items-center justify-between">
-    <button
-      type="button"
-      class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink disabled:opacity-50"
-      aria-label="Back"
-      disabled={cancelling}
-      on:click={cancel}
-    >
+<section class="checkout-page flex min-h-0 flex-col">
+  <header class="flex h-12 shrink-0 items-center justify-between">
+    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-ink disabled:opacity-50" aria-label="Cancel checkout and go back" disabled={cancelling} on:click={cancel}>
       <ArrowLeft size={20} />
     </button>
-    <p class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">
-      <ShieldCheck size={13} class="text-primary-dark" /> Secure checkout
-    </p>
-    <span class="h-11 w-11"></span>
+    <div class="flex items-center gap-1.5 text-xs font-bold text-muted"><LockKeyhole size={14} class="text-primary-dark" /> Secure checkout</div>
+    <span class="h-11 w-11" aria-hidden="true"></span>
   </header>
 
-  {#if loadingPayment}
-    <div class="flex flex-1 flex-col items-center justify-center gap-3 text-muted" aria-busy="true" aria-label="Loading payment">
-      <div class="h-6 w-6 animate-spin rounded-full border-2 border-dot-inactive border-t-primary-dark"></div>
+  {#if reservationError}
+    <div class="flex flex-1 flex-col items-center justify-center px-6 text-center" role="alert">
+      <AlertCircle size={30} class="text-pink" />
+      <h1 class="mt-4 text-lg font-extrabold text-ink">Could not load your reservation</h1>
+      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">Keep this page open, check your connection, and try again.</p>
+      <button type="button" class="pressable mt-5 flex min-h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={loadReservation}>
+        <RefreshCw size={16} /> Retry checkout
+      </button>
+    </div>
+  {:else if !reservationLoaded && !invalid}
+    <div class="flex flex-1 flex-col items-center justify-center gap-3 text-muted" aria-live="polite">
+      <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-dot-inactive border-t-primary-dark"></div>
+      <p class="text-sm font-semibold">Loading your ticket reservation…</p>
     </div>
   {:else if invalid}
-    <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-      <span class="flex h-14 w-14 items-center justify-center rounded-[20px] bg-pink-bg text-pink"><AlertCircle size={24} /></span>
-      <p class="text-sm font-bold text-ink">This checkout link isn't valid.</p>
-      <p class="max-w-[260px] text-xs leading-5 text-muted">Go back and try buying your tickets again.</p>
-      <button type="button" class="pressable mt-2 h-11 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={cancel}>Back to tickets</button>
+    <div class="flex flex-1 flex-col items-center justify-center px-6 text-center" role="alert">
+      <AlertCircle size={30} class="text-pink" />
+      <h1 class="mt-4 text-lg font-extrabold text-ink">Checkout details are incomplete</h1>
+      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">Return to the raffle and select your tickets again.</p>
+      <button type="button" class="pressable mt-5 min-h-11 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={cancel}>Back to raffles</button>
     </div>
   {:else}
-    <div class="mt-4 flex flex-1 flex-col overflow-hidden">
-      <!-- Amount — the one number that matters, said once, plainly. -->
-      <div class="flex items-baseline justify-between px-1">
-        <span class="text-xs font-bold uppercase tracking-[0.1em] text-muted">Amount due</span>
-        <span class="text-2xl font-extrabold tracking-tight text-ink">{formatEtb(amount)} <span class="text-sm font-bold text-muted">ETB</span></span>
+    <div class="mt-3 flex items-start justify-between gap-4 border-b border-dot-inactive/70 pb-4">
+      <div class="min-w-0">
+        <h1 class="line-clamp-2 text-lg font-extrabold leading-6 tracking-[-0.025em] text-ink">{raffleTitle || 'Raffle tickets'}</h1>
+        <p class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted"><Ticket size={14} /> {ticketCount} ticket{ticketCount === 1 ? '' : 's'}</p>
       </div>
-
-      <div class="mt-3 flex flex-1 flex-col overflow-hidden rounded-card bg-card shadow-card">
-        {#if scriptError}
-          <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-            <span class="flex h-14 w-14 items-center justify-center rounded-[20px] bg-pink-bg text-pink"><AlertCircle size={24} /></span>
-            <p class="text-sm font-bold text-ink">Couldn't load the secure checkout form.</p>
-            <p class="max-w-[280px] text-xs leading-5 text-muted">Check your connection and try again.</p>
-            {#if failureReason}
-              <p class="max-w-[280px] rounded-button bg-bg-start px-3 py-2 font-mono text-[10px] leading-4 text-muted">
-                {failureReason} — {FAILURE_MESSAGES[failureReason]}
-              </p>
-            {/if}
-            <button type="button" class="pressable mt-2 flex h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={retry}>
-              <RotateCcw size={15} /> Try again
-            </button>
-          </div>
-        {:else}
-          <div id={CONTAINER_ID} class="chapa-inline-container flex-1" aria-busy={!ready} aria-label="Payment form">
-            {#if !ready}
-              <div class="flex h-full flex-col items-center justify-center gap-2 text-muted">
-                <div class="h-6 w-6 animate-spin rounded-full border-2 border-dot-inactive border-t-primary-dark"></div>
-                <p class="text-xs font-semibold">Preparing secure payment…</p>
-              </div>
-            {/if}
-          </div>
-        {/if}
+      <div class="shrink-0 text-right">
+        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Total</p>
+        <p class="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatEtb(amount)}</p>
+        <p class="text-[10px] font-bold text-muted">ETB</p>
       </div>
-
-      <p class="mt-3 flex items-center justify-center gap-1.5 text-center text-[10px] leading-4 text-muted">
-        <ShieldCheck size={11} class="shrink-0 text-primary-dark" /> Payments are processed securely by Chapa. YeneEta never sees your mobile money PIN.
-      </p>
     </div>
+
+    <div class="mt-4 flex items-center gap-2 text-xs font-semibold text-muted">
+      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>
+      Select a payment method and confirm on your phone
+    </div>
+
+    {#if paymentError}
+      <div class="mt-3 flex items-start gap-2 rounded-[14px] bg-pink-bg px-3 py-2.5 text-xs leading-5 text-pink" role="alert">
+        <AlertCircle size={16} class="mt-0.5 shrink-0" /> <span>{paymentError}</span>
+      </div>
+    {/if}
+
+    <div class="relative mt-4 min-h-[250px] flex-1">
+      {#if loading}
+        <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted" aria-live="polite">
+          <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-dot-inactive border-t-primary-dark"></div>
+          <p class="text-sm font-semibold">Preparing payment methods…</p>
+        </div>
+      {/if}
+
+      {#if loadError}
+        <div class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center" role="alert">
+          <span class="flex h-14 w-14 items-center justify-center rounded-full bg-pink-bg text-pink"><AlertCircle size={24} /></span>
+          <h2 class="mt-4 text-base font-extrabold text-ink">Payment form did not load</h2>
+          <p class="mt-2 max-w-[290px] text-sm leading-6 text-muted">Keep this page open, check your connection, then retry securely inside the app.</p>
+          <button type="button" class="pressable mt-5 flex min-h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={() => initializeCheckout(true)}>
+            <RefreshCw size={16} /> Retry payment form
+          </button>
+        </div>
+      {/if}
+
+      <div id={CONTAINER_ID} class:hidden={!ready} class="chapa-inline-container pb-4" aria-label="Chapa payment form"></div>
+    </div>
+
+    <footer class="flex shrink-0 items-center justify-center gap-1.5 border-t border-dot-inactive/60 py-3 text-[11px] font-semibold text-muted">
+      <ShieldCheck size={13} class="text-primary-dark" /> Payment status is verified before tickets are issued
+    </footer>
   {/if}
-</div>
+</section>
 
 <style>
-  .checkout-page {
-    height: calc(100dvh - max(44px, var(--safe-top)) - 150px);
-    min-height: 0;
-  }
-  .chapa-inline-container {
-    overflow-y: auto;
-    padding: 20px 16px;
-  }
+  .checkout-page { height: calc(100dvh - max(44px, var(--safe-top)) - 28px); }
+  .chapa-inline-container { overflow: visible; }
+  :global(html:has(.checkout-page) .bottom-nav) { display: none; }
+  :global(html:has(.checkout-page) .native-bottom-nav-clearance) { padding-bottom: max(20px, var(--safe-bottom)); }
+  :global(.checkout-page *:focus-visible) { outline: 3px solid rgba(0, 181, 137, .28); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .checkout-page :global(.animate-spin) { animation-duration: 1.5s; } }
 </style>
