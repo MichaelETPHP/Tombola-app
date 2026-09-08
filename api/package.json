@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "db:admin-sessions:check": "bun run src/db/admin-session-schema.ts --check",
+    "db:admin-sessions:apply": "bun run src/db/admin-session-schema.ts --apply"
   },
   "dependencies": {
     "hono": "^4.7.0",

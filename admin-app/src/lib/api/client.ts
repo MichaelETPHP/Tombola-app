@@ -82,6 +82,32 @@ export function restoreAdminSession(): Promise<boolean> {
   return pending;
 }
 
+/** Verify the issued session before marking sign-in complete or mounting protected pages. */
+export async function loginAdmin(credentials: { phone: string; password: string }): Promise<void> {
+  invalidateSessionWork();
+  const revision = getSessionRevision();
+  const result = await readResponse<{ accessToken: string }>(await request('/admin/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials),
+  }));
+  if (typeof result.accessToken !== 'string' || !result.accessToken) {
+    throw new ApiError(502, JSON.stringify({ code: 'AUTH_SESSION_SETUP_FAILED' }));
+  }
+  const response = await request('/admin/auth/me', {
+    headers: { Authorization: `Bearer ${result.accessToken}` },
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new ApiError(503, JSON.stringify({ code: 'AUTH_SESSION_SETUP_FAILED' }));
+  }
+  const { admin } = await readResponse<{ admin: AdminUser }>(response);
+  if (!admin?.id || !['owner', 'moderator'].includes(admin.role)) {
+    throw new ApiError(502, JSON.stringify({ code: 'AUTH_SESSION_SETUP_FAILED' }));
+  }
+  if (revision !== getSessionRevision() || signingOut) {
+    throw new ApiError(409, JSON.stringify({ error: 'This sign-in was superseded. Please try again.' }));
+  }
+  setAuth(result.accessToken, admin);
+}
+
 export async function logoutAdmin(): Promise<void> {
   if (signingOut) return;
   signingOut = true;

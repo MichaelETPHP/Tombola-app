@@ -11,6 +11,7 @@ import {
   type DbAdminUser,
 } from '../../db/queries/admin.queries.js';
 import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
+import { requireAdminSessionVersion } from '../../lib/admin-session.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
@@ -311,18 +312,21 @@ export async function adminLogin(phone?: string, password?: string) {
     throw new AppError(401, 'auth.invalidCredentials');
   }
 
+  // A schema mismatch is a service error, never a successful unusable login.
+  const sessionVersion = requireAdminSessionVersion(admin.sessionVersion);
+
   // Sign access and refresh tokens
   const accessToken = await signAccessToken({
     sub: admin.id,
     phone: admin.phoneNumber,
     role: admin.role,
-    sessionVersion: admin.sessionVersion,
+    sessionVersion,
   });
 
   const refreshToken = await signRefreshToken({
     sub: admin.id,
     role: admin.role,
-    sessionVersion: admin.sessionVersion,
+    sessionVersion,
   });
 
   return {

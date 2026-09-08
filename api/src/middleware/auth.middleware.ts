@@ -48,7 +48,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     } else if (payload.role === 'owner' || payload.role === 'moderator') {
       const admin = await findAdminById(payload.sub);
       if (!isCurrentAdminSession(payload, admin)) {
-        return c.json({ error: c.get('t')('auth.sessionRevoked'), code: 'AUTH_SESSION_REVOKED' }, 401);
+        return c.json({ error: c.get('t')('admin.sessionRevoked'), code: 'AUTH_SESSION_REVOKED' }, 401);
       }
       c.set('admin', {
         id: payload.sub,

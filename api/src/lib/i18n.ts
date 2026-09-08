@@ -41,6 +41,8 @@ await i18next.init({
       'room.notAMember': 'Buy a ticket for this raffle to join its room.',
       'room.readOnly': 'This raffle has ended — the room is now read-only.',
       'admin.phoneTaken': 'That phone number is already an admin.',
+      'admin.sessionRevoked': 'Your admin session has ended. Please sign in again.',
+      'admin.sessionUnavailable': 'Admin sign-in is temporarily unavailable. Please contact the platform administrator.',
       'admin.cannotDeleteSelf': 'You cannot delete your own admin account.',
       'admin.lastOwnerDemote': 'Cannot demote the last remaining owner.',
       'admin.lastOwnerDelete': 'Cannot delete the last remaining owner.',

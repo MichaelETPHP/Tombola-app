@@ -1,8 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, ApiError } from '$lib/api/client.js';
-  import { auth, setAuth, invalidateSessionWork } from '$lib/stores/auth.store.js';
-  import { adminLoginSchema, type AdminAuthResponse } from '$lib/schemas/index.js';
+  import { loginAdmin, ApiError } from '$lib/api/client.js';
+  import { auth } from '$lib/stores/auth.store.js';
+  import { adminLoginSchema } from '$lib/schemas/index.js';
   import { ArrowRight, CheckCircle2, Dices, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-svelte';
 
   let phone = '';
@@ -17,6 +17,9 @@
   // password was actually right and you just tried a few times in a row.
   function loginErrorMessage(err: unknown): string {
     if (!(err instanceof ApiError)) return 'Unable to reach YeneEta. Check your connection and try again.';
+    if (err.code === 'AUTH_SESSION_SETUP_FAILED') {
+      return 'Your credentials were accepted, but the server could not establish a secure session. Please contact the platform administrator.';
+    }
     if (err.status === 429) {
       try {
         const body = JSON.parse(err.body) as { retryAfter?: number };
@@ -42,12 +45,9 @@
     }
 
     loading = true;
-    invalidateSessionWork();
     try {
-      const result = await api.post<AdminAuthResponse>('/admin/auth/login', parsed.data, { skipAuth: true });
-      setAuth(result.accessToken, result.admin);
+      await loginAdmin(parsed.data);
       password = '';
-      await goto('/', { replaceState: true });
     } catch (err) {
       error = loginErrorMessage(err);
     } finally {
