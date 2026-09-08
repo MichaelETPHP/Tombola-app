@@ -28,11 +28,10 @@
 <svelte:head><title>Create raffle · YeneEta Admin</title></svelte:head>
 
 <div class="admin-reveal">
-  <a href="/raffles" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-muted hover:text-ink"><ArrowLeft size={15} /> Back to raffles</a>
-  <header class="mb-7">
-    <p class="mb-2 text-xs font-bold uppercase tracking-[0.15em] text-primary">Prize setup</p>
-    <h1 class="text-[28px] font-bold tracking-[-0.03em] text-ink">Create a new raffle</h1>
-    <p class="mt-2 max-w-2xl text-sm leading-6 text-muted">Define the prize, ticket quota and participant limits. You can review the raffle before opening ticket sales.</p>
+  <a href="/raffles" class="admin-press mb-5 inline-flex min-h-10 items-center gap-2 rounded-button px-2 text-xs font-bold text-muted no-underline hover:bg-card hover:text-ink"><ArrowLeft size={15} /> Back to raffles</a>
+  <header class="mb-7 border-b border-border pb-6">
+    <h1 class="text-[30px] font-bold leading-tight tracking-[-0.03em] text-ink md:text-[38px]">Create a profitable raffle</h1>
+    <p class="mt-2 max-w-2xl text-sm leading-6 text-muted">Build the prize offer and sales rules while the live preview checks break-even volume, sell-out revenue, and projected gross profit.</p>
   </header>
 
   {#if !canCreate}

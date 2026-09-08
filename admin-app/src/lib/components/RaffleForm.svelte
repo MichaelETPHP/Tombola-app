@@ -3,7 +3,7 @@
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { CircleDollarSign, Gift, ImagePlus, Plus, Send, Settings2, Trash2 } from 'lucide-svelte';
+  import { ChartNoAxesCombined, CircleDollarSign, Gift, ImagePlus, Plus, Send, Settings2, Trash2 } from 'lucide-svelte';
   import { createRaffleSchema, type CreateRaffleInput } from '../schemas/index.js';
 
   const dispatch = createEventDispatcher<{ submit: CreateRaffleInput }>();
@@ -73,6 +73,13 @@
   $: totalPrizeValue = (Number(prizeValue) || 0) + additionalPrizes.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
   $: minTicketCap = ticketPrice && Number(ticketPrice) > 0 ? Math.ceil(totalPrizeValue / Number(ticketPrice)) : null;
   $: ticketCapTooLow = minTicketCap !== null && ticketCap !== '' && Number(ticketCap) < minTicketCap;
+  $: projectedRevenue = (Number(ticketPrice) || 0) * (Number(ticketCap) || 0);
+  $: projectedGrossProfit = projectedRevenue - totalPrizeValue;
+  $: projectedMargin = projectedRevenue > 0 ? (projectedGrossProfit / projectedRevenue) * 100 : 0;
+
+  const money = (value: number) => new Intl.NumberFormat('en-ET', {
+    maximumFractionDigits: 2,
+  }).format(value);
 </script>
 
 <form class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]" on:submit|preventDefault={handleSubmit}>
@@ -149,6 +156,32 @@
   </div>
 
   <aside class="space-y-5">
+    <section class="overflow-hidden rounded-card bg-sidebar text-white shadow-[0_22px_48px_-32px_rgba(23,32,30,0.75)]" aria-live="polite">
+      <div class="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+        <div>
+          <h2 class="text-base font-bold tracking-[-0.02em]">Profit preview</h2>
+          <p class="mt-1 text-[11px] leading-4 text-sidebar-text">Updates as ticket and prize values change</p>
+        </div>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-primary/15 text-primary"><ChartNoAxesCombined size={17} /></span>
+      </div>
+
+      <div class="p-5">
+        <p class="text-[11px] font-medium text-sidebar-text">Projected gross profit at sell-out</p>
+        <p class="mt-1 font-mono text-[30px] font-bold leading-none tracking-[-0.03em] {projectedGrossProfit < 0 ? 'text-[#ff9b9b]' : 'text-white'}">
+          {projectedGrossProfit < 0 ? '−' : ''}{money(Math.abs(projectedGrossProfit))} <span class="text-xs font-medium text-sidebar-text">ETB</span>
+        </p>
+
+        <dl class="mt-6 divide-y divide-white/10 text-xs">
+          <div class="flex items-center justify-between gap-4 pb-3"><dt class="text-sidebar-text">Sell-out revenue</dt><dd class="font-mono font-bold tabular-nums">{money(projectedRevenue)} ETB</dd></div>
+          <div class="flex items-center justify-between gap-4 py-3"><dt class="text-sidebar-text">Prize commitment</dt><dd class="font-mono font-bold tabular-nums">{money(totalPrizeValue)} ETB</dd></div>
+          <div class="flex items-center justify-between gap-4 py-3"><dt class="text-sidebar-text">Break-even volume</dt><dd class="font-mono font-bold tabular-nums">{minTicketCap?.toLocaleString() ?? '—'} tickets</dd></div>
+          <div class="flex items-center justify-between gap-4 pt-3"><dt class="text-sidebar-text">Projected margin</dt><dd class="font-mono font-bold tabular-nums {projectedMargin < 0 ? 'text-[#ff9b9b]' : 'text-primary'}">{projectedRevenue ? `${projectedMargin.toFixed(1)}%` : '—'}</dd></div>
+        </dl>
+
+        <p class="mt-5 text-[10px] leading-4 text-sidebar-text">Gross projection subtracts committed prizes only. Chapa and operating fees are not recorded here.</p>
+      </div>
+    </section>
+
     <section class="rounded-card border border-border bg-card p-5">
       <div class="mb-5 flex items-center gap-2.5"><Settings2 size={17} class="text-primary" /><h2 class="text-sm font-bold text-ink">Entry rules</h2></div>
       <div class="space-y-5">

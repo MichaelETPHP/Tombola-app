@@ -84,5 +84,5 @@ export const radii = {
 
 // ── Typography ───────────────────────────────────────────
 export const typography = {
-  fontFamily: "'Outfit', 'Segoe UI', sans-serif",
+  fontFamily: "'Hoover', 'Segoe UI', sans-serif",
 } as const;

@@ -4,6 +4,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import {
     ChartNoAxesCombined,
+    ChevronDown,
     ChevronRight,
     FileClock,
     LogOut,
@@ -17,16 +18,28 @@
     X,
   } from 'lucide-svelte';
 
+  type NavChild = { href: string; label: string };
+  type NavItem = { href: string; label: string; icon: typeof Ticket; exact?: boolean; children?: NavChild[] };
+
   $: links = [
     { href: '/', label: 'Control center', icon: ChartNoAxesCombined, exact: true },
-    { href: '/raffles', label: 'Raffles', icon: Ticket },
+    {
+      href: '/raffles',
+      label: 'Raffles',
+      icon: Ticket,
+      children: [
+        { href: '/raffles', label: 'All raffles' },
+        { href: '/raffles/new', label: 'Create raffle' },
+        ...($auth.admin?.role === 'owner' ? [{ href: '/raffles/profit', label: 'Profit' }] : []),
+      ],
+    },
     { href: '/users', label: 'Registered users', icon: Users },
     { href: '/payouts', label: 'Payouts', icon: PackageCheck },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
     // Owner-only, same gate as the API route it reads from.
     ...($auth.admin?.role === 'owner' ? [{ href: '/integrations', label: 'Integrations', icon: Plug }] : []),
     { href: '/settings', label: 'Settings', icon: Settings },
-  ];
+  ] satisfies NavItem[];
 
   let menuOpen = false;
   $: current = $page.url.pathname;
@@ -108,8 +121,22 @@
         >
           <svelte:component this={link.icon} size={17} strokeWidth={2} />
           <span>{link.label}</span>
-          {#if isActive(current, link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
+          {#if link.children && isActive(current, link.href, link.exact)}
+            <ChevronDown size={14} class="ml-auto text-primary" />
+          {:else if isActive(current, link.href, link.exact)}
+            <ChevronRight size={14} class="ml-auto text-primary" />
+          {/if}
         </a>
+        {#if link.children && isActive(current, link.href, link.exact)}
+          <div class="mb-1 ml-[21px] border-l border-white/10 pl-4">
+            {#each link.children as child (child.href)}
+              <a href={child.href} on:click={() => (menuOpen = false)} aria-current={isActive(current, child.href, true) ? 'page' : undefined}
+                class="admin-press flex min-h-9 items-center rounded-[9px] px-3 text-[11px] font-semibold no-underline {isActive(current, child.href, true) ? 'bg-primary/12 text-primary' : 'text-sidebar-text hover:text-white'}">
+                {child.label}
+              </a>
+            {/each}
+          </div>
+        {/if}
       {/each}
     </nav>
 
@@ -151,8 +178,22 @@
       >
         <svelte:component this={link.icon} size={17} strokeWidth={2} />
         <span>{link.label}</span>
-        {#if isActive(current, link.href, link.exact)}<ChevronRight size={14} class="ml-auto text-primary" />{/if}
+        {#if link.children && isActive(current, link.href, link.exact)}
+          <ChevronDown size={14} class="ml-auto text-primary" />
+        {:else if isActive(current, link.href, link.exact)}
+          <ChevronRight size={14} class="ml-auto text-primary" />
+        {/if}
       </a>
+      {#if link.children && isActive(current, link.href, link.exact)}
+        <div class="mb-1 ml-[21px] border-l border-white/10 pl-4">
+          {#each link.children as child (child.href)}
+            <a href={child.href} aria-current={isActive(current, child.href, true) ? 'page' : undefined}
+              class="admin-press flex min-h-9 items-center rounded-[9px] px-3 text-[11px] font-semibold no-underline {isActive(current, child.href, true) ? 'bg-primary/12 text-primary' : 'text-sidebar-text hover:text-white'}">
+              {child.label}
+            </a>
+          {/each}
+        </div>
+      {/if}
     {/each}
   </nav>
 

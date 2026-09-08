@@ -13,7 +13,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="YeneEta" />
     <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/images/splash-screen-1.jpg" as="image" fetchpriority="high" />
+    <script>
+      // Public SMS draw links are deliberately instant: suppress the web
+      // boot artwork and its preload before the first paint. Other routes
+      // retain the high-priority splash preload.
+      const directDrawEntry = /^\/draw\/[A-Za-z0-9_-]+\/?$/.test(location.pathname);
+      if (directDrawEntry) {
+        document.documentElement.classList.add('direct-draw-entry');
+      } else {
+        const splashPreload = document.createElement('link');
+        splashPreload.rel = 'preload';
+        splashPreload.href = '/images/splash-screen-1.jpg';
+        splashPreload.as = 'image';
+        splashPreload.fetchPriority = 'high';
+        document.head.appendChild(splashPreload);
+      }
+    </script>
     <title>YeneEta</title>
     <!-- Load Telegram's bridge only for a real Mini App launch. The native
          APK and installed PWA avoid this external request entirely. -->
@@ -50,6 +65,10 @@
         opacity: 0;
         pointer-events: none;
         animation: none;
+      }
+      html.direct-draw-entry #boot-splash {
+        display: none !important;
+        animation: none !important;
       }
       .boot-splash__slide {
         position: absolute;

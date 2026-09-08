@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { App } from '@capacitor/app';
   import { Browser } from '@capacitor/browser';
@@ -24,6 +25,8 @@
   type MeResponse = {
     user: { id: string; phone: string; fullName: string | null; preferredLanguage?: 'en' | 'am' };
   };
+
+  $: directDrawRoute = $page.url.pathname.startsWith('/draw/');
 
   async function handleNativePaymentReturn(rawUrl: string | undefined): Promise<void> {
     if (!rawUrl) return;
@@ -64,6 +67,14 @@
     initBackButtonHandling();
     disableZoom();
     initLanguage();
+
+    if (directDrawRoute) {
+      // This route is an intentionally public, one-time SMS experience.
+      // It needs neither auth restoration nor any app-shell overlays.
+      setAuthLoading(false);
+      await hideBootSplash();
+      return;
+    }
 
     // Network restoration continues behind precise skeleton states; never
     // hold the native/HTML splash on a slow request.
@@ -128,6 +139,8 @@
 </script>
 
 <slot />
-<BackExitToast />
-<Banner />
-<ConnectivityGate />
+{#if !directDrawRoute}
+  <BackExitToast />
+  <Banner />
+  <ConnectivityGate />
+{/if}

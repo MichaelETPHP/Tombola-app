@@ -1,8 +1,16 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Hoover';
+  src: url('/font/Hoover_Complete/Fonts/WEB/fonts/Hoover-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+}
+
 /* ─── YeneEta Admin — Theme Tokens ──────────────────────────────────── */
 @theme {
-  --font-sans: 'Outfit', 'Segoe UI', sans-serif;
+  --font-sans: 'Hoover', 'Segoe UI', sans-serif;
 
   --color-primary: #159a7f;
   --color-primary-dark: #107c68;
@@ -41,6 +49,7 @@
     color: var(--color-ink);
     background: var(--color-bg);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   body {
@@ -62,6 +71,16 @@
   :focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  ::selection {
+    color: var(--color-ink);
+    background: #bce9dc;
+  }
+
+  * {
+    scrollbar-color: var(--color-border) transparent;
+    scrollbar-width: thin;
   }
 }
 

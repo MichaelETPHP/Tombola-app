@@ -74,6 +74,15 @@ export async function getDrawContext(token: string) {
     SELECT COUNT(DISTINCT user_id)::int AS "registeredUsers"
     FROM tickets WHERE raffle_id = ${raffle.id}
   `;
+  let spinNonce: string | null = null;
+  if (trigger.status === 'pending' && !!trigger.expiresAt && trigger.expiresAt > new Date()) {
+    spinNonce = nanoid(24);
+    const spinNonceHash = await sha256(spinNonce);
+    await sql`
+      UPDATE draw_triggers SET spin_nonce_hash = ${spinNonceHash}
+      WHERE id = ${trigger.id} AND status = 'pending'
+    `;
+  }
   return {
     raffleId: raffle.id,
     raffleName: raffle.title,
@@ -91,6 +100,7 @@ export async function getDrawContext(token: string) {
     status: trigger.status,
     expiresAt: trigger.expiresAt,
     canSpin: trigger.status === 'pending' && !!trigger.expiresAt && trigger.expiresAt > new Date() && raffle.status === 'awaiting_trigger',
+    spinNonce,
   };
 }
 
@@ -245,7 +255,7 @@ export async function sendDrawTrigger(
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
   const selected = await selectEligibleParticipant(raffleId, excludeUserId);
-  const rawToken = nanoid(48);
+  const rawToken = nanoid(32);
 
   const dispatch = await sql.begin(async (tx) => {
     const [trigger] = await tx<{ id: string; tier: number; status: string }[]>`
@@ -345,7 +355,7 @@ export async function reassignDrawTrigger(raffleId: string, tier: number, adminI
   return { ...sent, prizeName: generated.prizeName, attemptNumber: generated.attemptNumber };
 }
 
-export async function executeDraw(token: string, clickedIp: string | null = null) {
+export async function executeDraw(token: string, spinNonce: string, clickedIp: string | null = null) {
   // clicked_ip is a Postgres INET column — clientIp()'s 'unknown' fallback
   // (no x-forwarded-for/x-real-ip, e.g. a direct local-dev connection with
   // no reverse proxy in front) isn't a valid inet literal and fails the
@@ -353,11 +363,13 @@ export async function executeDraw(token: string, clickedIp: string | null = null
   // via winner_user_id regardless.
   const safeClickedIp = clickedIp && clickedIp !== 'unknown' ? clickedIp : null;
   const tokenHash = await sha256(token);
+  const spinNonceHash = await sha256(spinNonce);
   const result = await sql.begin(async (tx) => {
     const [trigger] = await tx<{ id: string; raffleId: string; status: string; expiresAt: Date; tier: number; prizeId: string | null }[]>`
       SELECT id, raffle_id, status, expires_at, tier, prize_id AS "prizeId" FROM draw_triggers
-      WHERE (token_is_hashed = true AND link_token = ${tokenHash})
-         OR (token_is_hashed = false AND link_token = ${token})
+      WHERE ((token_is_hashed = true AND link_token = ${tokenHash})
+         OR (token_is_hashed = false AND link_token = ${token}))
+        AND spin_nonce_hash = ${spinNonceHash}
       FOR UPDATE
     `;
     if (!trigger) throw new AppError(404, 'Invalid draw link');
@@ -460,7 +472,7 @@ export async function executeDraw(token: string, clickedIp: string | null = null
     // guarantee against a double-spin/replay of the same token — belt and
     // suspenders rather than relying on the lock alone.
     const clicked = await tx`
-      UPDATE draw_triggers SET status = 'clicked', clicked_at = ${clickedAt}, clicked_ip = ${safeClickedIp}
+      UPDATE draw_triggers SET status = 'clicked', clicked_at = ${clickedAt}, clicked_ip = ${safeClickedIp}, spin_nonce_hash = NULL
       WHERE id = ${trigger.id} AND status = 'pending'
     `;
     if (clicked.count === 0) throw new AppError(409, 'This draw link has already been used or replaced');

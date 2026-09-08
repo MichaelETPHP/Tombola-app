@@ -19,6 +19,7 @@ export interface DbDrawTrigger {
   clickedAt: Date | null;
   clickedIp: string | null;
   tokenIsHashed: boolean;
+  spinNonceHash: string | null;
   generatedBy: string | null;
   generationReason: string | null;
   tier: number;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
   import { fade } from 'svelte/transition';
   import { api, ApiError } from '$lib/api/client.js';
@@ -15,6 +15,7 @@
     drawDateTime: string | null;
     status: string;
     canSpin: boolean;
+    spinNonce: string | null;
   };
 
   type DrawResult = {
@@ -35,6 +36,8 @@
   let displayTicket = '-----';
   let pass = 1;
   let error = '';
+  let resultReady = false;
+  let soundContext: AudioContext | undefined;
 
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,23 +53,54 @@
     return `${draw?.raffleCode ?? 'DRAW'}-${String(value).padStart(5, '0')}`;
   }
 
+  async function enableSound(): Promise<void> {
+    try {
+      soundContext ??= new AudioContext();
+      if (soundContext.state === 'suspended') await soundContext.resume();
+    } catch {
+      // Autoplay policy may require the first touch. The draw still runs.
+    }
+  }
+
+  function playTick(accent = false): void {
+    if (!soundContext || soundContext.state !== 'running') return;
+    const now = soundContext.currentTime;
+    const oscillator = soundContext.createOscillator();
+    const gain = soundContext.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(accent ? 660 : 260 + pass * 55, now);
+    gain.gain.setValueAtTime(accent ? 0.045 : 0.018, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (accent ? 0.16 : 0.035));
+    oscillator.connect(gain).connect(soundContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + (accent ? 0.17 : 0.04));
+  }
+
   async function shuffleThreePasses(): Promise<void> {
     if (reduceMotion) return;
     for (let currentPass = 1; currentPass <= 3; currentPass += 1) {
       pass = currentPass;
-      const frames = currentPass === 3 ? 13 : 10;
+      const frames = currentPass === 3 ? 12 : 9;
       for (let frame = 0; frame < frames; frame += 1) {
         displayTicket = randomTicket();
-        await sleep(currentPass === 3 ? 65 + frame * 8 : 48);
+        playTick();
+        await sleep(currentPass === 3 ? 44 + frame * 4 : 38);
       }
+    }
+    while (!resultReady && !error) {
+      displayTicket = randomTicket();
+      playTick();
+      await sleep(90);
     }
   }
 
   async function run(): Promise<void> {
+    void enableSound();
+    const visualSpin = shuffleThreePasses();
     try {
       const response = await api.get<{ draw: DrawContext }>(`/draws/${$page.params.token}`, { skipAuth: true });
       draw = response.draw;
-      if (!draw.canSpin) {
+      if (!draw.canSpin || !draw.spinNonce) {
         error = draw.status === 'clicked'
           ? 'This draw has already been completed.'
           : 'This one-time draw invitation is no longer available.';
@@ -74,12 +108,16 @@
       }
 
       await hapticMedium();
-      const [spinResponse] = await Promise.all([
-        api.post<DrawResult>(`/draws/${$page.params.token}/spin`, undefined, { skipAuth: true }),
-        shuffleThreePasses(),
-      ]);
+      const spinResponse = await api.post<DrawResult>(
+        `/draws/${$page.params.token}/spin`,
+        { spinNonce: draw.spinNonce },
+        { skipAuth: true }
+      );
+      resultReady = true;
+      await visualSpin;
       displayTicket = spinResponse.winnerTicketCode;
       result = spinResponse;
+      playTick(true);
       await hapticMedium();
     } catch (cause) {
       error = cause instanceof ApiError && cause.status === 404
@@ -88,6 +126,7 @@
           ? 'This one-time draw invitation has already been used, replaced, or expired.'
           : 'The draw could not be completed. Please check your connection.';
     } finally {
+      resultReady = true;
       spinning = false;
     }
   }
@@ -98,10 +137,23 @@
       }).format(new Date(value))
     : 'Preparing draw time';
 
-  onMount(run);
+  function unlockSound(): void { void enableSound(); }
+
+  onMount(() => {
+    document.addEventListener('pointerdown', unlockSound, { once: true });
+    void run();
+  });
+  onDestroy(() => {
+    document.removeEventListener('pointerdown', unlockSound);
+    void soundContext?.close();
+  });
 </script>
 
-<svelte:head><title>Fair draw · YeneEta</title></svelte:head>
+<svelte:head>
+  <title>Fair draw · YeneEta</title>
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="referrer" content="no-referrer" />
+</svelte:head>
 
 <main class="draw-page min-h-[100dvh] overflow-hidden bg-[#e9faf5] px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#142a25]">
   <div class="mx-auto flex min-h-[calc(100dvh-48px)] max-w-md flex-col">

@@ -15,6 +15,7 @@ import {
 import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
+import { sql } from '../../db/client.js';
 import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
@@ -55,6 +56,98 @@ export async function getDashboardStats() {
       status: p.claimStatus,
     })),
   };
+}
+
+interface ProfitRaffleRow {
+  id: string;
+  title: string;
+  publicCode: string;
+  status: string;
+  ticketPrice: number;
+  ticketCap: number;
+  collectedAmount: number;
+  paidTickets: number;
+  payingUsers: number;
+  prizeCommitment: number;
+}
+
+/**
+ * Realized raffle economics. Revenue only includes completed payments;
+ * failed, pending, and refunded payments never inflate the figures.
+ * "Gross profit" intentionally excludes gateway/operating fees because
+ * those costs are not currently recorded by the platform.
+ */
+export async function getProfitOverview() {
+  const [rows, [buyerSummary]] = await Promise.all([
+    sql<ProfitRaffleRow[]>`
+    WITH paid AS (
+      SELECT
+        raffle_id,
+        COALESCE(SUM(amount), 0) AS collected_amount,
+        COALESCE(SUM(ticket_count), 0)::int AS paid_tickets,
+        COUNT(DISTINCT user_id)::int AS paying_users
+      FROM payments
+      WHERE status = 'completed'
+      GROUP BY raffle_id
+    ),
+    prizes AS (
+      SELECT raffle_id, COALESCE(SUM(value), 0) AS prize_commitment
+      FROM raffle_prizes
+      GROUP BY raffle_id
+    )
+    SELECT
+      r.id,
+      r.title,
+      r.public_code,
+      r.status,
+      r.ticket_price,
+      r.ticket_cap,
+      COALESCE(paid.collected_amount, 0) AS collected_amount,
+      COALESCE(paid.paid_tickets, 0)::int AS paid_tickets,
+      COALESCE(paid.paying_users, 0)::int AS paying_users,
+      COALESCE(prizes.prize_commitment, r.prize_value) AS prize_commitment
+    FROM raffles r
+    LEFT JOIN paid ON paid.raffle_id = r.id
+    LEFT JOIN prizes ON prizes.raffle_id = r.id
+    ORDER BY r.created_at DESC
+    `,
+    sql<{ uniquePayingUsers: number }[]>`
+      SELECT COUNT(DISTINCT user_id)::int AS unique_paying_users
+      FROM payments
+      WHERE status = 'completed'
+    `,
+  ]);
+
+  const raffles = rows.map((row) => {
+    const collectedAmount = Number(row.collectedAmount);
+    const prizeCommitment = Number(row.prizeCommitment);
+    const projectedRevenue = Number(row.ticketPrice) * row.ticketCap;
+    const grossProfit = collectedAmount - prizeCommitment;
+    return {
+      ...row,
+      ticketPrice: Number(row.ticketPrice),
+      collectedAmount,
+      prizeCommitment,
+      projectedRevenue,
+      grossProfit,
+      projectedGrossProfit: projectedRevenue - prizeCommitment,
+      marginPercent: collectedAmount > 0 ? (grossProfit / collectedAmount) * 100 : null,
+    };
+  });
+
+  const totals = raffles.reduce(
+    (sum, raffle) => ({
+      collectedAmount: sum.collectedAmount + raffle.collectedAmount,
+      prizeCommitment: sum.prizeCommitment + raffle.prizeCommitment,
+      grossProfit: sum.grossProfit + raffle.grossProfit,
+      paidTickets: sum.paidTickets + raffle.paidTickets,
+      payingUsers: sum.payingUsers,
+    }),
+    { collectedAmount: 0, prizeCommitment: 0, grossProfit: 0, paidTickets: 0, payingUsers: 0 }
+  );
+  totals.payingUsers = buyerSummary?.uniquePayingUsers ?? 0;
+
+  return { raffles, totals, calculatedAt: new Date().toISOString() };
 }
 
 /**

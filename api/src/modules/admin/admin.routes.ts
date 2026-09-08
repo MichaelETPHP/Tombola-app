@@ -12,6 +12,7 @@ import {
 } from './admin.schema.js';
 import {
   getDashboardStats,
+  getProfitOverview,
   adminListUsers,
   adminSuspendUser,
   adminLogin,
@@ -135,6 +136,15 @@ adminRoutes.delete('/admins/:id', requireRole('owner'), async (c) => {
 adminRoutes.get('/dashboard', async (c) => {
   const stats = await getDashboardStats();
   return c.json(stats);
+});
+
+/**
+ * GET /admin/profits
+ * Completed-payment revenue and committed prize cost by raffle.
+ * Owner-only because this is commercially sensitive information.
+ */
+adminRoutes.get('/profits', requireRole('owner'), async (c) => {
+  return c.json(await getProfitOverview());
 });
 
 /**
