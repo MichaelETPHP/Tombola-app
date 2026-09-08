@@ -1,54 +1,37 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, ApiError } from '$lib/api/client.js';
-  import { setAuth, setAuthLoading, clearAuth, type AdminUser } from '$lib/stores/auth.store.js';
+  import { page } from '$app/stores';
+  import { restoreAdminSession } from '$lib/api/client.js';
+  import { auth, setAuthLoading, getSessionRevision } from '$lib/stores/auth.store.js';
+  import { RefreshCw } from 'lucide-svelte';
   import '../app.css';
 
-  // Silent token refresh via the httpOnly refresh_token cookie, then load
-  // the admin's own profile with the freshly-minted access token.
-  async function restoreSession(): Promise<void> {
-    const refreshed = await api.post<{ accessToken: string }>('/auth/refresh', undefined, {
-      skipAuth: true,
-    });
-    const res = await api.get<{ admin: AdminUser }>('/admin/auth/me', {
-      headers: {
-        Authorization: `Bearer ${refreshed.accessToken}`,
-      },
-    });
-    setAuth(refreshed.accessToken, res.admin);
-  }
-
-  onMount(async () => {
+  let sessionError = false;
+  let retrying = false;
+  async function restore() {
+    if (retrying) return;
+    retrying = true;
+    sessionError = false;
+    const revision = getSessionRevision();
     try {
-      await restoreSession();
-    } catch (err) {
-      // A 401 here means the refresh cookie genuinely doesn't represent a
-      // valid session (expired, revoked, never existed) — that's a real
-      // logout. Anything else (a network blip, a cold-starting container
-      // timing out the first request) is transient and does NOT mean the
-      // admin is logged out — retrying once before giving up avoids
-      // wiping a perfectly valid session just because one request had a
-      // bad moment, which is what made this look like a random logout on
-      // refresh.
-      if (err instanceof ApiError && err.status === 401) {
-        clearAuth();
-      } else {
-        console.error('Admin session restore failed, retrying once', err);
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        try {
-          await restoreSession();
-        } catch (retryErr) {
-          if (!(retryErr instanceof ApiError && retryErr.status === 401)) {
-            console.error('Admin session restore failed on retry', retryErr);
-          }
-          clearAuth();
-        }
-      }
-    } finally {
+      await restoreAdminSession();
       setAuthLoading(false);
-    }
-  });
+    } catch {
+      if (revision === getSessionRevision()) sessionError = true;
+    } finally { retrying = false; }
+  }
+  onMount(() => { void restore(); });
 </script>
 
-<slot />
-
+{#if sessionError && !$auth.isAuthenticated && $page.url.pathname !== '/login'}
+  <main class="flex min-h-dvh items-center justify-center bg-bg p-6">
+    <section class="max-w-md rounded-card border border-border bg-card p-8 text-center">
+      <h1 class="text-xl font-bold text-ink">Unable to restore your session</h1>
+      <p class="mt-3 text-sm leading-6 text-muted">Check your connection and retry to return to the dashboard.</p>
+      <button type="button" disabled={retrying} on:click={restore} class="admin-press mt-6 inline-flex min-h-11 items-center gap-2 rounded-button bg-primary px-5 font-bold text-white disabled:opacity-60"><RefreshCw size={16} /> Retry connection</button>
+      <a href="/login" class="mt-5 block text-sm text-primary-dark underline">Return to sign in</a>
+    </section>
+  </main>
+{:else}
+  <slot />
+{/if}

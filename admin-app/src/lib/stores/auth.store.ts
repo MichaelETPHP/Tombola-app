@@ -28,8 +28,12 @@ const initialState: AuthState = {
  * Refresh token is managed via httpOnly cookie by the API.
  */
 export const auth = writable<AuthState>(initialState);
+let sessionRevision = 0;
+export const getSessionRevision = () => sessionRevision;
+export function invalidateSessionWork(): void { sessionRevision += 1; }
 
 export function setAuth(accessToken: string, admin: AdminUser): void {
+  invalidateSessionWork();
   auth.set({
     accessToken,
     admin,
@@ -39,6 +43,7 @@ export function setAuth(accessToken: string, admin: AdminUser): void {
 }
 
 export function clearAuth(): void {
+  invalidateSessionWork();
   auth.set({
     accessToken: null,
     admin: null,

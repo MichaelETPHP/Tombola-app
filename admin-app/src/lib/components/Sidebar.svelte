@@ -1,225 +1,134 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { auth, clearAuth } from '../stores/auth.store.js';
+  import { auth } from '../stores/auth.store.js';
+  import { logoutAdmin, ApiError } from '../api/client.js';
+  import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
-  import {
-    ChartNoAxesCombined,
-    ChevronDown,
-    ChevronRight,
-    FileClock,
-    LogOut,
-    Menu,
-    PackageCheck,
-    Plug,
-    Settings,
-    ShieldCheck,
-    Ticket,
-    Users,
-    X,
-  } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
 
-  type NavChild = { href: string; label: string };
-  type NavItem = { href: string; label: string; icon: typeof Ticket; exact?: boolean; children?: NavChild[] };
-
+  let drawer: HTMLDialogElement;
+  let menuButton: HTMLButtonElement;
+  let menuOpen = false;
+  let rafflesExpanded = false;
+  let loggingOut = false;
+  let previousOverflow = '';
+  $: current = $page.url.pathname;
+  $: roleLabel = $auth.admin?.role === 'owner' ? 'Owner' : 'Moderator';
+  $: initials = ($auth.admin?.fullName ?? $auth.admin?.phone ?? 'YA').split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('');
   $: links = [
-    { href: '/', label: 'Control center', icon: ChartNoAxesCombined, exact: true },
-    {
-      href: '/raffles',
-      label: 'Raffles',
-      icon: Ticket,
-      children: [
-        { href: '/raffles', label: 'All raffles' },
-        { href: '/raffles/new', label: 'Create raffle' },
-        ...($auth.admin?.role === 'owner' ? [{ href: '/raffles/profit', label: 'Profit' }] : []),
-      ],
-    },
     { href: '/users', label: 'Registered users', icon: Users },
     { href: '/payouts', label: 'Payouts', icon: PackageCheck },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
-    // Owner-only, same gate as the API route it reads from.
     ...($auth.admin?.role === 'owner' ? [{ href: '/integrations', label: 'Integrations', icon: Plug }] : []),
     { href: '/settings', label: 'Settings', icon: Settings },
-  ] satisfies NavItem[];
+  ];
+  $: raffleLinks = [
+    { href: '/raffles', label: 'All raffles' },
+    { href: '/raffles/new', label: 'Create raffle' },
+    ...($auth.admin?.role === 'owner' ? [{ href: '/raffles/profit', label: 'Profit' }] : []),
+  ];
 
-  let menuOpen = false;
-  $: current = $page.url.pathname;
-  afterNavigate(() => {
-    // Keep the mobile drawer in sync with browser and client-side navigation.
-    menuOpen = false;
-  });
-  $: initials = ($auth.admin?.fullName ?? $auth.admin?.email ?? 'TA')
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-  $: roleLabel = $auth.admin?.role === 'owner' ? 'Super Admin' : 'Moderator';
-
-  function isActive(pathname: string, href: string, exact?: boolean) {
-    return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  function isActive(href: string) {
+    if (href === '/raffles') return current === href || (current.startsWith('/raffles/') && !['/raffles/new', '/raffles/profit'].includes(current));
+    return current === href || current.startsWith(href + '/');
   }
+  const navClass = (active: boolean) => `admin-nav-item flex min-h-11 items-center gap-3 rounded-button px-3 text-sm font-medium no-underline ${active ? 'bg-sidebar-active text-white' : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}`;
 
-  function logout() {
-    clearAuth();
-    goto('/login', { replaceState: true });
+  function openMenu() {
+    previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    drawer.showModal();
+    menuOpen = true;
+  }
+  function closeMenu() { if (drawer?.open) drawer.close(); }
+  function didClose() {
+    if (!menuOpen) return;
+    document.body.style.overflow = previousOverflow;
+    menuOpen = false;
+    menuButton?.focus({ preventScroll: true });
+  }
+  afterNavigate(() => {
+    closeMenu();
+    if (current.startsWith('/raffles')) rafflesExpanded = true;
+  });
+  onMount(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const resized = () => { if (desktop.matches) closeMenu(); };
+    desktop.addEventListener('change', resized);
+    return () => {
+      desktop.removeEventListener('change', resized);
+      if (menuOpen) document.body.style.overflow = previousOverflow;
+    };
+  });
+  async function logout() {
+    if (loggingOut) return;
+    loggingOut = true;
+    try {
+      await logoutAdmin();
+      closeMenu();
+      await goto('/login', { replaceState: true });
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not sign out. Check your connection and retry.', 'Sign out failed');
+    } finally { loggingOut = false; }
   }
 </script>
 
-<header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-lg lg:hidden">
-  <a href="/" class="flex items-center gap-2.5 no-underline" aria-label="YeneEta admin home">
-    <span class="flex h-9 w-9 items-center justify-center rounded-[12px] bg-primary text-white">
-      <ShieldCheck size={18} strokeWidth={2} />
-    </span>
-    <div>
-      <p class="text-sm font-extrabold leading-none text-ink">YeneEta</p>
-      <p class="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-primary-dark">Super Admin</p>
-    </div>
+{#snippet brand()}
+  <a href="/" class="flex items-center gap-3 no-underline" aria-label="YeneEta admin home">
+    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-primary text-white"><ShieldCheck size={20} /></span>
+    <div><p class="text-base font-bold text-white">YeneEta</p><p class="mt-0.5 text-xs text-sidebar-text">Administration</p></div>
   </a>
-  <button
-    type="button"
-    class="admin-press flex h-10 w-10 items-center justify-center rounded-button border border-border bg-card text-ink"
-    aria-label="Open navigation"
-    aria-expanded={menuOpen}
-    on:click={() => (menuOpen = true)}
-  >
-    <Menu size={19} />
-  </button>
-</header>
+{/snippet}
 
-{#if menuOpen}
-  <button
-    type="button"
-    class="fixed inset-0 z-40 bg-[#17201e]/40 backdrop-blur-sm lg:hidden"
-    aria-label="Close navigation"
-    on:click={() => (menuOpen = false)}
-  ></button>
-
-  <aside class="fixed inset-y-0 left-0 z-50 flex w-[288px] flex-col bg-sidebar p-4 text-sidebar-text shadow-2xl lg:hidden">
-    <div class="mb-7 flex items-center justify-between px-1 pt-1">
-      <div class="flex items-center gap-3">
-        <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary text-white">
-          <ShieldCheck size={19} strokeWidth={2} />
-        </span>
-        <div>
-          <p class="text-sm font-extrabold leading-none text-white">YeneEta</p>
-          <p class="mt-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-primary">Super Admin</p>
-        </div>
-      </div>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-button bg-sidebar-active" on:click={() => (menuOpen = false)} aria-label="Close navigation">
-        <X size={17} />
-      </button>
+{#snippet navigation(id: string)}
+  <nav aria-label="Admin navigation" class="space-y-1">
+    <a href="/" aria-current={current === '/' ? 'page' : undefined} class={navClass(current === '/')}><ChartNoAxesCombined size={18} /> Control center</a>
+    <div class="flex items-center rounded-button {current.startsWith('/raffles') ? 'bg-sidebar-active' : ''}">
+      <a href="/raffles" class="flex min-h-11 flex-1 items-center gap-3 rounded-button px-3 text-sm font-medium text-sidebar-text no-underline hover:text-white"><Ticket size={18} /> Raffles</a>
+      <button type="button" aria-label={rafflesExpanded ? 'Collapse raffle menu' : 'Expand raffle menu'} aria-expanded={rafflesExpanded} aria-controls={id} on:click={() => rafflesExpanded = !rafflesExpanded} class="flex h-11 w-11 items-center justify-center rounded-button text-sidebar-text hover:text-white"><ChevronDown size={17} class={rafflesExpanded ? 'rotate-180' : ''} /></button>
     </div>
-
-    <nav class="flex flex-col gap-1.5">
-      {#each links as link (link.href)}
-        <a
-          href={link.href}
-          on:click={() => (menuOpen = false)}
-          aria-current={isActive(current, link.href, link.exact) ? 'page' : undefined}
-          class="admin-nav-item admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(current, link.href, link.exact)
-            ? 'bg-sidebar-active text-white shadow-[inset_3px_0_0_var(--color-primary)]'
-            : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}"
-        >
-          <svelte:component this={link.icon} size={17} strokeWidth={2} />
-          <span>{link.label}</span>
-          {#if link.children && isActive(current, link.href, link.exact)}
-            <ChevronDown size={14} class="ml-auto text-primary" />
-          {:else if isActive(current, link.href, link.exact)}
-            <ChevronRight size={14} class="ml-auto text-primary" />
-          {/if}
-        </a>
-        {#if link.children && isActive(current, link.href, link.exact)}
-          <div class="mb-1 ml-[21px] border-l border-white/10 pl-4">
-            {#each link.children as child (child.href)}
-              <a href={child.href} on:click={() => (menuOpen = false)} aria-current={isActive(current, child.href, true) ? 'page' : undefined}
-                class="admin-press flex min-h-9 items-center rounded-[9px] px-3 text-[11px] font-semibold no-underline {isActive(current, child.href, true) ? 'bg-primary/12 text-primary' : 'text-sidebar-text hover:text-white'}">
-                {child.label}
-              </a>
-            {/each}
-          </div>
-        {/if}
+    <div {id} hidden={!rafflesExpanded} class="ml-5 border-l border-white/15 pl-3">
+      {#each raffleLinks as link}
+        <a href={link.href} aria-current={isActive(link.href) ? 'page' : undefined} class="flex min-h-11 items-center rounded-button px-3 text-sm no-underline {isActive(link.href) ? 'bg-primary-bg font-bold text-primary-dark' : 'text-sidebar-text hover:bg-sidebar-active hover:text-white'}">{link.label}</a>
       {/each}
-    </nav>
-
-    <div class="mt-auto border-t border-white/10 pt-4">
-      <div class="mb-3 flex items-center gap-3 px-1">
-        <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary/15 text-xs font-extrabold text-primary">{initials}</span>
-        <div class="min-w-0">
-          <p class="truncate text-xs font-bold text-white">{$auth.admin?.fullName ?? $auth.admin?.email}</p>
-          <p class="mt-0.5 text-[10px] text-sidebar-text">{roleLabel}</p>
-        </div>
-      </div>
-      <button class="admin-press flex h-10 w-full items-center justify-center gap-2 rounded-button border border-white/10 bg-transparent text-xs font-semibold text-sidebar-text hover:bg-sidebar-active" on:click={logout}>
-        <LogOut size={14} /> Log out
-      </button>
     </div>
-  </aside>
-{/if}
-
-<aside class="sticky top-0 hidden h-dvh w-[268px] shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-text lg:flex">
-  <a href="/" class="mb-8 flex items-center gap-3 px-2 no-underline" aria-label="YeneEta admin home">
-    <span class="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]">
-      <ShieldCheck size={20} strokeWidth={2} />
-    </span>
-    <div>
-      <p class="text-[15px] font-extrabold leading-none tracking-[-0.02em] text-white">YeneEta</p>
-      <p class="mt-1.5 text-[9px] font-bold uppercase tracking-[0.15em] text-primary">Super Admin</p>
-    </div>
-  </a>
-
-  <div class="mb-2 px-3 text-[9px] font-bold uppercase tracking-[0.14em] text-faint">Workspace</div>
-  <nav class="flex flex-col gap-1.5">
-    {#each links as link (link.href)}
-      <a
-        href={link.href}
-        aria-current={isActive(current, link.href, link.exact) ? 'page' : undefined}
-        class="admin-nav-item admin-press flex min-h-11 items-center gap-3 rounded-button px-3.5 text-[13px] font-semibold no-underline {isActive(current, link.href, link.exact)
-          ? 'bg-sidebar-active text-white shadow-[inset_3px_0_0_var(--color-primary)]'
-          : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}"
-      >
-        <svelte:component this={link.icon} size={17} strokeWidth={2} />
-        <span>{link.label}</span>
-        {#if link.children && isActive(current, link.href, link.exact)}
-          <ChevronDown size={14} class="ml-auto text-primary" />
-        {:else if isActive(current, link.href, link.exact)}
-          <ChevronRight size={14} class="ml-auto text-primary" />
-        {/if}
-      </a>
-      {#if link.children && isActive(current, link.href, link.exact)}
-        <div class="mb-1 ml-[21px] border-l border-white/10 pl-4">
-          {#each link.children as child (child.href)}
-            <a href={child.href} aria-current={isActive(current, child.href, true) ? 'page' : undefined}
-              class="admin-press flex min-h-9 items-center rounded-[9px] px-3 text-[11px] font-semibold no-underline {isActive(current, child.href, true) ? 'bg-primary/12 text-primary' : 'text-sidebar-text hover:text-white'}">
-              {child.label}
-            </a>
-          {/each}
-        </div>
-      {/if}
+    {#each links as link}
+      <a href={link.href} aria-current={isActive(link.href) ? 'page' : undefined} class={navClass(isActive(link.href))}><svelte:component this={link.icon} size={18} />{link.label}</a>
     {/each}
   </nav>
+{/snippet}
 
-  <div class="mt-auto">
-    <div class="mb-4 flex items-center gap-2 rounded-button border border-white/10 bg-sidebar-active/50 px-3 py-2.5">
-      <span class="relative flex h-2 w-2">
-        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50"></span>
-        <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-      </span>
-      <div>
-        <p class="text-[10px] font-bold text-white">System online</p>
-        <p class="text-[9px] text-sidebar-text">API services connected</p>
-      </div>
+{#snippet account()}
+  <div class="border-t border-white/10 pt-4">
+    <div class="mb-4 flex items-center gap-3">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-button bg-sidebar-active text-sm font-bold text-white">{initials}</span>
+      <div class="min-w-0"><p class="truncate text-sm font-bold text-white">{$auth.admin?.fullName ?? $auth.admin?.phone ?? 'Administrator'}</p><p class="mt-0.5 text-xs text-sidebar-text">{roleLabel}</p></div>
     </div>
-
-    <div class="border-t border-white/10 pt-4">
-      <div class="mb-3 flex items-center gap-3 px-1">
-        <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-primary/15 text-xs font-extrabold text-primary">{initials}</span>
-        <div class="min-w-0">
-          <p class="truncate text-xs font-bold text-white">{$auth.admin?.fullName ?? $auth.admin?.email}</p>
-          <p class="mt-0.5 text-[10px] text-sidebar-text">{roleLabel}</p>
-        </div>
-      </div>
-      <button class="admin-press flex h-10 w-full items-center justify-center gap-2 rounded-button border border-white/10 bg-transparent text-xs font-semibold text-sidebar-text hover:bg-sidebar-active" on:click={logout}>
-        <LogOut size={14} /> Log out
-      </button>
-    </div>
+    <button type="button" disabled={loggingOut} on:click={logout} class="admin-press flex min-h-11 w-full items-center justify-center gap-2 rounded-button border border-white/20 text-sm text-sidebar-text hover:bg-sidebar-active disabled:opacity-60"><LogOut size={16} />{loggingOut ? 'Signing out…' : 'Log out'}</button>
   </div>
+{/snippet}
+
+<header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:hidden">
+  <a href="/" class="flex items-center gap-2 text-base font-bold text-ink no-underline"><ShieldCheck size={23} class="text-primary-dark" /> YeneEta <span class="font-normal text-muted">Admin</span></a>
+  <button bind:this={menuButton} type="button" class="admin-press flex h-11 w-11 items-center justify-center rounded-button border border-border text-ink" aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={menuOpen} on:click={openMenu}><Menu size={20} /></button>
+</header>
+
+<dialog bind:this={drawer} on:close={didClose} on:click={(event) => { if (event.target === drawer) closeMenu(); }} aria-label="Admin navigation"
+  class="m-0 h-dvh max-h-none w-[min(320px,calc(100vw-24px))] max-w-none border-0 bg-sidebar p-0 text-sidebar-text">
+  <div class="flex min-h-full flex-col gap-6 p-4">
+    <div class="flex items-center justify-between gap-2">{@render brand()}<button type="button" on:click={closeMenu} class="flex h-11 w-11 items-center justify-center rounded-button text-sidebar-text hover:bg-sidebar-active" aria-label="Close navigation"><X size={20} /></button></div>
+    {@render navigation('mobile-raffles-menu')}
+    <div class="mt-auto">{@render account()}</div>
+  </div>
+</dialog>
+
+<aside class="sticky top-0 hidden h-dvh w-[252px] shrink-0 flex-col gap-7 overflow-y-auto bg-sidebar px-4 py-6 lg:flex">
+  {@render brand()}
+  {@render navigation('desktop-raffles-menu')}
+  <div class="mt-auto pt-5">{@render account()}</div>
 </aside>
+
+<style>
+  dialog::backdrop { background: rgb(15 30 24 / 52%); }
+</style>

@@ -2,6 +2,8 @@ import type { MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { verifyAccessToken } from '../lib/jwt.js';
 import { findUserById } from '../db/queries/users.queries.js';
+import { findAdminById } from '../db/queries/admin.queries.js';
+import { isCurrentAdminSession } from '../lib/admin-session.js';
 import type { AppEnv } from '../types/hono.js';
 
 /**
@@ -21,8 +23,12 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   const token = authHeader.slice(7); // Remove 'Bearer '
 
+  let payload;
   try {
-    const payload = await verifyAccessToken(token);
+    payload = await verifyAccessToken(token);
+  } catch {
+    return c.json({ error: c.get('t')('auth.invalidToken'), code: 'AUTH_INVALID_TOKEN' }, 401);
+  }
 
     if (payload.role === 'user') {
       // Single-device enforcement: a newer login elsewhere bumps
@@ -39,8 +45,11 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
         phone: payload.phone,
         role: 'user',
       });
-    } else {
-      // Admin roles: owner or moderator
+    } else if (payload.role === 'owner' || payload.role === 'moderator') {
+      const admin = await findAdminById(payload.sub);
+      if (!isCurrentAdminSession(payload, admin)) {
+        return c.json({ error: c.get('t')('auth.sessionRevoked'), code: 'AUTH_SESSION_REVOKED' }, 401);
+      }
       c.set('admin', {
         id: payload.sub,
         role: payload.role,
@@ -51,12 +60,13 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
         phone: payload.phone,
         role: 'user',
       });
+    } else {
+      return c.json({ error: c.get('t')('auth.invalidToken'), code: 'AUTH_INVALID_TOKEN' }, 401);
     }
 
-    await next();
-  } catch (_error) {
-    return c.json({ error: c.get('t')('auth.invalidToken'), code: 'AUTH_INVALID_TOKEN' }, 401);
-  }
+  // Let infrastructure/route failures reach the error handler as their actual
+  // status. They must never be disguised as an expired login.
+  await next();
 };
 
 /**

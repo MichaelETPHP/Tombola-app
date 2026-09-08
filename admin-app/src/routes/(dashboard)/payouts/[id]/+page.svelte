@@ -1,27 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, ApiError } from '$lib/api/client.js';
+  import { api, ApiError, API_BASE } from '$lib/api/client.js';
+  import { safeDocumentUrl } from '$lib/utils/safeUrl.js';
   import { toast } from '$lib/stores/toast.store.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { updatePayoutStatusSchema, type Payout } from '$lib/schemas/index.js';
   import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
-  import { ArrowLeft, Check, Copy, PackageCheck, ShieldAlert, Trophy, User, X } from 'lucide-svelte';
+  import { ArrowLeft, ArrowUpRight, Check, Copy, PackageCheck, RefreshCw, ShieldAlert, Trophy, User, X } from 'lucide-svelte';
 
   let payout: Payout | null = null;
   let loading = true;
   let updating = false;
   let notFound = false;
+  let loadError = '';
+  $: documentUrl = safeDocumentUrl(payout?.idDocumentUrl, API_BASE);
 
   async function load() {
     loading = true;
     notFound = false;
+    loadError = '';
     try {
       const res = await api.get<{ payout: Payout }>(`/admin/payouts/${$page.params.id}`);
       payout = res.payout;
     } catch (err) {
       notFound = err instanceof ApiError && err.status === 404;
-      console.error('Failed to load payout', err);
+      loadError = err instanceof ApiError ? err.message : 'Check your connection and try again.';
     } finally {
       loading = false;
     }
@@ -30,7 +34,7 @@
   onMount(load);
 
   async function updateStatus(status: 'verified' | 'fulfilled' | 'rejected') {
-    if (!payout) return;
+    if (!payout || updating) return;
     updating = true;
     try {
       const data = updatePayoutStatusSchema.parse({ status });
@@ -38,15 +42,17 @@
       payout = res.payout;
       toast.success(`Payout marked ${status}.`, 'Updated');
     } catch (err) {
-      toast.error(err instanceof ApiError ? 'Could not update payout.' : 'Network error.', 'Update Failed');
+      toast.error(err instanceof ApiError ? err.message : 'Network error.', 'Update Failed');
+      if (err instanceof ApiError && err.status === 409) await load();
     } finally {
       updating = false;
     }
   }
 
-  function copy(value: string, label: string) {
-    navigator.clipboard.writeText(value);
-    toast.success(`${label} copied.`, 'Copied');
+  async function copy(value: string, label: string) {
+    if (!value) return;
+    try { await navigator.clipboard.writeText(value); toast.success(`${label} copied.`, 'Copied'); }
+    catch { toast.error('Could not copy. Select and copy the value manually.'); }
   }
 
   $: deadlinePassed = payout ? new Date(payout.claimDeadline) < new Date() : false;
@@ -72,10 +78,11 @@
   {:else if notFound || !payout}
     <div class="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-card border border-border bg-card p-8 text-center">
       <ShieldAlert size={22} class="text-danger" />
-      <p class="text-sm font-bold text-ink">Payout not found</p>
+      <p class="text-sm font-bold text-ink">{notFound ? 'Payout not found' : 'Unable to load payout'}</p>
+      {#if !notFound}<p class="text-sm text-muted">{loadError}</p><button type="button" on:click={load} class="inline-flex min-h-11 items-center gap-2 rounded-button border border-border px-4 text-sm"><RefreshCw size={16} /> Try again</button>{/if}
     </div>
   {:else}
-    <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div class="flex flex-col gap-5">
         <section class="rounded-card border border-border bg-card p-5 sm:p-6">
           <div class="flex flex-wrap items-start justify-between gap-3">
@@ -116,9 +123,9 @@
           {/if}
 
           <div class="mt-5">
-            {#if payout.idDocumentUrl}
-              <a class="admin-press inline-flex h-10 items-center gap-2 rounded-button border border-border bg-bg px-4 text-xs font-bold text-ink no-underline" href={payout.idDocumentUrl} target="_blank" rel="noreferrer">
-                View submitted ID document ↗
+            {#if documentUrl}
+              <a class="admin-press inline-flex min-h-11 items-center gap-2 rounded-button border border-border bg-bg px-4 text-sm font-bold text-ink no-underline" href={documentUrl} target="_blank" rel="noopener noreferrer">
+                View submitted ID document <ArrowUpRight size={16} />
               </a>
             {:else}
               <p class="text-[13px] text-faint">No ID document submitted yet.</p>

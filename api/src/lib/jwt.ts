@@ -16,12 +16,7 @@ export interface AccessTokenPayload {
   phone: string;
   role: 'user' | 'owner' | 'moderator';
   type: 'access';
-  // Only set for role 'user' — enforces one active session per account.
-  // Every login bumps the user's session_version in the DB and signs new
-  // tokens with that value; a token carrying an older value belongs to a
-  // device that's since been superseded by a newer login elsewhere, and
-  // gets rejected the next time it's used. Admin sessions don't carry this
-  // (no single-device policy for the dashboard).
+  // Users revoke on login; admins revoke on logout/password/role changes.
   sessionVersion?: number;
 }
 
@@ -76,9 +71,11 @@ export async function signRefreshToken(payload: Omit<RefreshTokenPayload, 'type'
 export async function verifyAccessToken(token: string): Promise<AccessTokenPayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_ACCESS_SECRET), {
     issuer: ['yeneeta-api', 'tombola-api'],
+    algorithms: ['HS256'],
   });
 
-  if (payload.type !== 'access') {
+  if (payload.type !== 'access' || typeof payload.sub !== 'string'
+    || !['user', 'owner', 'moderator'].includes(String(payload.role))) {
     throw new Error('Invalid token type: expected access token');
   }
 
@@ -92,9 +89,11 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenPaylo
 export async function verifyRefreshToken(token: string): Promise<RefreshTokenPayload> {
   const { payload } = await jose.jwtVerify(token, getSecret(env.JWT_REFRESH_SECRET), {
     issuer: ['yeneeta-api', 'tombola-api'],
+    algorithms: ['HS256'],
   });
 
-  if (payload.type !== 'refresh') {
+  if (payload.type !== 'refresh' || typeof payload.sub !== 'string'
+    || !['user', 'owner', 'moderator'].includes(String(payload.role))) {
     throw new Error('Invalid token type: expected refresh token');
   }
 

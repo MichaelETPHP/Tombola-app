@@ -1,4 +1,5 @@
 import { sql } from '../client.js';
+import type { ListUsersInput } from '../../modules/admin/admin.schema.js';
 
 export type UserStatus = 'active' | 'suspended' | 'banned';
 
@@ -159,6 +160,32 @@ export async function listUsers(limit: number, offset: number): Promise<DbUser[]
   `;
 }
 
+/** Search the full user directory before pagination, with truthful global counts. */
+export async function listAdminUserPage(input: ListUsersInput) {
+  const search = `%${input.search.replace(/[\\%_]/g, '\\$&')}%`;
+  const where = sql`
+    (${input.search === ''} OR phone_number ILIKE ${search}
+      OR full_name ILIKE ${search} OR telegram_username ILIKE ${search})
+    AND (${input.status === 'all'} OR (${input.status === 'active'} AND status = 'active')
+      OR (${input.status === 'suspended'} AND status <> 'active'))
+    AND (${input.authMethod === 'all'} OR (${input.authMethod === 'telegram'} AND telegram_user_id IS NOT NULL)
+      OR (${input.authMethod === 'phone_otp'} AND telegram_user_id IS NULL))
+  `;
+  const [users, [matches], [summary]] = await Promise.all([
+    sql<DbUser[]>`SELECT * FROM users WHERE ${where}
+      ORDER BY created_at DESC, id DESC LIMIT ${input.limit} OFFSET ${input.offset}`,
+    sql<{ total: number }[]>`SELECT COUNT(*)::int AS total FROM users WHERE ${where}`,
+    sql<{ total: number; active: number; suspended: number; telegram: number; phone: number }[]>`
+      SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+        COUNT(*) FILTER (WHERE status <> 'active')::int AS suspended,
+        COUNT(*) FILTER (WHERE telegram_user_id IS NOT NULL)::int AS telegram,
+        COUNT(*) FILTER (WHERE telegram_user_id IS NULL)::int AS phone
+      FROM users`,
+  ]);
+  return { users, total: matches.total, summary };
+}
+
 /**
  * Hard-delete a single user by ID.
  * Returns the deleted row, or null if the user didn't exist.
@@ -181,4 +208,3 @@ export async function bulkDeleteUsers(ids: string[]): Promise<string[]> {
   `;
   return rows.map((r) => r.id);
 }
-

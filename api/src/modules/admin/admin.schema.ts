@@ -3,7 +3,12 @@ import { z } from 'zod';
 export const listUsersSchema = z.object({
   limit: z.coerce.number().int().positive().max(1000).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  search: z.string().trim().max(200).default(''),
+  status: z.enum(['all', 'active', 'suspended']).default('all'),
+  authMethod: z.enum(['all', 'phone_otp', 'telegram']).default('all'),
 });
+
+export type ListUsersInput = z.infer<typeof listUsersSchema>;
 
 export const listAuditLogSchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(25),

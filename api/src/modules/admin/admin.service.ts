@@ -1,6 +1,4 @@
-import { listUsers, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
-import { listRaffles } from '../../db/queries/raffles.queries.js';
-import { findExpiringPayouts } from '../../db/queries/payouts.queries.js';
+import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
 import { listAuditLog as dbListAuditLog } from '../../db/queries/audit.queries.js';
 import {
   findAdminByPhone,
@@ -16,7 +14,7 @@ import { signAccessToken, signRefreshToken } from '../../lib/jwt.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput } from './admin.schema.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 
@@ -38,23 +36,28 @@ function isPlaceholder(value: string | undefined): boolean {
  * Get admin dashboard overview stats.
  */
 export async function getDashboardStats() {
-  const [openRaffles, lockedRaffles, expiringPayouts] = await Promise.all([
-    listRaffles({ status: 'open', limit: 100, offset: 0 }),
-    listRaffles({ status: 'locked', limit: 100, offset: 0 }),
-    findExpiringPayouts(),
+  const [[raffles], [claims], expiringPayouts] = await Promise.all([
+    sql<{ activeRaffles: number; openRaffles: number; lockedRaffles: number; awaitingDraw: number }[]>`
+      SELECT COUNT(*) FILTER (WHERE status IN ('open', 'locked', 'awaiting_trigger', 'drawing'))::int AS active_raffles,
+        COUNT(*) FILTER (WHERE status = 'open')::int AS open_raffles,
+        COUNT(*) FILTER (WHERE status = 'locked')::int AS locked_raffles,
+        COUNT(*) FILTER (WHERE status IN ('awaiting_trigger', 'drawing'))::int AS awaiting_draw
+      FROM raffles`,
+    sql<{ pendingPayouts: number; urgentPayouts: number }[]>`
+      SELECT COUNT(*) FILTER (WHERE claim_status IN ('pending_claim', 'id_submitted', 'verified'))::int AS pending_payouts,
+        COUNT(*) FILTER (WHERE claim_status = 'pending_claim' AND claim_deadline < NOW() + INTERVAL '24 hours')::int AS urgent_payouts
+      FROM payouts`,
+    sql<{ id: string; raffleId: string; raffleTitle: string; claimDeadline: Date; status: string }[]>`
+      SELECT p.id, p.raffle_id, r.title AS raffle_title, p.claim_deadline, p.claim_status AS status
+      FROM payouts p JOIN raffles r ON r.id = p.raffle_id
+      WHERE p.claim_status = 'pending_claim' AND p.claim_deadline < NOW() + INTERVAL '24 hours'
+      ORDER BY p.claim_deadline ASC, p.id ASC LIMIT 5`,
   ]);
 
   return {
-    activeRaffles: openRaffles.length + lockedRaffles.length,
-    openRaffles: openRaffles.length,
-    lockedRaffles: lockedRaffles.length,
-    pendingPayouts: expiringPayouts.length,
-    expiringPayouts: expiringPayouts.map((p) => ({
-      id: p.id,
-      raffleId: p.raffleId,
-      claimDeadline: p.claimDeadline,
-      status: p.claimStatus,
-    })),
+    ...raffles,
+    ...claims,
+    expiringPayouts,
   };
 }
 
@@ -237,9 +240,9 @@ function toAdminUser(user: {
 /**
  * List all users (admin).
  */
-export async function adminListUsers(limit: number, offset: number) {
-  const users = await listUsers(limit, offset);
-  return users.map(toAdminUser);
+export async function adminListUsers(input: ListUsersInput) {
+  const result = await listAdminUserPage(input);
+  return { ...result, users: result.users.map(toAdminUser) };
 }
 
 /**
@@ -313,11 +316,13 @@ export async function adminLogin(phone?: string, password?: string) {
     sub: admin.id,
     phone: admin.phoneNumber,
     role: admin.role,
+    sessionVersion: admin.sessionVersion,
   });
 
   const refreshToken = await signRefreshToken({
     sub: admin.id,
     role: admin.role,
+    sessionVersion: admin.sessionVersion,
   });
 
   return {

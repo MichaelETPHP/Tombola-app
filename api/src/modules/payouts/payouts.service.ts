@@ -4,13 +4,13 @@ import {
   findPayoutByIdDetailed,
   findPayoutsByUserId,
   submitClaim as dbSubmitClaim,
-  updatePayoutStatus as dbUpdatePayoutStatus,
   listPayouts as dbListPayouts,
   type DbPayout,
   type DbPayoutDetailed,
   type PayoutClaimStatus,
 } from '../../db/queries/payouts.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+import { canTransitionPayout } from '../../lib/payout-transitions.js';
 import type { SubmitClaimInput, UpdatePayoutStatusInput } from './payouts.schema.js';
 
 /**
@@ -94,18 +94,23 @@ export async function submitClaim(
  * that the admin-app's audit log screen has a backing route to read it.
  */
 export async function updatePayoutStatus(payoutId: string, adminId: string, data: UpdatePayoutStatusInput) {
-  const payout = await findPayoutById(payoutId);
-  if (!payout) {
-    throw new AppError(404, 'Payout not found');
-  }
-
-  const updated = await dbUpdatePayoutStatus(payoutId, data.status);
-  await sql`
-    INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
-    VALUES ('admin', ${adminId}, 'payout.status_changed', 'payout', ${payoutId},
-      ${sql.json({ from: payout.claimStatus, to: data.status })})
-  `;
-  return updated ? toApiPayout(updated) : null;
+  await sql.begin(async (tx) => {
+    const [payout] = await tx<DbPayout[]>`SELECT * FROM payouts WHERE id = ${payoutId} FOR UPDATE`;
+    if (!payout) throw new AppError(404, 'Payout not found');
+    if (!canTransitionPayout(payout.claimStatus, data.status)) {
+      throw new AppError(409, 'This payout changed or cannot move to that status. Refresh the review first.');
+    }
+    await tx`UPDATE payouts SET claim_status = ${data.status},
+      id_verified_at = CASE WHEN ${data.status} = 'verified' THEN NOW() ELSE id_verified_at END,
+      fulfilled_at = CASE WHEN ${data.status} = 'fulfilled' THEN NOW() ELSE fulfilled_at END,
+      fulfillment_status = CASE WHEN ${data.status} = 'fulfilled' THEN 'delivered'::fulfillment_status
+        WHEN ${data.status} = 'rejected' THEN 'failed'::fulfillment_status ELSE fulfillment_status END,
+      updated_at = NOW() WHERE id = ${payoutId}`;
+    await tx`INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES ('admin', ${adminId}, 'payout.status_changed', 'payout', ${payoutId},
+        ${tx.json({ from: payout.claimStatus, to: data.status })})`;
+  });
+  return getPayoutById(payoutId);
 }
 
 /**

@@ -39,7 +39,7 @@
     : rows;
 </script>
 
-<div class="overflow-auto rounded-card border border-border bg-card shadow-[0_18px_45px_-38px_rgba(23,32,30,0.35)]">
+<div class="max-w-full overflow-auto rounded-card border border-border bg-card" role="region" aria-label="Data table" tabindex="0">
   <table class="w-full min-w-[760px] border-collapse text-sm">
     <thead class="bg-bg/70">
       <tr>
@@ -53,20 +53,21 @@
           </th>
         {/if}
         {#each columns as col (col.key)}
-          <th
+          <th scope="col" aria-sort={col.sortable ? (sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
             class="whitespace-nowrap border-b border-border px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-[0.09em] text-muted {col.sortable
               ? 'cursor-pointer select-none'
               : ''}"
-            on:click={() => toggleSort(col.key, col.sortable)}
           >
-            <span class="inline-flex items-center gap-1.5">
+            {#if col.sortable}
+            <button type="button" on:click={() => toggleSort(col.key, col.sortable)} class="inline-flex min-h-9 items-center gap-1.5 rounded-button text-left" aria-label={'Sort by ' + col.label}>
               {col.label}
               {#if col.sortable && sortKey === col.key}
                 {#if sortDir === 'asc'}<ChevronUp size={12} />{:else}<ChevronDown size={12} />{/if}
               {:else if col.sortable}
                 <ArrowUpDown size={11} class="text-faint" />
               {/if}
-            </span>
+            </button>
+            {:else}{col.label}{/if}
           </th>
         {/each}
       </tr>

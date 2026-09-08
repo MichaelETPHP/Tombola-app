@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/api/client.js';
-  import { setAuth } from '$lib/stores/auth.store.js';
+  import { auth, setAuth, invalidateSessionWork } from '$lib/stores/auth.store.js';
   import { adminLoginSchema, type AdminAuthResponse } from '$lib/schemas/index.js';
   import { ArrowRight, CheckCircle2, Dices, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-svelte';
 
@@ -10,6 +10,7 @@
   let error = '';
   let loading = false;
   let showPassword = false;
+  $: if ($auth.isAuthenticated) void goto('/', { replaceState: true });
 
   // A 429 (too many attempts) used to get shown as "credentials could not
   // be verified" like every other failure — genuinely confusing when the
@@ -28,22 +29,25 @@
       }
       return 'Too many attempts — wait a moment and try again.';
     }
-    return 'Those credentials could not be verified.';
+    return err.status === 401 ? 'Those credentials could not be verified.' : err.message;
   }
 
   async function submit() {
+    if (loading) return;
     error = '';
     const parsed = adminLoginSchema.safeParse({ phone, password });
     if (!parsed.success) {
-      error = parsed.error.issues[0]?.message ?? 'Enter a valid email and password.';
+      error = parsed.error.issues[0]?.message ?? 'Enter a valid phone number and password.';
       return;
     }
 
     loading = true;
+    invalidateSessionWork();
     try {
       const result = await api.post<AdminAuthResponse>('/admin/auth/login', parsed.data, { skipAuth: true });
       setAuth(result.accessToken, result.admin);
-      goto('/', { replaceState: true });
+      password = '';
+      await goto('/', { replaceState: true });
     } catch (err) {
       error = loginErrorMessage(err);
     } finally {
@@ -89,7 +93,7 @@
       </div>
     </div>
 
-    <p class="relative text-xs text-white/35">Restricted to authorized YeneEta Platform Owner accounts.</p>
+    <p class="relative text-sm text-sidebar-text">For authorized YeneEta owners and moderators.</p>
   </section>
 
   <section class="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-10 lg:min-h-0">
@@ -100,20 +104,19 @@
       </div>
 
       <span class="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-primary-bg text-primary"><LockKeyhole size={21} /></span>
-      <p class="text-xs font-bold uppercase tracking-[0.16em] text-primary">Super Admin</p>
       <h2 class="mt-2 text-[30px] font-bold tracking-[-0.035em] text-ink sm:text-[34px]">Welcome back</h2>
       <p class="mt-2 text-sm leading-6 text-muted">Sign in to manage the YeneEta platform.</p>
 
       <div class="mt-8 flex flex-col gap-5">
         <div class="flex flex-col gap-2">
           <label for="phone" class="text-xs font-bold text-ink">Admin phone number</label>
-          <input id="phone" type="tel" inputmode="tel" bind:value={phone} autocomplete="username" placeholder="+251 91 100 0001" class="h-12 rounded-button border border-border bg-bg/60 px-4 text-sm text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" />
+          <input id="phone" type="tel" inputmode="tel" bind:value={phone} autocomplete="username" required maxlength="24" placeholder="+251911000001" class="h-12 rounded-button border border-border bg-bg/60 px-4 text-base text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" />
         </div>
         <div class="flex flex-col gap-2">
           <label for="password" class="text-xs font-bold text-ink">Password</label>
           <div class="relative">
-            <input id="password" type={showPassword ? 'text' : 'password'} bind:value={password} autocomplete="current-password" placeholder="Enter your password" class="h-12 w-full rounded-button border border-border bg-bg/60 px-4 pr-12 text-sm text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" />
-            <button type="button" class="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-lg text-faint hover:bg-bg hover:text-ink" aria-label={showPassword ? 'Hide password' : 'Show password'} on:click={() => (showPassword = !showPassword)}>
+            <input id="password" type={showPassword ? 'text' : 'password'} bind:value={password} autocomplete="current-password" required placeholder="Enter your password" class="h-12 w-full rounded-button border border-border bg-bg/60 px-4 pr-14 text-base text-ink placeholder:text-faint focus:border-primary focus:bg-card focus:outline-none" />
+            <button type="button" class="absolute right-0.5 top-0.5 flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-bg hover:text-ink" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} on:click={() => (showPassword = !showPassword)}>
               {#if showPassword}<EyeOff size={17} />{:else}<Eye size={17} />{/if}
             </button>
           </div>

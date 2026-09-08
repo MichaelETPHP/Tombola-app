@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { fly, fade } from 'svelte/transition';
+  import { fly } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { toast } from '$lib/stores/toast.store.js';
   import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-svelte';
 </script>
 
 <div
-  class="pointer-events-none fixed right-4 top-4 z-[9999] flex w-full max-w-sm flex-col gap-2.5 sm:right-6 sm:top-6"
+  class="pointer-events-none fixed right-4 top-4 z-[9999] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2.5 sm:right-6 sm:top-6"
   aria-live="polite"
 >
   {#each $toast as item (item.id)}
@@ -18,7 +18,7 @@
         {item.type === 'error' ? 'border-danger/30 bg-card text-ink' : ''}
         {item.type === 'warning' ? 'border-warning/30 bg-card text-ink' : ''}
         {item.type === 'info' ? 'border-primary/30 bg-card text-ink' : ''}"
-      role="alert"
+      role={item.type === 'error' ? 'alert' : 'status'}
     >
       <!-- Icon -->
       <span
@@ -52,7 +52,7 @@
       <!-- Close Button -->
       <button
         type="button"
-        class="admin-press -mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-faint hover:bg-bg hover:text-ink transition-colors"
+        class="admin-press -mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-faint hover:bg-bg hover:text-ink transition-colors"
         aria-label="Dismiss notification"
         on:click={() => toast.dismiss(item.id)}
       >

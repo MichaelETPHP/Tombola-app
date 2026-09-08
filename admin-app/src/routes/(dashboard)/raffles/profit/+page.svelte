@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
-  import { api } from '$lib/api/client.js';
+  import { onMount } from 'svelte';
+  import { api, ApiError } from '$lib/api/client.js';
+  import { auth } from '$lib/stores/auth.store.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import {
     ChartNoAxesCombined,
@@ -46,7 +47,12 @@
   let refreshing = false;
   let loadError = false;
   let search = '';
-  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let refreshError = '';
+  let permissionDenied = false;
+  let disposed = false;
+  let inFlight: AbortController | undefined;
+  let currentPage = 0;
+  const pageSize = 25;
 
   const money = (value: number) => new Intl.NumberFormat('en-ET', {
     minimumFractionDigits: 0,
@@ -58,34 +64,47 @@
   $: filteredRaffles = (overview?.raffles ?? []).filter((raffle) =>
     `${raffle.title} ${raffle.publicCode}`.toLowerCase().includes(search.trim().toLowerCase())
   );
+  $: visibleRaffles = filteredRaffles.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  $: if (currentPage > 0 && currentPage * pageSize >= filteredRaffles.length) currentPage = 0;
 
   async function load(background = false) {
+    if (inFlight || disposed || $auth.admin?.role !== 'owner') return;
+    const request = new AbortController();
+    inFlight = request;
     background ? (refreshing = true) : (loading = true);
     loadError = false;
     try {
-      overview = await api.get<ProfitOverview>('/admin/profits');
+      const result = await api.get<ProfitOverview>('/admin/profits', { signal: request.signal });
+      if (!disposed) { overview = result; refreshError = ''; }
     } catch (error) {
+      if (disposed) return;
+      if (error instanceof ApiError && error.status === 403) { permissionDenied = true; overview = null; }
       if (!overview) loadError = true;
-      console.error('Failed to load profit overview', error);
+      refreshError = error instanceof ApiError ? error.message : 'Refresh failed. Check your connection and try again.';
     } finally {
+      inFlight = undefined;
       loading = false;
       refreshing = false;
     }
   }
 
   function refreshWhenVisible() {
-    if (document.visibilityState === 'visible') void load(true);
+    if (document.visibilityState === 'visible' && navigator.onLine) void load(true);
   }
 
   onMount(() => {
+    if ($auth.admin?.role !== 'owner') { permissionDenied = true; loading = false; return; }
     void load();
-    refreshTimer = setInterval(() => void load(true), 15_000);
+    const refreshTimer = setInterval(refreshWhenVisible, 15_000);
     document.addEventListener('visibilitychange', refreshWhenVisible);
-  });
-
-  onDestroy(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
-    document.removeEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    return () => {
+      disposed = true;
+      inFlight?.abort();
+      clearInterval(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+    };
   });
 </script>
 
@@ -97,13 +116,15 @@
       <h1 class="text-[30px] font-bold leading-tight tracking-[-0.03em] text-ink md:text-[38px]">Raffle profit</h1>
       <p class="mt-2 max-w-[650px] text-sm leading-6 text-muted">Completed payments compared with the full prize commitment for every raffle. Figures refresh automatically every 15 seconds.</p>
     </div>
-    <button type="button" on:click={() => load(true)} disabled={refreshing}
+    <button type="button" on:click={() => load(true)} disabled={refreshing || loading || permissionDenied}
       class="admin-press inline-flex h-11 items-center justify-center gap-2 rounded-button border border-border bg-card px-4 text-xs font-bold text-ink disabled:cursor-wait disabled:opacity-60">
       <RefreshCw size={15} class={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing' : 'Refresh now'}
     </button>
   </header>
 
-  {#if loading}
+  {#if permissionDenied}
+    <section class="rounded-card border border-border bg-card p-8"><h2 class="text-lg font-bold">Owner access required</h2><p class="mt-2 text-sm text-muted">Profit reporting is available to the platform owner.</p><a href="/raffles" class="mt-5 inline-flex min-h-11 items-center text-sm font-bold text-primary-dark underline">Back to raffles</a></section>
+  {:else if loading}
     <div class="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]" aria-label="Loading profit figures">
       <div class="h-64 animate-pulse rounded-card bg-border"></div>
       <div class="h-64 animate-pulse rounded-card bg-border"></div>
@@ -116,6 +137,7 @@
       <button type="button" class="admin-press inline-flex h-10 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-white" on:click={() => load()}><RefreshCw size={14} /> Try again</button>
     </section>
   {:else}
+    {#if refreshError}<div role="status" class="rounded-button bg-warning-bg px-4 py-3 text-sm text-warning">Updates paused. Showing the last successful figures. {refreshError}</div>{/if}
     <div class="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
       <section class="relative overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-34px_rgba(23,32,30,0.72)] md:p-8">
         <div class="relative flex min-h-[200px] flex-col justify-between gap-8">
@@ -127,7 +149,7 @@
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-primary/15 text-primary"><ChartNoAxesCombined size={19} /></span>
           </div>
           <div>
-            <p class="font-mono text-[38px] font-bold leading-none tracking-[-0.035em] tabular-nums md:text-[50px] {overview.totals.grossProfit < 0 ? 'text-[#ffb1b1]' : 'text-white'}">
+            <p class="break-words font-sans text-[clamp(1.6rem,3vw,3rem)] font-bold leading-tight tracking-[-0.03em] tabular-nums {overview.totals.grossProfit < 0 ? 'text-[#ffb1b1]' : 'text-white'}">
               {signedMoney(overview.totals.grossProfit)} <span class="text-sm font-medium text-sidebar-text">ETB</span>
             </p>
             <p class="mt-3 text-[11px] text-sidebar-text">Last calculated {new Date(overview.calculatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
@@ -152,18 +174,18 @@
         <label class="relative block w-full sm:max-w-[300px]">
           <Search size={15} class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
           <span class="sr-only">Search profit by raffle</span>
-          <input bind:value={search} type="search" placeholder="Search raffle or code" class="h-11 w-full rounded-button border border-border bg-card pl-10 pr-4 text-[13px] outline-none placeholder:text-faint focus:border-primary" />
+          <input bind:value={search} on:input={() => currentPage = 0} type="search" placeholder="Search raffle or code" class="h-11 w-full rounded-button border border-border bg-card pl-10 pr-4 text-[13px] outline-none placeholder:text-faint focus:border-primary" />
         </label>
       </div>
 
       {#if filteredRaffles.length === 0}
-        <div class="rounded-card border border-border bg-card px-6 py-14 text-center"><CircleDollarSign size={24} class="mx-auto text-faint" /><p class="mt-3 text-sm font-bold text-ink">No raffle profit found</p><p class="mt-1 text-xs text-muted">Try another title or raffle code.</p></div>
+        <div class="rounded-card border border-border bg-card px-6 py-14 text-center"><CircleDollarSign size={24} class="mx-auto text-faint" /><p class="mt-3 text-sm font-bold text-ink">{search ? 'No matching raffles' : 'No raffles to report yet'}</p>{#if search}<button on:click={() => search = ''} class="mt-3 min-h-11 text-sm font-bold text-primary-dark underline">Clear search</button>{:else}<a href="/raffles/new" class="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-primary-dark underline">Create your first raffle</a>{/if}</div>
       {:else}
         <div class="hidden overflow-x-auto rounded-card border border-border bg-card lg:block">
           <table class="w-full min-w-[960px] border-collapse text-left">
             <thead class="bg-bg/70 text-[10px] font-bold uppercase tracking-[0.08em] text-muted"><tr><th class="px-5 py-4">Raffle</th><th class="px-5 py-4">Paid activity</th><th class="px-5 py-4">Collected</th><th class="px-5 py-4">Prize cost</th><th class="px-5 py-4">Gross position</th><th class="px-5 py-4">Sales</th></tr></thead>
             <tbody>
-              {#each filteredRaffles as raffle, index (raffle.id)}
+              {#each visibleRaffles as raffle, index (raffle.id)}
                 <tr class="transition-colors hover:bg-bg/60">
                   <td class="px-5 py-4 {index < filteredRaffles.length - 1 ? 'border-b border-border' : ''}"><a href="/raffles/{raffle.id}" class="font-bold text-ink no-underline hover:text-primary-dark">{raffle.title}</a><div class="mt-1 flex items-center gap-2"><span class="font-mono text-[10px] text-faint">{raffle.publicCode}</span><StatusBadge status={raffle.status} /></div></td>
                   <td class="px-5 py-4 {index < filteredRaffles.length - 1 ? 'border-b border-border' : ''}"><p class="font-mono text-xs font-bold tabular-nums text-ink">{raffle.paidTickets.toLocaleString()} tickets</p><p class="mt-1 text-[10px] text-faint">{raffle.payingUsers.toLocaleString()} paying users</p></td>
@@ -178,7 +200,7 @@
         </div>
 
         <div class="grid gap-3 lg:hidden">
-          {#each filteredRaffles as raffle (raffle.id)}
+          {#each visibleRaffles as raffle (raffle.id)}
             <article class="rounded-card border border-border bg-card p-5">
               <div class="flex items-start justify-between gap-3"><div class="min-w-0"><a href="/raffles/{raffle.id}" class="block truncate text-sm font-bold text-ink no-underline">{raffle.title}</a><p class="mt-1 font-mono text-[10px] text-faint">{raffle.publicCode}</p></div><StatusBadge status={raffle.status} /></div>
               <div class="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 border-y border-border py-4">
@@ -194,6 +216,9 @@
       {/if}
     </section>
 
-    <p class="flex items-start gap-2 rounded-button bg-primary-bg px-4 py-3 text-[11px] leading-5 text-primary-dark"><CircleAlert size={14} class="mt-0.5 shrink-0" /> Gross profit subtracts prize commitments only. Gateway fees, taxes, refunds outside the payment status, marketing, and operating costs require separate accounting before treating this as net profit.</p>
+    {#if filteredRaffles.length > pageSize}
+      <nav aria-label="Profit pages" class="flex flex-wrap items-center justify-between gap-3 text-sm"><p>Page {currentPage + 1} of {Math.ceil(filteredRaffles.length / pageSize)}</p><div class="flex gap-2"><button on:click={() => currentPage -= 1} disabled={currentPage === 0} class="min-h-11 rounded-button border border-border bg-card px-4 disabled:opacity-50">Previous</button><button on:click={() => currentPage += 1} disabled={(currentPage + 1) * pageSize >= filteredRaffles.length} class="min-h-11 rounded-button border border-border bg-card px-4 disabled:opacity-50">Next</button></div></nav>
+    {/if}
+    <p class="flex items-start gap-2 rounded-button bg-primary-bg px-4 py-3 text-sm leading-6 text-primary-dark"><CircleAlert size={16} class="mt-1 shrink-0" /> Figures include every raffle's full prize commitment, including drafts and cancellations. Pending, failed, and refunded payments are excluded from revenue. Fees and operating costs must be deducted separately to calculate net profit.</p>
   {/if}
 </div>

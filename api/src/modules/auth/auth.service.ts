@@ -7,7 +7,8 @@ import {
   bumpSessionVersion,
   type DbUser,
 } from '../../db/queries/users.queries.js';
-import { findAdminById } from '../../db/queries/admin.queries.js';
+import { findAdminById, revokeAdminSessions } from '../../db/queries/admin.queries.js';
+import { isCurrentAdminSession } from '../../lib/admin-session.js';
 import { createOtpCode, deleteExpiredOtps, findLatestOtp, incrementOtpAttempts, markOtpVerified } from '../../db/queries/otp.queries.js';
 import {
   signAccessToken,
@@ -276,11 +277,16 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
  */
 export async function logout(refreshToken: string | undefined): Promise<void> {
   if (!refreshToken) return;
+  let payload;
   try {
-    const payload = await verifyRefreshToken(refreshToken);
-    if (payload.role === 'user') await bumpSessionVersion(payload.sub);
+    payload = await verifyRefreshToken(refreshToken);
   } catch {
-    // Already invalid/expired — nothing to revoke.
+    return;
+  }
+  // A database failure must reach the caller; it is not a successful revocation.
+  if (payload.role === 'user') await bumpSessionVersion(payload.sub);
+  else if (Number.isSafeInteger(payload.sessionVersion)) {
+    await revokeAdminSessions(payload.sub, payload.sessionVersion!);
   }
 }
 
@@ -308,8 +314,8 @@ export async function refreshAccessToken(refreshToken: string): Promise<{ access
   }
 
   const admin = await findAdminById(payload.sub);
-  if (!admin || admin.role !== payload.role) throw new AppError(401, 'auth.invalidToken');
+  if (!admin || !isCurrentAdminSession(payload, admin)) throw new AppError(401, 'auth.sessionRevoked');
   return {
-    accessToken: await signAccessToken({ sub: admin.id, phone: admin.phoneNumber, role: admin.role }),
+    accessToken: await signAccessToken({ sub: admin.id, phone: admin.phoneNumber, role: admin.role, sessionVersion: admin.sessionVersion }),
   };
 }

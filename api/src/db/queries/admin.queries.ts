@@ -6,6 +6,7 @@ export interface DbAdminUser {
   passwordHash: string;
   fullName: string | null;
   role: 'owner' | 'moderator';
+  sessionVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,7 +69,8 @@ export async function updateAdmin(
   if (keys.length === 0) return findAdminById(id);
   const rows = await sql<DbAdminUser[]>`
     UPDATE admin_users
-    SET ${sql(updates, ...keys)}, updated_at = NOW()
+    SET ${sql(updates, ...keys)}, updated_at = NOW(),
+      session_version = session_version + ${updates.passwordHash !== undefined || updates.role !== undefined ? 1 : 0}
     WHERE id = ${id}
     RETURNING *
   `;
@@ -80,4 +82,10 @@ export async function deleteAdmin(id: string): Promise<DbAdminUser | null> {
     DELETE FROM admin_users WHERE id = ${id} RETURNING *
   `;
   return rows[0] ?? null;
+}
+
+/** A stale logout cannot invalidate sessions issued after its own revocation. */
+export async function revokeAdminSessions(id: string, sessionVersion: number): Promise<void> {
+  await sql`UPDATE admin_users SET session_version = session_version + 1
+    WHERE id = ${id} AND session_version = ${sessionVersion}`;
 }

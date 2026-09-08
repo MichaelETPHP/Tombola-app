@@ -7,17 +7,17 @@
 
 // ── Brand Colors ─────────────────────────────────────────
 export const colors = {
-  primary: '#159A7F',
+  primary: '#107C68',
   primaryDark: '#107C68',
   primaryBg: '#E2F5EF',
 
   danger: '#DC2626',
   dangerBg: '#FEE2E2',
 
-  warning: '#D97706',
+  warning: '#98620B',
   warningBg: '#FEF3C7',
 
-  success: '#059669',
+  success: '#087451',
   successBg: '#D1FAE5',
 
   info: '#2563EB',
@@ -29,7 +29,7 @@ export const colors = {
 
   textPrimary: '#17201E',
   textSecondary: '#66736F',
-  textMuted: '#96A39F',
+  textMuted: '#66736F',
 
   sidebarBg: '#17201E',
   sidebarText: '#B8C5C1',
@@ -77,7 +77,7 @@ export const spacing = {
 
 // ── Corner Radii ─────────────────────────────────────────
 export const radii = {
-  card: 18,
+  card: 16,
   button: 11,
   pill: 999,
 } as const;

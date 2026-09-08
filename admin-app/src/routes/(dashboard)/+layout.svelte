@@ -11,6 +11,7 @@
 </script>
 
 <ToastContainer />
+<a href="#admin-main" class="admin-skip-link">Skip to content</a>
 
 {#if $auth.isLoading}
   <div class="flex min-h-[100dvh] bg-bg">
@@ -26,9 +27,9 @@
 {:else if $auth.isAuthenticated}
   <div class="min-h-[100dvh] bg-bg lg:flex">
     <Sidebar />
-    <main class="mx-auto w-full max-w-[1480px] flex-1 p-4 pb-10 md:p-7 xl:p-9">
+    <main id="admin-main" tabindex="-1" class="mx-auto w-full min-w-0 max-w-[1480px] flex-1 p-4 pb-10 md:p-7 xl:p-9">
       {#key $page.url.pathname}
-        <div class="admin-route-enter">
+        <div class="min-w-0">
           <slot />
         </div>
       {/key}

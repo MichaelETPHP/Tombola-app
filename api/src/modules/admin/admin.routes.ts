@@ -1,5 +1,9 @@
 import { Hono } from 'hono';
-import { setCookie } from 'hono/cookie';
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
+import { env } from '../../config/env.js';
+import { adminOrigin } from '../../middleware/admin-origin.middleware.js';
+import { refreshAccessToken, logout } from '../auth/auth.service.js';
+import { verifyRefreshToken } from '../../lib/jwt.js';
 import { z } from 'zod';
 import {
   listUsersSchema,
@@ -34,20 +38,29 @@ import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 
 export const adminRoutes = new Hono<AppEnv>();
 
+adminRoutes.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store, private');
+  await next();
+});
+
+const adminCookieOptions = {
+  httpOnly: true,
+  secure: env.NODE_ENV === 'production',
+  sameSite: env.NODE_ENV === 'production' ? 'None' as const : 'Lax' as const,
+  path: '/admin/auth',
+};
+
 /**
  * POST /admin/auth/login
  * Admin login endpoint (public, unauthenticated).
  */
-adminRoutes.post('/auth/login', rateLimit({ max: 5, windowSeconds: 900 }), async (c) => {
+adminRoutes.post('/auth/login', adminOrigin, rateLimit({ max: 5, windowSeconds: 900 }), async (c) => {
   const body = await c.req.json();
   const input = adminLoginSchema.parse(body);
   const result = await adminLogin(input.phone, input.password);
 
-  setCookie(c, 'refresh_token', result.refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-    path: '/',
+  setCookie(c, 'admin_refresh_token', result.refreshToken, {
+    ...adminCookieOptions,
     maxAge: 30 * 24 * 60 * 60,
   });
 
@@ -55,6 +68,21 @@ adminRoutes.post('/auth/login', rateLimit({ max: 5, windowSeconds: 900 }), async
     accessToken: result.accessToken,
     admin: result.admin,
   });
+});
+
+adminRoutes.post('/auth/refresh', adminOrigin, rateLimit({ max: 30, windowSeconds: 300 }), async (c) => {
+  const token = getCookie(c, 'admin_refresh_token');
+  const payload = token ? await verifyRefreshToken(token).catch(() => null) : null;
+  if (!payload || !['owner', 'moderator'].includes(payload.role)) {
+    return c.json({ error: 'Please sign in again.', code: 'AUTH_REFRESH_REQUIRED' }, 401);
+  }
+  return c.json(await refreshAccessToken(token!));
+});
+
+adminRoutes.post('/auth/logout', adminOrigin, rateLimit({ max: 20, windowSeconds: 300 }), async (c) => {
+  await logout(getCookie(c, 'admin_refresh_token'));
+  deleteCookie(c, 'admin_refresh_token', adminCookieOptions);
+  return c.json({ message: 'Signed out of admin sessions.' });
 });
 
 // All subsequent admin routes require auth + admin role
@@ -164,9 +192,8 @@ adminRoutes.get('/integrations', requireRole('owner'), async (c) => {
  */
 adminRoutes.get('/users', async (c) => {
   const query = c.req.query();
-  const { limit, offset } = listUsersSchema.parse(query);
-  const users = await adminListUsers(limit, offset);
-  return c.json({ users });
+  const input = listUsersSchema.parse(query);
+  return c.json(await adminListUsers(input));
 });
 
 /**
