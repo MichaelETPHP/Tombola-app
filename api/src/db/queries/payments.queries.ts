@@ -17,32 +17,9 @@ export interface DbPayment {
   updatedAt: Date;
 }
 
-/**
- * Create a payment record (status = pending).
- */
-export async function createPayment(data: {
-  userId: string;
-  raffleId: string;
-  amount: number;
-  gateway: PaymentGateway;
-  gatewayRef: string;
-  ticketCount: number;
-}): Promise<DbPayment> {
-  const rows = await sql<DbPayment[]>`
-    INSERT INTO payments (
-      user_id, raffle_id, amount, status, gateway, gateway_ref, ticket_count
-    ) VALUES (
-      ${data.userId}, ${data.raffleId}, ${data.amount}, 'pending',
-      ${data.gateway}, ${data.gatewayRef}, ${data.ticketCount}
-    )
-    RETURNING *
-  `;
-  return rows[0];
-}
-
 export type PaymentReservationResult =
   | { ok: true; payment: DbPayment; raffle: DbRaffle }
-  | { ok: false; reason: 'not_found' | 'closed' | 'raffle_limit' | 'user_limit' | 'active_raffle_limit'; available?: number };
+  | { ok: false; reason: 'not_found' | 'closed' | 'sales_disabled' | 'demo' | 'raffle_limit' | 'user_limit' | 'active_raffle_limit'; available?: number };
 
 /**
  * Atomically reserves checkout capacity for 15 minutes. The raffle row lock
@@ -68,6 +45,11 @@ export async function reservePayment(data: {
       FROM raffles r WHERE r.id = ${data.raffleId} FOR UPDATE
     `;
     if (!raffle) return { ok: false as const, reason: 'not_found' as const };
+    // These checks share the raffle row lock with an admin's sales toggle.
+    // A demo never reserves a payment, including in mock-payment deployments.
+    // Missing columns preserve the pre-migration behavior for existing raffles.
+    if (raffle.isDemo === true) return { ok: false as const, reason: 'demo' as const };
+    if (raffle.salesEnabled === false) return { ok: false as const, reason: 'sales_disabled' as const };
     if (raffle.status !== 'open' || raffle.deadlineAt <= new Date()) {
       return { ok: false as const, reason: 'closed' as const };
     }
@@ -122,6 +104,8 @@ export async function reservePayment(data: {
 }
 
 export async function completePaymentAndIssueTickets(gatewayRef: string): Promise<'completed' | 'already_processed' | 'not_found'> {
+  // A sales pause affects new reservations only. Honor payments whose checkout
+  // was reserved before the pause so a confirmed charge still receives tickets.
   return sql.begin(async (tx) => {
     const [payment] = await tx<DbPayment[]>`
       SELECT * FROM payments WHERE gateway_ref = ${gatewayRef} FOR UPDATE

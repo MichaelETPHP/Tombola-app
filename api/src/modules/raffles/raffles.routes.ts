@@ -25,7 +25,8 @@ rafflesRoutes.get('/', async (c) => {
   if (input.status === 'draft' || input.status === 'cancelled') {
     return c.json({ raffles: [] });
   }
-  const raffles = await listRaffles({ ...input, status: input.status ?? 'open' });
+  // Sales filters belong to the admin list; paused open raffles stay public.
+  const raffles = await listRaffles({ status: input.status ?? 'open', limit: input.limit, offset: input.offset });
   return c.json({ raffles });
 });
 

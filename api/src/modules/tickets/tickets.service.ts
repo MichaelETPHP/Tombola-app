@@ -42,6 +42,8 @@ export async function purchaseTickets(
   });
   if (!reservation.ok) {
     if (reservation.reason === 'not_found') throw new AppError(404, 'raffle.notFound');
+    if (reservation.reason === 'demo') throw new AppError(409, 'raffle.demoNotPurchasable');
+    if (reservation.reason === 'sales_disabled') throw new AppError(409, 'raffle.salesDisabled');
     if (reservation.reason === 'closed') throw new AppError(409, 'This raffle is no longer accepting ticket purchases');
     if (reservation.reason === 'raffle_limit') throw new AppError(409, `Only ${reservation.available ?? 0} tickets remain available`);
     if (reservation.reason === 'active_raffle_limit') throw new AppError(409, 'You can participate in up to 3 active raffles at a time');

@@ -30,6 +30,8 @@ export interface DbRaffle {
   opensAt: Date;
   deadlineAt: Date;
   status: RaffleStatus;
+  salesEnabled: boolean;
+  isDemo: boolean;
   /** Invite link for a Telegram group created manually, offline, for this raffle. Optional. */
   telegramGroupLink: string | null;
   createdBy: string;
@@ -48,6 +50,8 @@ const TICKETS_SOLD_EXPR = sql`(SELECT COUNT(*)::int FROM tickets t WHERE t.raffl
  * generates it and passes it in as drawServerSeed/drawServerSeedHash.
  */
 export async function createRaffle(data: {
+  /** Internal seed/import identifier; never accepted by the public create schema. */
+  id?: string;
   title: string;
   description?: string;
   prizeName: string;
@@ -65,6 +69,8 @@ export async function createRaffle(data: {
   opensAt?: Date;
   deadlineAt?: Date;
   status?: 'draft' | 'open';
+  salesEnabled?: boolean;
+  isDemo?: boolean;
   telegramGroupLink?: string;
 }): Promise<DbRaffle> {
   const opensAt = data.opensAt ?? new Date();
@@ -81,17 +87,19 @@ export async function createRaffle(data: {
     const publicCode = `${data.categoryCode}-${String(sequence.raffleNumber).padStart(3, '0')}`;
     const rows = await tx<DbRaffle[]>`
     INSERT INTO raffles (
-      title, description, prize_name, prize_value, prize_image_url,
+      id, title, description, prize_name, prize_value, prize_image_url,
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
       status, opens_at, deadline_at, created_by, telegram_group_link,
-      category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash
+      category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash,
+      sales_enabled, is_demo
     ) VALUES (
-      ${data.title}, ${data.description ?? null}, ${data.prizeName},
+      COALESCE(${data.id ?? null}::uuid, gen_random_uuid()), ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
       ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
       ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
-      ${data.drawServerSeed}, ${data.drawServerSeedHash}
+      ${data.drawServerSeed}, ${data.drawServerSeedHash},
+      ${data.salesEnabled ?? true}, ${data.isDemo ?? false}
     )
     RETURNING *, 0 AS tickets_sold
   `;
@@ -175,7 +183,7 @@ export async function setAdditionalRafflePrizes(
 
 export async function updateRaffle(
   id: string,
-  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt' | 'telegramGroupLink'>>
+  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt' | 'telegramGroupLink' | 'salesEnabled'>>
 ): Promise<DbRaffle | null> {
   const keys = Object.keys(updates) as (keyof typeof updates)[];
   if (keys.length === 0) return findRaffleById(id);
@@ -222,24 +230,21 @@ export async function findRaffleById(id: string): Promise<DbRaffle | null> {
  */
 export async function listRaffles(options: {
   status?: RaffleStatus;
+  sales?: 'active' | 'inactive';
   limit: number;
   offset: number;
 }): Promise<DbRaffle[]> {
-  const { status, limit, offset } = options;
-
-  if (status) {
-    return sql<DbRaffle[]>`
-      SELECT raffles.*, ${TICKETS_SOLD_EXPR}
-      FROM raffles
-      WHERE status = ${status}
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
+  const { status, sales, limit, offset } = options;
 
   return sql<DbRaffle[]>`
     SELECT raffles.*, ${TICKETS_SOLD_EXPR}
     FROM raffles
+    WHERE ${status ? sql`status = ${status}` : sql`TRUE`}
+      AND ${sales
+        // JSON access allows legacy read-only deployments before migration 019.
+        // Missing flags keep the existing default: sales are enabled.
+        ? sql`COALESCE((to_jsonb(raffles)->>'sales_enabled')::boolean, true) = ${sales === 'active'}`
+        : sql`TRUE`}
     ORDER BY created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `;

@@ -38,6 +38,8 @@ function toApiRaffle(raffle: DbRaffle) {
     ticketsSold: raffle.ticketsSold,
     maxTicketsPerUser: raffle.maxTicketsPerUser,
     status: raffle.status,
+    salesEnabled: raffle.salesEnabled ?? true,
+    isDemo: raffle.isDemo ?? false,
     telegramGroupLink: raffle.telegramGroupLink,
     currentDeadline: raffle.deadlineAt,
     opensAt: raffle.opensAt,
@@ -67,15 +69,31 @@ async function withPrizes(raffle: DbRaffle) {
  * provably-fair.ts for why that timing is what makes the commitment
  * independently verifiable rather than just trusted after the fact.
  */
-export async function createRaffle(data: CreateRaffleInput, adminId: string) {
+export async function createRaffle(data: CreateRaffleInput, adminId: string, id?: string) {
   if (data.deadlineAt && data.deadlineAt <= new Date()) throw new AppError(400, 'Deadline must be in the future');
   if (data.status === 'open' && data.opensAt && data.opensAt > new Date()) {
     throw new AppError(400, 'A future raffle must remain in draft status');
   }
   const drawServerSeed = generateServerSeed();
   const drawServerSeedHash = await commitServerSeed(drawServerSeed);
-  const raffle = await dbCreateRaffle({ ...data, createdBy: adminId, drawServerSeed, drawServerSeedHash });
+  const raffle = await withSalesSchemaError(() => dbCreateRaffle({ ...data, id, createdBy: adminId, drawServerSeed, drawServerSeedHash }));
   return withPrizes(raffle);
+}
+
+/** Migration 019 is an explicit deployment step, never an application write. */
+async function withSalesSchemaError<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (
+      error && typeof error === 'object'
+      && 'code' in error && error.code === '42703'
+      && 'message' in error && /sales_enabled|is_demo/.test(String(error.message))
+    ) {
+      throw new AppError(503, 'raffle.salesUnavailable', { requiredMigration: '019_raffle_sales_controls.sql' });
+    }
+    throw error;
+  }
 }
 
 export async function updateRaffle(id: string, data: UpdateRaffleInput) {
@@ -112,7 +130,7 @@ export async function updateRaffle(id: string, data: UpdateRaffleInput) {
   }
 
   const { additionalPrizes, ...raffleFields } = data;
-  const updated = await dbUpdateRaffle(id, raffleFields);
+  const updated = await withSalesSchemaError(() => dbUpdateRaffle(id, raffleFields));
   if (!updated) throw new AppError(404, 'raffle.notFound');
   if (additionalPrizes !== undefined) await setAdditionalRafflePrizes(id, additionalPrizes);
   return withPrizes(updated);
@@ -182,6 +200,7 @@ export async function getRaffle(id: string) {
 export async function listRaffles(input: ListRafflesInput) {
   const raffles = await dbListRaffles({
     status: input.status,
+    sales: input.sales,
     limit: input.limit,
     offset: input.offset,
   });

@@ -26,6 +26,8 @@ export const createRaffleSchema = z.object({
   opensAt: z.coerce.date().optional(),
   deadlineAt: z.coerce.date().optional(),
   status: z.enum(['draft', 'open']).default('draft'),
+  salesEnabled: z.boolean().default(true),
+  isDemo: z.boolean().default(false),
   // Group is created manually offline (see docs) — this just stores the
   // invite link the admin pastes in, so the app can hand it to buyers.
   telegramGroupLink: z
@@ -52,6 +54,7 @@ export const createRaffleSchema = z.object({
 });
 
 export const updateRaffleSchema = z.object({
+  salesEnabled: z.boolean().optional(),
   title: z.string().min(3).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   prizeName: z.string().min(2).max(200).optional(),
@@ -92,6 +95,7 @@ export const bulkDeleteRafflesSchema = z.object({
 });
 
 export const listRafflesSchema = z.object({
+  sales: z.enum(['active', 'inactive']).optional(),
   status: z
     .enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled'])
     .optional(),
