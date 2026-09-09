@@ -8,6 +8,7 @@
     "start": "bun run src/index.ts",
     "check": "tsc --noEmit",
     "db:raffles:demo": "bun run src/db/reset-demo-raffles.ts",
+    "db:raffles:add-demos": "bun run src/db/add-demo-raffles.ts",
     "db:admin-sessions:check": "bun run src/db/admin-session-schema.ts --check",
     "db:admin-sessions:apply": "bun run src/db/admin-session-schema.ts --apply"
   },

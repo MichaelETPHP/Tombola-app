@@ -26,7 +26,7 @@ rafflesRoutes.get('/', async (c) => {
     return c.json({ raffles: [] });
   }
   // Sales filters belong to the admin list; paused open raffles stay public.
-  const raffles = await listRaffles({ status: input.status ?? 'open', limit: input.limit, offset: input.offset });
+  const raffles = await listRaffles({ status: input.status ?? 'open', featured: input.featured, limit: input.limit, offset: input.offset });
   return c.json({ raffles });
 });
 

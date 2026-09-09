@@ -6,7 +6,7 @@
   export let title: string;
   export let prizeName: string;
   export let size: 'sm' | 'lg' = 'sm';
-  export let fit: 'cover' | 'contain' = 'cover';
+  export let fit: 'cover' | 'contain' = 'contain';
   export let eager = false;
 
   // 'local' -> 'production' -> 'failed'. Most images only exist on

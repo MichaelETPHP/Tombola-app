@@ -12,15 +12,18 @@
 
   const pullRefresh = getPullRefreshContext();
   let loadError = false;
+  let featuredRaffles: Raffle[] = [];
 
   async function loadRaffles() {
     isLoadingRaffles.set(true);
     loadError = false;
     try {
-      const res = await api.get<{ raffles: Raffle[] }>('/raffles?status=open&limit=10', {
-        skipAuth: true,
-      });
+      const [res, featured] = await Promise.all([
+        api.get<{ raffles: Raffle[] }>('/raffles?status=open&limit=10', { skipAuth: true }),
+        api.get<{ raffles: Raffle[] }>('/raffles?status=open&featured=true&limit=50', { skipAuth: true }),
+      ]);
       raffles.set(res.raffles);
+      featuredRaffles = featured.raffles;
     } catch (err) {
       loadError = true;
       console.error('Failed to load raffles', err);
@@ -65,9 +68,12 @@
         Try again <ArrowRight size={15} />
       </button>
     </section>
-  {:else if $raffles.length > 0}
-    <BannerCarousel raffles={$raffles.slice(0, 5)} />
-  {:else}
+  {:else if featuredRaffles.length > 0}
+    <section class="flex flex-col gap-3" aria-labelledby="most-picked-heading">
+      <div><h2 id="most-picked-heading" class="text-[17px] font-extrabold text-ink">Most picked</h2><p class="mt-1 text-xs text-muted">Selected by our team</p></div>
+      <BannerCarousel raffles={featuredRaffles} />
+    </section>
+  {:else if $raffles.length === 0}
     <section class="rounded-card border border-white/70 bg-card p-5 shadow-card-light">
       <p class="text-sm font-bold text-ink">New prizes are coming</p>
       <p class="mt-1 text-xs leading-relaxed text-muted">There are no open raffles right now. Check again soon.</p>
@@ -88,12 +94,11 @@
     {#if $isLoadingRaffles}
       <RaffleCardSkeleton />
       <RaffleCardSkeleton />
-    {:else if $raffles.length > 1}
-      {#each $raffles.slice(1, 4) as raffle, i (raffle.id)}
+    {:else if $raffles.length > 0}
+      {#each $raffles.slice(0, 6) as raffle, i (raffle.id)}
         <RaffleCard {raffle} index={i} />
       {/each}
-    {:else if $raffles.length === 1}
-      <p class="rounded-button bg-card/70 px-4 py-3 text-xs text-muted">The featured raffle is the only prize open right now.</p>
+
     {/if}
   </section>
 

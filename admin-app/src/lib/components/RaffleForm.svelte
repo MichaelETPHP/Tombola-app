@@ -20,6 +20,7 @@
   let maxTicketsPerUser = '5';
   let deadlineDays = '2';
   let salesEnabled = true;
+  let isFeatured = false;
   let telegramGroupLink = '';
   let fieldErrors: Record<string, string> = {};
 
@@ -54,6 +55,7 @@
       maxTicketsPerUser: Number(maxTicketsPerUser),
       deadlineDays: Number(deadlineDays),
       salesEnabled,
+      isFeatured,
       telegramGroupLink: telegramGroupLink || undefined,
     });
     if (!parsed.success) {
@@ -188,6 +190,10 @@
       <div class="mb-5 flex items-center gap-2.5"><Settings2 size={17} class="text-primary" /><h2 class="text-sm font-bold text-ink">Entry rules</h2></div>
       <div class="space-y-5">
         <label class="flex flex-col gap-2"><span class={labelClass}>Maximum per participant</span><input id="maxTicketsPerUser" type="number" min="1" max="5" step="1" bind:value={maxTicketsPerUser} class={inputClass} />{#if fieldErrors.maxTicketsPerUser}<span class="text-xs text-danger">{fieldErrors.maxTicketsPerUser}</span>{/if}<span class="text-[11px] leading-4 text-faint">Participants purchase at least 1 and never more than 5 tickets per raffle.</span></label>
+        <label class="flex cursor-pointer items-start gap-3 rounded-button border border-border bg-bg/35 p-4">
+          <input type="checkbox" bind:checked={isFeatured} class="mt-0.5 h-5 w-5 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" />
+          <span><span class="block text-sm font-bold text-ink">Most picked</span><span class="mt-1 block text-xs leading-5 text-muted">Show in the home page carousel once published. Uncheck to remove it from the carousel.</span></span>
+        </label>
         <label class="flex flex-col gap-2"><span class={labelClass}>Sales deadline (days)</span><input id="deadlineDays" type="number" min="1" max="90" step="1" bind:value={deadlineDays} class={inputClass} />{#if fieldErrors.deadlineDays}<span class="text-xs text-danger">{fieldErrors.deadlineDays}</span>{/if}</label>
 
         <div class="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-bg/40 px-4 py-3.5">

@@ -31,6 +31,7 @@
   let deadlineReason = 'Additional time approved by the Platform Owner';
   let telegramGroupLink = '';
   let salesEnabled = true;
+  let isFeatured = false;
 
   let nextRowKey = 0;
   type PrizeRow = { key: number; id: string | null; name: string; value: string; imageUrl: string | null; uploading: boolean };
@@ -111,6 +112,7 @@
     ticketCap = value.ticketCap;
     maxTicketsPerUser = value.maxTicketsPerUser;
     salesEnabled = value.salesEnabled ?? true;
+    isFeatured = value.isFeatured ?? false;
     additionalPrizes = (value.prizes ?? [])
       .filter((p) => p.tier > 1)
       .sort((a, b) => a.tier - b.tier)
@@ -208,6 +210,7 @@
         // Not gated by ticketsSold like the fields below — pausing/resuming
         // sales on an already-active raffle is exactly what this is for.
         salesEnabled,
+        isFeatured,
       };
       if (raffle.ticketsSold === 0) {
         Object.assign(payload, {
@@ -230,6 +233,9 @@
     if (!raffle) return;
     action = status; error = ''; success = '';
     try {
+      if (status === 'open' && isFeatured !== (raffle.isFeatured ?? false)) {
+        await api.patch(`/admin/raffles/${raffle.id}`, { isFeatured });
+      }
       const res = await api.patch<{ raffle: Raffle }>(`/admin/raffles/${raffle.id}/status`, { status, reason: `Changed to ${status} by Platform Owner` });
       hydrate(res.raffle);
       success = `Raffle is now ${status.replace('_', ' ')}.`;
@@ -398,6 +404,10 @@
           </div>
 
           <label class={labelClass}>Ticket price (ETB)<input required type="number" min="0.01" step="0.01" disabled={raffle.ticketsSold > 0} bind:value={ticketPrice} class={inputClass} /><span class="font-normal text-faint">Price for one chance.</span></label>
+        <label class="flex cursor-pointer items-start gap-3 rounded-button border border-border bg-bg/35 p-4">
+          <input type="checkbox" bind:checked={isFeatured} class="mt-0.5 h-5 w-5 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" />
+          <span><span class="block text-sm font-bold text-ink">Most picked</span><span class="mt-1 block text-xs leading-5 text-muted">Show in the home page carousel once published. Uncheck to remove it from the carousel.</span></span>
+        </label>
           <label class={labelClass}>Maximum ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" />{#if minTicketCap !== null}<span class="font-normal {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">{ticketCapTooLow ? `Below minimum — needs at least ${minTicketCap.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.` : `Sales stop at sellout, or at deadline once the minimum ${minTicketCap.toLocaleString()} (covers ${totalPrizeValue.toLocaleString()} ETB) has sold.`}</span>{:else}<span class="font-normal text-faint">Total tickets available.</span>{/if}</label>
           <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="5" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Between 1 and 5.</span></label>
         </div>

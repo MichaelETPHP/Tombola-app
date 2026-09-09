@@ -32,6 +32,7 @@ export interface DbRaffle {
   status: RaffleStatus;
   salesEnabled: boolean;
   isDemo: boolean;
+  isFeatured: boolean;
   /** Invite link for a Telegram group created manually, offline, for this raffle. Optional. */
   telegramGroupLink: string | null;
   createdBy: string;
@@ -71,6 +72,7 @@ export async function createRaffle(data: {
   status?: 'draft' | 'open';
   salesEnabled?: boolean;
   isDemo?: boolean;
+  isFeatured?: boolean;
   telegramGroupLink?: string;
 }): Promise<DbRaffle> {
   const opensAt = data.opensAt ?? new Date();
@@ -91,7 +93,7 @@ export async function createRaffle(data: {
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
       status, opens_at, deadline_at, created_by, telegram_group_link,
       category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash,
-      sales_enabled, is_demo
+      sales_enabled, is_demo ${data.isFeatured !== undefined ? sql`, is_featured` : sql``}
     ) VALUES (
       COALESCE(${data.id ?? null}::uuid, gen_random_uuid()), ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
@@ -100,6 +102,7 @@ export async function createRaffle(data: {
       ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
       ${data.drawServerSeed}, ${data.drawServerSeedHash},
       ${data.salesEnabled ?? true}, ${data.isDemo ?? false}
+      ${data.isFeatured !== undefined ? sql`, ${data.isFeatured}` : sql``}
     )
     RETURNING *, 0 AS tickets_sold
   `;
@@ -183,7 +186,7 @@ export async function setAdditionalRafflePrizes(
 
 export async function updateRaffle(
   id: string,
-  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt' | 'telegramGroupLink' | 'salesEnabled'>>
+  updates: Partial<Pick<DbRaffle, 'title' | 'description' | 'prizeName' | 'prizeValue' | 'prizeImageUrl' | 'ticketPrice' | 'ticketCap' | 'maxTicketsPerUser' | 'opensAt' | 'telegramGroupLink' | 'salesEnabled' | 'isFeatured'>>
 ): Promise<DbRaffle | null> {
   const keys = Object.keys(updates) as (keyof typeof updates)[];
   if (keys.length === 0) return findRaffleById(id);
@@ -231,10 +234,11 @@ export async function findRaffleById(id: string): Promise<DbRaffle | null> {
 export async function listRaffles(options: {
   status?: RaffleStatus;
   sales?: 'active' | 'inactive';
+  featured?: boolean;
   limit: number;
   offset: number;
 }): Promise<DbRaffle[]> {
-  const { status, sales, limit, offset } = options;
+  const { status, sales, featured, limit, offset } = options;
 
   return sql<DbRaffle[]>`
     SELECT raffles.*, ${TICKETS_SOLD_EXPR}
@@ -245,7 +249,8 @@ export async function listRaffles(options: {
         // Missing flags keep the existing default: sales are enabled.
         ? sql`COALESCE((to_jsonb(raffles)->>'sales_enabled')::boolean, true) = ${sales === 'active'}`
         : sql`TRUE`}
-    ORDER BY created_at DESC
+      AND ${featured !== undefined ? sql`COALESCE((to_jsonb(raffles)->>'is_featured')::boolean, false) = ${featured}` : sql`TRUE`}
+    ORDER BY created_at DESC, id DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
 }

@@ -30,6 +30,7 @@ export interface Raffle {
   /** A sample/showcase raffle — always browsable, never purchasable,
    *  regardless of salesEnabled. */
   isDemo?: boolean;
+  isFeatured?: boolean;
   currentDeadline: string;
   createdAt: string;
 }

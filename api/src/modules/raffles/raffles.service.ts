@@ -40,6 +40,7 @@ function toApiRaffle(raffle: DbRaffle) {
     status: raffle.status,
     salesEnabled: raffle.salesEnabled ?? true,
     isDemo: raffle.isDemo ?? false,
+    isFeatured: raffle.isFeatured ?? false,
     telegramGroupLink: raffle.telegramGroupLink,
     currentDeadline: raffle.deadlineAt,
     opensAt: raffle.opensAt,
@@ -85,6 +86,10 @@ async function withSalesSchemaError<T>(operation: () => Promise<T>): Promise<T> 
   try {
     return await operation();
   } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === '42703'
+      && 'message' in error && /is_featured/.test(String(error.message))) {
+      throw new AppError(503, 'Home carousel setup is pending. Apply database migration 021 before saving raffle selections.', { requiredMigration: '021_raffle_home_feature.sql' });
+    }
     if (
       error && typeof error === 'object'
       && 'code' in error && error.code === '42703'
@@ -201,6 +206,7 @@ export async function listRaffles(input: ListRafflesInput) {
   const raffles = await dbListRaffles({
     status: input.status,
     sales: input.sales,
+    featured: input.featured,
     limit: input.limit,
     offset: input.offset,
   });

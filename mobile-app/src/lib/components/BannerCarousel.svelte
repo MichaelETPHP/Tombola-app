@@ -59,7 +59,7 @@
         <a
           href="/raffles/{raffle.id}"
           data-carousel-slide
-          class="featured-ticket pressable relative flex h-[346px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
+          class="featured-ticket pressable relative flex min-h-[346px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
           aria-label="Enter {raffle.title}"
         >
           <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#dff7ee]">

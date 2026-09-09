@@ -45,7 +45,7 @@
       src={resolvedSrc}
       {alt}
       loading={eager ? 'eager' : 'lazy'}
-      class="h-full w-full object-cover transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"
+      class="h-full w-full object-contain transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"
       on:error={handleError}
       on:load={() => (loaded = true)}
     />
