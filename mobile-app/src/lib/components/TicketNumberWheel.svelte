@@ -144,6 +144,7 @@
           aria-selected={value === row.number}
           aria-disabled={isUnavailable(row) || isUsedElsewhere(row.number)}
           class:unavailable={isUnavailable(row)}
+          class:held-elsewhere={row.state === 'held' && row.number !== value}
           class:used={isUsedElsewhere(row.number)}
           class:selected={value === row.number}
           on:click={() => chooseRow(row.number)}
@@ -169,6 +170,7 @@
   .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #53635c; font-size: 11px; font-weight: 620; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
   .wheel-scroll > button[aria-selected='true'] { color: #075d48; font-size: 12px; font-weight: 800; }
   .wheel-scroll > button.unavailable { color: #9a817f; opacity: .38; text-decoration: line-through; }
+  .wheel-scroll > button.held-elsewhere:not(.selected) { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-radius: 6px; }
   .wheel-scroll > button.used:not(.selected) { opacity: .28; }
   .selection-band { position: absolute; z-index: 1; top: 84px; left: 4px; right: 4px; height: 42px; border-block: 1px solid rgba(72,91,82,.14); border-radius: 9px; background: #edf1ef; }
   .filled .selection-band { background: #d5f1e5; border-color: rgba(8,118,90,.28); }
