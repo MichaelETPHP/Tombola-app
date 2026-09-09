@@ -256,7 +256,10 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
  * (e.g. the user closed the checkout screen right as Chapa confirmed it).
  */
 export async function cancelPendingPayment(id: string): Promise<DbPayment | null> {
-  return transitionPendingPayment(id, 'failed', true);
+  // Explicit cancellation releases even a started checkout. The raffle lock
+  // serializes this with issuance: completed tickets can never be released.
+  // A subsequently verified charge follows the existing refund-review path.
+  return transitionPendingPayment(id, 'failed');
 }
 
 async function transitionPendingPayment(id: string, status: PaymentStatus, onlyUnstarted = false): Promise<DbPayment | null> {
@@ -280,7 +283,8 @@ export async function updatePaymentStatus(id: string, status: PaymentStatus): Pr
 export async function expireUnstartedPayments(): Promise<void> {
   const rows = await sql<{ id: string }[]>`SELECT id FROM payments WHERE status = 'pending'
     AND NOT review_required AND checkout_started_at IS NULL AND reservation_expires_at <= NOW() LIMIT 100`;
-  for (const row of rows) await cancelPendingPayment(row.id);
+  // Recheck unstarted under lock: checkout may start after the sweep's SELECT.
+  for (const row of rows) await transitionPendingPayment(row.id, 'failed', true);
 }
 
 export interface DbPaymentWithDetails {

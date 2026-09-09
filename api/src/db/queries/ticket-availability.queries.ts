@@ -32,13 +32,3 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
   };
 }
 
-export async function suggestTicketNumbers(raffleId: string, count: number, exclude: number[]) {
-  const numbers = await sql<{ number: number }[]>`SELECT n AS number FROM raffles r CROSS JOIN LATERAL generate_series(1, r.ticket_cap) n
-    WHERE r.id = ${raffleId} AND r.status = 'open' AND r.sales_enabled AND NOT r.is_demo AND r.deadline_at > NOW()
-    AND NOT (n = ANY(${exclude}::int[])) AND NOT EXISTS (
-      SELECT 1 FROM ticket_number_claims c JOIN payments p ON p.id = c.payment_id
-      WHERE c.raffle_id = r.id AND c.ticket_number = n AND (c.sold OR p.review_required OR
-        (p.status = 'pending' AND (p.checkout_started_at IS NOT NULL OR p.reservation_expires_at > NOW())))
-    ) ORDER BY random() LIMIT ${count}`;
-  return numbers.map((row) => row.number);
-}

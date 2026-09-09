@@ -33,6 +33,7 @@ export function getPendingPurchase(): PendingPurchase | null {
 export function clearPendingPurchase(): void {
   try {
     sessionStorage.removeItem(KEY);
+    sessionStorage.removeItem(LEGACY_KEY);
   } catch {
     // ignore
   }

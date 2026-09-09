@@ -217,7 +217,7 @@
       <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager />
       <div class="prize-glass-flash pointer-events-none absolute inset-y-0 left-0 w-[38%] {pageVisible ? '' : 'is-paused'}" aria-hidden="true"></div>
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
-      <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"><ChevronLeft size={20} /></button>
+      <button type="button" aria-label="Back" on:click={goBack} class="tappable pressable absolute left-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"><ChevronLeft size={20} /></button>
     </section>
 
     <header class="min-w-0 px-0.5">
@@ -280,7 +280,7 @@
         <div class="raffle-actions px-4 pb-3.5 pt-3">
           <div class="flex items-center gap-3">
             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-action-bg text-ink"><Ticket size={21} /></span>
-            <div><p class="text-sm font-bold text-ink">Your numbers. Your choice.</p><p class="mt-1 text-xs leading-5 text-[#586660]">Pick your favourites or let us choose for you.</p></div>
+            <div><p class="text-sm font-bold text-ink">Your numbers. Your choice.</p><p class="mt-1 text-xs leading-5 text-[#586660]">Pick your favourite numbers in a few taps.</p></div>
           </div>
 
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}

@@ -3,22 +3,24 @@ import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
 import { api } from '$lib/api/client.js';
 import { showBanner } from '$lib/stores/banner.store.js';
+import { clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
 
 /**
  * "User backed out of checkout" handler, used by routes/(app)/checkout's
  * own back button. Cancels the payment server-side — atomically
  * conditioned on it still being 'pending', so this can never race a
  * webhook/verify call that completed it in the same instant — then routes
- * accordingly: to the real receipt if it turns out the payment had
- * already gone through, otherwise Home with a toast confirming nothing
- * was charged.
+ * accordingly: to its receipt if payment completed, otherwise a fresh
+ * number selection. A released reservation does not assert that a gateway
+ * could never report a late debit; those payments go to refund review.
  */
 export async function cancelPaymentAndReturnHome(paymentId: string): Promise<void> {
   try {
     const { payment } = await api.post<{ payment: { status: string; raffleId: string } }>(`/payments/${paymentId}/cancel`);
     if (payment.status === 'failed') {
+      clearPendingPurchase();
       await goto(`/raffles/${payment.raffleId}/numbers`, { replaceState: true });
-      showBanner('Your unpaid reservation was released');
+      showBanner('Reservation cancelled. Your numbers are available again.');
     } else {
       await goto(`/payments/${paymentId}`, { replaceState: true });
     }

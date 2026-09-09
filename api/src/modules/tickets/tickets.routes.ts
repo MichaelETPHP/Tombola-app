@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { availabilitySchema } from './selection.js';
-import { getTicketAvailability, suggestTicketNumbers } from '../../db/queries/ticket-availability.queries.js';
+import { getTicketAvailability } from '../../db/queries/ticket-availability.queries.js';
 import { purchaseTicketsSchema } from './tickets.schema.js';
 import { purchaseTickets, getUserTickets } from './tickets.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
@@ -18,12 +18,6 @@ ticketsRoutes.get('/:id/ticket-availability', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
   const query = availabilitySchema.parse(c.req.query());
   return c.json(await getTicketAvailability(id, c.get('user').id, query.start, query.limit));
-});
-
-ticketsRoutes.post('/:id/ticket-suggestions', rateLimit({ max: 20, windowSeconds: 60 }), async (c) => {
-  const id = z.string().uuid().parse(c.req.param('id'));
-  const input = z.object({ count: z.number().int().min(1).max(5), exclude: z.array(z.number().int().positive()).max(5).default([]) }).parse(await c.req.json());
-  return c.json({ numbers: await suggestTicketNumbers(id, input.count, input.exclude) });
 });
 
 /**

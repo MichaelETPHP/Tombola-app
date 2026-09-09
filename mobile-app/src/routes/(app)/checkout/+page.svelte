@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
@@ -183,7 +183,8 @@
           resolved = true;
         },
         onPaymentFailure: (message) => {
-          paymentError = message || 'Payment was not completed. Check the number and try again.';
+          paymentError = message || 'Payment was not completed. Releasing your numbers...';
+          void cancel();
         },
       });
 
@@ -225,6 +226,15 @@
     if (paymentId) await cancelPaymentAndReturnHome(paymentId);
     else await goto('/raffles');
   }
+
+  beforeNavigate((navigation) => {
+    // Back/gesture navigation is an explicit checkout cancellation. The gateway
+    // return and receipt routes are confirmation paths, not cancellation.
+    const destination = navigation.to?.url.pathname ?? '';
+    if (resolved || cancelling || !paymentId || navigation.willUnload || destination === '/payment-return' || destination === `/payments/${paymentId}`) return;
+    navigation.cancel();
+    void cancel();
+  });
 
   async function loadReservation(): Promise<void> {
     loading = true;

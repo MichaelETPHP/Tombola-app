@@ -8,6 +8,7 @@
   import Skeleton from '$lib/components/Skeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { showBanner } from '$lib/stores/banner.store.js';
+  import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
   import { hapticLight } from '$lib/native/haptics.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import PaperReceipt from '$lib/components/PaperReceipt.svelte';
@@ -31,6 +32,14 @@
   let payment: PaymentStatus | null = null;
   let loadError = false;
   let checking = false;
+  let cancelling = false;
+  async function cancelReservation() {
+    if (cancelling || payment?.status !== 'pending') return;
+    cancelling = true;
+    stopPolling();
+    await cancelPaymentAndReturnHome(payment.id);
+    cancelling = false;
+  }
   let timedOut = false;
   let bannerShown = false;
   let showReceipt = false;
@@ -189,6 +198,9 @@
       <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Your selected numbers are held while we check the payment provider. Please do not pay again.</p>
       <div class="mt-6 flex items-center gap-2 rounded-full bg-white/60 px-3 py-2 text-[11px] font-semibold text-muted"><ShieldCheck size={14} class="text-primary-dark" /> Secure server confirmation {checking ? 'in progress' : 'queued'}</div>
     </section>
+  {/if}
+  {#if payment?.status === 'pending'}
+    <button type="button" class="mt-3 min-h-12 shrink-0 rounded-xl bg-white/70 px-4 text-sm font-semibold text-[#85434a]" disabled={cancelling} on:click={cancelReservation}>{cancelling ? 'Releasing your numbers...' : 'Cancel & release numbers'}</button>
   {/if}
 </div>
 
