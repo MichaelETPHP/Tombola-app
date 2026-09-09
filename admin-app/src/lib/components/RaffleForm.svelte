@@ -19,6 +19,7 @@
   let ticketCap = '';
   let maxTicketsPerUser = '5';
   let deadlineDays = '2';
+  let salesEnabled = true;
   let telegramGroupLink = '';
   let fieldErrors: Record<string, string> = {};
 
@@ -52,6 +53,7 @@
       ticketCap: Number(ticketCap),
       maxTicketsPerUser: Number(maxTicketsPerUser),
       deadlineDays: Number(deadlineDays),
+      salesEnabled,
       telegramGroupLink: telegramGroupLink || undefined,
     });
     if (!parsed.success) {
@@ -187,6 +189,23 @@
       <div class="space-y-5">
         <label class="flex flex-col gap-2"><span class={labelClass}>Maximum per participant</span><input id="maxTicketsPerUser" type="number" min="1" max="5" step="1" bind:value={maxTicketsPerUser} class={inputClass} />{#if fieldErrors.maxTicketsPerUser}<span class="text-xs text-danger">{fieldErrors.maxTicketsPerUser}</span>{/if}<span class="text-[11px] leading-4 text-faint">Participants purchase at least 1 and never more than 5 tickets per raffle.</span></label>
         <label class="flex flex-col gap-2"><span class={labelClass}>Sales deadline (days)</span><input id="deadlineDays" type="number" min="1" max="90" step="1" bind:value={deadlineDays} class={inputClass} />{#if fieldErrors.deadlineDays}<span class="text-xs text-danger">{fieldErrors.deadlineDays}</span>{/if}</label>
+
+        <div class="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-bg/40 px-4 py-3.5">
+          <div>
+            <span class={labelClass}>Ticket sales</span>
+            <p class="mt-0.5 text-[11px] leading-4 text-faint">Inactive stays visible to browse, but Buy is disabled until reactivated.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={salesEnabled}
+            aria-label="Ticket sales active"
+            on:click={() => (salesEnabled = !salesEnabled)}
+            class="admin-press relative h-7 w-12 shrink-0 rounded-full transition-colors {salesEnabled ? 'bg-primary' : 'bg-border'}"
+          >
+            <span class="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform {salesEnabled ? 'translate-x-6' : 'translate-x-1'}"></span>
+          </button>
+        </div>
       </div>
     </section>
 

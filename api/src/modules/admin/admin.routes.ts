@@ -1,4 +1,7 @@
 import { Hono } from 'hono';
+import { ticketInventory, recordReviewedRefund } from '../tickets/ticket-admin.js';
+import { findPaymentById } from '../../db/queries/payments.queries.js';
+import { verifyAndReconcileChapaPayment } from '../payments/payments.service.js';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { env } from '../../config/env.js';
 import { adminOrigin } from '../../middleware/admin-origin.middleware.js';
@@ -87,6 +90,23 @@ adminRoutes.post('/auth/logout', adminOrigin, rateLimit({ max: 20, windowSeconds
 
 // All subsequent admin routes require auth + admin role
 adminRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
+
+adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const start = z.coerce.number().int().min(1).max(2147483547).default(1).parse(c.req.query('start'));
+  return c.json(await ticketInventory(id, start));
+});
+adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
+  const payment = await findPaymentById(z.string().uuid().parse(c.req.param('id')));
+  if (!payment?.gatewayRef || payment.gateway !== 'chapa') return c.json({ error: 'No supported gateway transaction found' }, 409);
+  await verifyAndReconcileChapaPayment(payment.gatewayRef);
+  return c.json({ message: 'Gateway status checked' });
+});
+adminRoutes.post('/payments/:id/record-refund', requireRole('owner'), rateLimit({ max: 10, windowSeconds: 60 }), async (c) => {
+  const input = z.object({ reference: z.string().trim().min(5).max(200), refundCompleted: z.literal(true) }).parse(await c.req.json());
+  await recordReviewedRefund(z.string().uuid().parse(c.req.param('id')), c.get('admin')!.id, input.reference);
+  return c.json({ message: 'External refund recorded' });
+});
 
 /**
  * GET /admin/auth/me

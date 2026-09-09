@@ -70,6 +70,8 @@ export const createRaffleSchema = z.object({
   ticketCap: z.number().int().positive().min(10),
   maxTicketsPerUser: z.number().int().min(1).max(5),
   deadlineDays: z.number().int().positive().min(1).max(90),
+  salesEnabled: z.boolean().default(true),
+  isDemo: z.boolean().default(false),
   telegramGroupLink: z
     .string()
     .trim()
@@ -117,6 +119,8 @@ export const raffleSchema = z.object({
   ticketsSold: z.number(),
   maxTicketsPerUser: z.number(),
   status: z.enum(['draft', 'open', 'locked', 'awaiting_trigger', 'drawing', 'completed', 'cancelled']),
+  salesEnabled: z.boolean().optional(),
+  isDemo: z.boolean().optional(),
   telegramGroupLink: z.string().nullable().optional(),
   currentDeadline: z.string(),
   opensAt: z.string().optional(),

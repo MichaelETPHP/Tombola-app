@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TicketInventory from '$lib/components/TicketInventory.svelte';
   import { onMount } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly, fade } from 'svelte/transition';
@@ -29,6 +30,7 @@
   let deadlineAt = '';
   let deadlineReason = 'Additional time approved by the Platform Owner';
   let telegramGroupLink = '';
+  let salesEnabled = true;
 
   let nextRowKey = 0;
   type PrizeRow = { key: number; id: string | null; name: string; value: string; imageUrl: string | null; uploading: boolean };
@@ -108,6 +110,7 @@
     ticketPrice = value.ticketPrice;
     ticketCap = value.ticketCap;
     maxTicketsPerUser = value.maxTicketsPerUser;
+    salesEnabled = value.salesEnabled ?? true;
     additionalPrizes = (value.prizes ?? [])
       .filter((p) => p.tier > 1)
       .sort((a, b) => a.tier - b.tier)
@@ -202,6 +205,9 @@
         prizeValue: Number(prizeValue),
         additionalPrizes: additionalPrizes.map((row) => ({ name: row.name, value: Number(row.value) })),
         telegramGroupLink: telegramGroupLink.trim() || null,
+        // Not gated by ticketsSold like the fields below — pausing/resuming
+        // sales on an already-active raffle is exactly what this is for.
+        salesEnabled,
       };
       if (raffle.ticketsSold === 0) {
         Object.assign(payload, {
@@ -373,6 +379,24 @@
           {/if}
 
           <div class="sm:col-span-2 mt-2 flex items-start justify-between gap-4 border-t border-border pt-6"><div><h3 class="text-sm font-bold text-ink">Ticket rules</h3><p class="mt-1 text-xs font-normal text-faint">These values define the published purchase contract.</p></div>{#if raffle.ticketsSold > 0}<span class="flex shrink-0 items-center gap-1.5 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning"><LockKeyhole size={11} /> Locked after first sale</span>{/if}</div>
+
+          <div class="sm:col-span-2 flex items-center justify-between gap-3 rounded-[14px] border border-border bg-bg/40 px-4 py-3.5">
+            <div>
+              <span class={labelClass}>Ticket sales</span>
+              <p class="mt-0.5 text-[11px] leading-4 text-faint">Inactive stays visible on the raffle list and detail page, but the mobile app's Buy button is disabled until reactivated.</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={salesEnabled}
+              aria-label="Ticket sales active"
+              on:click={() => (salesEnabled = !salesEnabled)}
+              class="admin-press relative h-7 w-12 shrink-0 rounded-full transition-colors {salesEnabled ? 'bg-primary' : 'bg-border'}"
+            >
+              <span class="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform {salesEnabled ? 'translate-x-6' : 'translate-x-1'}"></span>
+            </button>
+          </div>
+
           <label class={labelClass}>Ticket price (ETB)<input required type="number" min="0.01" step="0.01" disabled={raffle.ticketsSold > 0} bind:value={ticketPrice} class={inputClass} /><span class="font-normal text-faint">Price for one chance.</span></label>
           <label class={labelClass}>Maximum ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" />{#if minTicketCap !== null}<span class="font-normal {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">{ticketCapTooLow ? `Below minimum — needs at least ${minTicketCap.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.` : `Sales stop at sellout, or at deadline once the minimum ${minTicketCap.toLocaleString()} (covers ${totalPrizeValue.toLocaleString()} ETB) has sold.`}</span>{:else}<span class="font-normal text-faint">Total tickets available.</span>{/if}</label>
           <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="5" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Between 1 and 5.</span></label>
@@ -405,4 +429,5 @@
     </div>
     <RaffleEngine raffleId={raffle.id} />
   </div>
+  <TicketInventory raffleId={raffle.id} />
 {/if}

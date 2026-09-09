@@ -32,13 +32,16 @@ export async function purchaseTickets(
   userPhone: string,
   input: PurchaseTicketsInput
 ) {
-  const txRef = `TXN-${nanoid(16)}`;
+  let txRef = `TXN-${nanoid(16)}`;
+  const quantity = input.selectedNumbers?.length ?? input.quantity!;
   const reservation = await reservePayment({
     userId,
     raffleId,
     gateway: input.paymentGateway,
     gatewayRef: txRef,
-    ticketCount: input.quantity,
+    ticketCount: quantity,
+    selectedNumbers: input.selectedNumbers,
+    idempotencyKey: input.idempotencyKey,
   });
   if (!reservation.ok) {
     if (reservation.reason === 'not_found') throw new AppError(404, 'raffle.notFound');
@@ -51,6 +54,8 @@ export async function purchaseTickets(
   }
   const { payment, raffle } = reservation;
   const amount = payment.amount;
+  txRef = payment.gatewayRef!;
+  if (payment.status !== 'pending' || payment.reviewRequired) throw new AppError(409, 'This checkout has already resolved. View its payment status.', { paymentId: payment.id });
 
   if (input.paymentGateway === 'chapa') {
     try {
@@ -60,10 +65,12 @@ export async function purchaseTickets(
       if (!env.MOCK_PAYMENTS) {
         if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
         return {
+          selectedNumbers: payment.selectedNumbers,
+          expiresAt: payment.reservationExpiresAt,
           paymentId: payment.id,
           txRef,
           amount,
-          ticketCount: input.quantity,
+          ticketCount: quantity,
           raffleTitle: raffle.title,
           checkoutMode: 'inline' as const,
         };
@@ -89,11 +96,11 @@ export async function purchaseTickets(
           // still sanitizes defensively since raffle.title is
           // admin-entered free text with no charset restriction of its own.
           title: 'YeneEta',
-          description: `${input.quantity} ticket${input.quantity === 1 ? '' : 's'} for ${raffle.title}`,
+          description: `${quantity} ticket${quantity === 1 ? '' : 's'} for ${raffle.title}`,
         },
         mock: {
           raffleTitle: raffle.title,
-          ticketCount: input.quantity,
+          ticketCount: quantity,
           unitPrice: raffle.ticketPrice,
           callbackUrl: `${env.API_BASE_URL}/payments/webhook/chapa`,
         },
@@ -112,7 +119,7 @@ export async function purchaseTickets(
         checkoutUrl,
         txRef,
         amount,
-        ticketCount: input.quantity,
+        ticketCount: quantity,
         raffleTitle: raffle.title,
         checkoutMode: 'mock' as const,
       };
@@ -132,7 +139,7 @@ export async function purchaseTickets(
     paymentId: payment.id,
     txRef,
     amount,
-    ticketCount: input.quantity,
+    ticketCount: quantity,
     message: `${input.paymentGateway} integration pending`,
   };
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { api } from '$lib/api/client.js';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -55,6 +56,9 @@
     submitting = true;
     submitError = '';
     try {
+      const paymentId = new URL(returnUrl, window.location.origin).searchParams.get('payment_id');
+      if (!paymentId) throw new Error('Missing payment');
+      await api.post(`/payments/${paymentId}/start`);
       const response = await fetch(callbackUrl, {
         method: 'POST',
         headers: {

@@ -25,7 +25,7 @@
     amount: number;
     gateway: 'chapa' | 'telebirr' | 'manual';
     createdAt: string;
-    status: 'pending' | 'completed' | 'failed' | 'refunded';
+    status: 'pending' | 'completed' | 'failed' | 'refunded' | 'review';
   }
 
   let payment: PaymentStatus | null = null;
@@ -157,12 +157,20 @@
         <button type="button" class="pressable h-11 w-full text-xs font-bold text-muted" on:click={goToRaffle}>Back to raffle</button>
       </div>
     </section>
-  {:else if payment.status === 'failed' || payment.status === 'refunded'}
+  {:else if payment.status === 'review'}
+    <section class="flex flex-1 flex-col justify-center gap-4 py-8">
+      <Clock3 size={32} class="text-ink" />
+      <h1 class="text-2xl font-bold text-ink">Your payment needs a review</h1>
+      <p class="text-sm leading-6 text-[#566960]">Payment was verified, but we could not issue your selected numbers. Do not pay again. Our team needs to reconcile this payment and arrange a refund.</p>
+      <p class="break-all text-xs text-[#566960]">Payment reference: {payment.id}</p>
+      <button class="min-h-12 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={() => goto('/profile')}>View payment history</button>
+    </section>
+  {:else if payment.status === 'failed'  || payment.status === 'refunded'}
     <section class="flex flex-1 flex-col items-center justify-center px-4 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-pink-bg text-pink"><X size={28} /></span>
       <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-pink">Payment unsuccessful</p>
       <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">No tickets were issued</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Nothing was charged for this attempt. Your ticket allowance remains available.</p>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">No tickets were confirmed for this attempt. If your provider shows a debit, check the payment status before trying again.</p>
       <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={goToRaffle}>Try payment again</button>
     </section>
   {:else if timedOut}
@@ -176,9 +184,9 @@
   {:else}
     <section class="flex flex-1 flex-col items-center justify-center px-5 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="processing-ring relative mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/65"><ReceiptText size={25} class="text-primary-dark" /></span>
-      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">Payment received</p>
-      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">Preparing your tickets</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Keep this screen open for a moment while YeneEta assigns your ticket numbers.</p>
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">Checking payment</p>
+      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">Confirming your payment</h1>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Your selected numbers are held while we check the payment provider. Please do not pay again.</p>
       <div class="mt-6 flex items-center gap-2 rounded-full bg-white/60 px-3 py-2 text-[11px] font-semibold text-muted"><ShieldCheck size={14} class="text-primary-dark" /> Secure server confirmation {checking ? 'in progress' : 'queued'}</div>
     </section>
   {/if}

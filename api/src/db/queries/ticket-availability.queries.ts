@@ -1,0 +1,44 @@
+import { sql } from '../client.js';
+import { AppError } from '../../middleware/error-handler.middleware.js';
+
+export async function getTicketAvailability(raffleId: string, userId: string, start: number, limit: number) {
+  const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date }[]>`
+    SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+  if (start > raffle.ticketCap) throw new AppError(400, 'This number is outside the raffle range.');
+  const numbers = await sql<{ number: number; state: 'available' | 'sold' | 'owned' | 'held' | 'held_by_you' }[]>`
+    SELECT n AS number, CASE WHEN c.sold THEN CASE WHEN p.user_id = ${userId} THEN 'owned' ELSE 'sold' END
+      WHEN c.payment_id IS NOT NULL AND p.status = 'pending' AND
+        (p.checkout_started_at IS NOT NULL OR p.reservation_expires_at > NOW() OR p.review_required)
+        THEN CASE WHEN p.user_id = ${userId} THEN 'held_by_you' ELSE 'held' END
+      WHEN p.review_required THEN 'held'
+      ELSE 'available' END AS state
+    FROM generate_series(${start}::int, LEAST(${start + limit - 1}::int, ${raffle.ticketCap}::int)) n
+    LEFT JOIN ticket_number_claims c ON c.raffle_id = ${raffleId} AND c.ticket_number = n
+    LEFT JOIN payments p ON p.id = c.payment_id ORDER BY n`;
+  const [usage] = await sql<{ owned: number; held: number }[]>`SELECT
+    (SELECT COUNT(*)::int FROM tickets WHERE raffle_id = ${raffleId} AND user_id = ${userId}) AS owned,
+    (SELECT COALESCE(SUM(ticket_count), 0)::int FROM payments WHERE raffle_id = ${raffleId} AND user_id = ${userId}
+      AND status = 'pending' AND (checkout_started_at IS NOT NULL OR reservation_expires_at > NOW() OR review_required)) AS held`;
+  const [active] = await sql<{ id: string; checkoutStartedAt: Date | null }[]>`SELECT id, checkout_started_at FROM payments
+    WHERE raffle_id = ${raffleId} AND user_id = ${userId} AND status = 'pending'
+    AND (checkout_started_at IS NOT NULL OR reservation_expires_at > NOW() OR review_required) ORDER BY created_at LIMIT 1`;
+  return {
+    numbers, start, end: Math.min(start + limit - 1, raffle.ticketCap), ticketCap: raffle.ticketCap,
+    allowance: Math.max(0, Math.min(5, raffle.maxTicketsPerUser - usage.owned - usage.held)),
+    owned: usage.owned, activePaymentId: active?.id ?? null, paymentStarted: !!active?.checkoutStartedAt,
+    salesOpen: raffle.status === 'open' && raffle.salesEnabled && !raffle.isDemo && raffle.deadlineAt > new Date(),
+    serverTime: new Date().toISOString(),
+  };
+}
+
+export async function suggestTicketNumbers(raffleId: string, count: number, exclude: number[]) {
+  const numbers = await sql<{ number: number }[]>`SELECT n AS number FROM raffles r CROSS JOIN LATERAL generate_series(1, r.ticket_cap) n
+    WHERE r.id = ${raffleId} AND r.status = 'open' AND r.sales_enabled AND NOT r.is_demo AND r.deadline_at > NOW()
+    AND NOT (n = ANY(${exclude}::int[])) AND NOT EXISTS (
+      SELECT 1 FROM ticket_number_claims c JOIN payments p ON p.id = c.payment_id
+      WHERE c.raffle_id = r.id AND c.ticket_number = n AND (c.sold OR p.review_required OR
+        (p.status = 'pending' AND (p.checkout_started_at IS NOT NULL OR p.reservation_expires_at > NOW())))
+    ) ORDER BY random() LIMIT ${count}`;
+  return numbers.map((row) => row.number);
+}

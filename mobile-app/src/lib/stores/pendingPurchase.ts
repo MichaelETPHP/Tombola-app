@@ -4,6 +4,8 @@ const LEGACY_KEY = 'tombola:pendingPurchase';
 export interface PendingPurchase {
   raffleId: string;
   quantity: number;
+  selectedNumbers?: number[];
+  idempotencyKey?: string;
 }
 
 /**

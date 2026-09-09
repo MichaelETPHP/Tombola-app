@@ -17,7 +17,7 @@
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { CalendarClock, Check, ChevronLeft, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
+  import { CalendarClock, Check, ChevronLeft, Info, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   const pullRefresh = getPullRefreshContext();
@@ -186,46 +186,10 @@
     purchase();
   }
 
-  function apiMessage(cause: ApiError): string {
-    try {
-      const body = JSON.parse(cause.body) as { error?: string };
-      return body.error || 'Purchase failed. Please try again.';
-    } catch {
-      return 'Purchase failed. Please try again.';
-    }
-  }
-
-  async function purchase() {
+  function purchase() {
     if (!raffle || !agreedToTerms) return;
     hapticMedium();
-    if (!$auth.isAuthenticated) {
-      setPendingPurchase({ raffleId: raffle.id, quantity });
-      goto(`/login?returnTo=${encodeURIComponent(`/raffles/${raffle.id}`)}`);
-      return;
-    }
-    error = '';
-    purchasing = true;
-    purchaseStage = 'reserving';
-    try {
-      const result = await api.post<{
-        paymentId: string;
-        checkoutUrl?: string;
-        txRef: string;
-        amount: number;
-        ticketCount: number;
-        raffleTitle: string;
-      }>(
-        `/raffles/${raffle.id}/tickets`,
-        { quantity, paymentGateway: 'chapa', returnTarget: paymentReturnTarget() }
-      );
-      clearPendingPurchase();
-      purchaseStage = 'opening';
-      await openCheckout(result.checkoutUrl, result.paymentId);
-    } catch (cause) {
-      error = cause instanceof ApiError ? apiMessage(cause) : 'Network error. Check your connection and try again.';
-    } finally {
-      purchasing = false;
-    }
+    goto(`/raffles/${raffle.id}/numbers`);
   }
 
   // Ticket availability still gates purchasing internally — just never
@@ -308,29 +272,21 @@
       <div class="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3.5">
         <div><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">Price</p><p class="mt-1 text-sm font-extrabold text-ink">{formatEtb(raffle.ticketPrice)} <span class="text-[10px] text-muted">ETB</span></p></div>
         <div class="h-8 w-px bg-dot-inactive"></div>
-        <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">Chance with {quantity}</p><p class="mt-1 text-sm font-extrabold text-primary-dark">{oddsDisplay}</p></div>
+        <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">Your choice</p><p class="mt-1 text-sm font-extrabold text-ink">Up to {raffle.maxTicketsPerUser} tickets</p></div>
       </div>
 
       <div class="ticket-perforation"></div>
-      {#if raffle.status === 'open' && ticketsRemaining > 0}
+      {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
         <div class="raffle-actions px-4 pb-3.5 pt-3">
-          <div class="flex items-center justify-between gap-4">
-            <div><p class="text-xs font-bold text-ink">Choose tickets</p><p class="mt-0.5 text-[9px] text-muted">1–{maxAllowed} per participant{resumedFromAuth ? ' · ready to continue' : ''}</p></div>
-            <div class="flex items-center gap-3 rounded-full bg-bg-start p-1">
-              <button type="button" aria-label="Remove one ticket" disabled={quantity <= 1} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.max(1, quantity - 1); hapticLight(); }}><Minus size={15} /></button>
-              <span class="min-w-5 text-center text-base font-extrabold text-ink">{quantity}</span>
-              <button type="button" aria-label="Add one ticket" disabled={quantity >= maxAllowed} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light disabled:opacity-35" on:click={() => { quantity = Math.min(maxAllowed, quantity + 1); hapticLight(); }}><Plus size={15} /></button>
-            </div>
+          <div class="flex items-center gap-3">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-action-bg text-ink"><Ticket size={21} /></span>
+            <div><p class="text-sm font-bold text-ink">Your numbers. Your choice.</p><p class="mt-1 text-xs leading-5 text-[#586660]">Pick your favourites or let us choose for you.</p></div>
           </div>
 
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
           <div class="mt-3">
             <Button variant="glass" shine loading={purchasing} on:click={handleBuyClick}>
-              {#if purchasing}
-                <span>{purchaseStage === 'opening' ? 'Opening secure checkout…' : 'Reserving your tickets…'}</span>
-              {:else}
-                <Ticket size={15} /> Buy {quantity} ticket{quantity > 1 ? 's' : ''} · {formatEtb(quantity * Number(raffle.ticketPrice))} ETB
-              {/if}
+              <Ticket size={17} /> Choose ticket numbers
             </Button>
           </div>
 
@@ -341,7 +297,12 @@
             </button>
             <button type="button" class="tappable min-h-11 shrink-0 border-l border-primary-dark/10 px-3 text-[10px] font-extrabold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>Read terms</button>
           </div>
-          <p class="purchase-note mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> Sign in by SMS before payment{:else}<ShieldCheck size={10} /> Numbers are issued after payment confirmation{/if}</p>
+          <p class="purchase-note mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> Sign in by SMS before payment{:else}<ShieldCheck size={10} /> Your choices are secured at checkout{/if}</p>
+        </div>
+      {:else if raffle.status === 'open' && ticketsRemaining > 0}
+        <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted">
+          <Info size={17} class="shrink-0 text-primary-dark" />
+          <span>{raffle.isDemo ? 'This is a sample raffle for preview only — ticket purchases are not available.' : 'Ticket sales are temporarily paused for this raffle. Check back soon.'}</span>
         </div>
       {:else}
         <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted"><CalendarClock size={17} class="shrink-0 text-primary-dark" /><span>This raffle is {raffle.status.replace('_', ' ')}. Ticket sales are closed.</span></div>

@@ -8,6 +8,7 @@ import {
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
+import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
@@ -18,11 +19,38 @@ export async function processPaymentSuccess(txRef: string): Promise<void> {
     logger.warn(`Webhook received for unknown tx_ref: ${txRef}`);
     throw new AppError(404, 'Payment not found');
   }
+  if (result === 'review') { logger.error(`Verified payment requires refund review: ${txRef}`); return; }
   if (result === 'already_processed') {
     logger.info(`Duplicate or late webhook ignored: ${txRef}`);
     return;
   }
   logger.info(`Payment completed and tickets issued atomically: ${txRef}`);
+  notifyTicketPurchase(txRef);
+}
+
+/**
+ * Best-effort SMS confirmation, fired off after tickets are already issued.
+ * Never blocks or fails the purchase — a dropped SMS is not a dropped sale.
+ */
+function notifyTicketPurchase(txRef: string): void {
+  void (async () => {
+    try {
+      const payment = await findPaymentByTxRef(txRef);
+      if (!payment) return;
+      const receipt = await findPaymentReceiptById(payment.id);
+      if (!receipt) return;
+      const result = await sendTicketPurchaseConfirmation(receipt.phoneNumber, {
+        raffleName: receipt.raffleTitle,
+        raffleCode: receipt.raffleCode,
+        ticketNumbers: receipt.ticketNumbers,
+      });
+      if (!result.success) {
+        logger.error(`Ticket purchase SMS failed for tx_ref ${txRef}: ${result.error}`);
+      }
+    } catch (error) {
+      logger.error(`Ticket purchase SMS exception for tx_ref ${txRef}: ${error instanceof Error ? error.message : error}`);
+    }
+  })();
 }
 
 export async function getPaymentStatus(id: string, userId: string) {
@@ -32,13 +60,17 @@ export async function getPaymentStatus(id: string, userId: string) {
     id: payment.id,
     raffleId: payment.raffleId,
     raffleTitle: payment.raffleTitle,
+    selectedNumbers: payment.selectedNumbers,
+    expiresAt: payment.reservationExpiresAt,
+    checkoutStarted: !!payment.checkoutStartedAt,
+    serverTime: new Date().toISOString(),
     ticketCount: payment.ticketCount,
     ticketNumbers: payment.ticketNumbers,
     ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${String(number).padStart(5, '0')}`),
     amount: payment.amount,
     gateway: payment.gateway,
     txRef: payment.gatewayRef,
-    status: payment.status,
+    status: payment.reviewRequired ? 'review' : payment.status,
     createdAt: payment.createdAt,
   };
 }
@@ -70,7 +102,7 @@ export async function getMyPayments(userId: string, limit = 50, offset = 0) {
     ticketCount: payment.ticketCount,
     ticketNumbers: payment.ticketNumbers,
     ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${String(number).padStart(5, '0')}`),
-    status: payment.status,
+    status: payment.reviewRequired ? 'review' : payment.status,
     gateway: payment.gateway,
     createdAt: payment.createdAt,
   }));
@@ -146,7 +178,7 @@ export async function verifyAndReconcileChapaPayment(txRef: string): Promise<voi
 export async function verifyPaymentForUser(id: string, userId: string) {
   const payment = await findPaymentReceiptById(id);
   if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
-  if (payment.status === 'pending' && payment.gateway === 'chapa' && payment.gatewayRef) {
+  if ((payment.status === 'pending' || payment.status === 'failed') && payment.gateway === 'chapa' && payment.gatewayRef) {
     await verifyAndReconcileChapaPayment(payment.gatewayRef);
   }
   return getPaymentStatus(id, userId);

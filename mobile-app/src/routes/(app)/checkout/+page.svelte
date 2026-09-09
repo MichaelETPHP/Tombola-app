@@ -45,6 +45,14 @@
   let txRef = '';
   let ticketCount = 0;
   let raffleTitle = '';
+  let selectedNumbers: number[] = [];
+  let expiresAt = '';
+  let checkoutStarted = false;
+  let now = Date.now();
+  let serverOffset = 0;
+  let countdownTimer: ReturnType<typeof setInterval> | undefined;
+  $: secondsLeft = Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000));
+  $: countdown = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
   let invalid = false;
   let reservationError = false;
   let reservationLoaded = false;
@@ -65,6 +73,10 @@
     gateway: string;
     txRef: string | null;
     status: string;
+    selectedNumbers?: number[];
+    expiresAt?: string;
+    checkoutStarted?: boolean;
+    serverTime?: string;
   };
 
   function clearRuntimeChecks(): void {
@@ -117,6 +129,8 @@
 
     try {
       await loadChapaScript(forceReload);
+      await api.post(`/payments/${paymentId}/start`);
+      checkoutStarted = true;
       if (!window.ChapaCheckout) throw new Error('Chapa checkout is unavailable');
       const container = document.getElementById(CONTAINER_ID);
       if (!container) throw new Error('Payment form container is unavailable');
@@ -217,11 +231,16 @@
     reservationError = false;
     try {
       const { payment } = await api.get<{ payment: ReservedPayment }>(`/payments/${paymentId}`);
-      if (payment.status === 'completed') {
+      if (payment.status === 'completed' || payment.status === 'review') {
         resolved = true;
         await goto(`/payments/${paymentId}`, { replaceState: true });
         return;
       }
+      selectedNumbers = payment.selectedNumbers ?? [];
+      expiresAt = payment.expiresAt ?? '';
+      checkoutStarted = !!payment.checkoutStarted;
+      serverOffset = payment.serverTime ? new Date(payment.serverTime).getTime() - Date.now() : 0;
+      now = Date.now() + serverOffset;
       amount = Number(payment.amount);
       txRef = payment.txRef ?? '';
       ticketCount = Number(payment.ticketCount);
@@ -236,7 +255,10 @@
         || ticketCount < 1
         || ticketCount > 5;
       if (invalid) loading = false;
-      else await initializeCheckout();
+      else if (checkoutStarted) {
+        resolved = true;
+        await goto(`/payments/${paymentId}`, { replaceState: true });
+      } else loading = false;
     } catch {
       reservationError = true;
       reservationLoaded = false;
@@ -254,11 +276,13 @@
       return;
     }
     await loadReservation();
+    countdownTimer = setInterval(() => { now = Date.now() + serverOffset; }, 1000);
   });
 
   onDestroy(() => {
     clearRuntimeChecks();
-    if (!resolved && !invalid && paymentId) api.post(`/payments/${paymentId}/cancel`).catch(() => undefined);
+    clearInterval(countdownTimer);
+    // Navigation is not proof that a gateway charge failed. Keep server state.
   });
 </script>
 
@@ -309,6 +333,9 @@
           <p class="text-[10px] font-bold text-muted">ETB</p>
         </div>
       </div>
+      {#if selectedNumbers.length}
+        <div class="reserved-numbers"><p>Your ticket numbers</p><div>{#each selectedNumbers as n}<span>{String(n).padStart(5, '0')}</span>{/each}</div><small>{checkoutStarted ? 'Held while your payment is confirmed' : secondsLeft > 0 ? `Reserved for you ? ${countdown} remaining` : 'Reservation expired. Please choose your numbers again.'}</small></div>
+      {/if}
       <div class="flex items-center gap-2 border-t border-dot-inactive/60 bg-bg-start/60 px-4 py-2.5 text-xs font-semibold text-muted">
         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>
         Select a payment method and confirm on your phone
@@ -321,7 +348,15 @@
       </div>
     {/if}
 
-    <div class="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
+    {#if !checkoutStarted && !loading && !loadError}
+      <div class="checkout-review">
+        <h2>Everything look right?</h2>
+        <p>These are the exact numbers you will receive after your payment is confirmed.</p>
+        <button disabled={!!expiresAt && secondsLeft <= 0} on:click={() => initializeCheckout()}>Continue to payment <ArrowLeft size={17} class="rotate-180" /></button>
+        <button class="change-numbers" on:click={cancel}>Change my numbers</button>
+      </div>
+    {/if}
+    <div class:hidden={!checkoutStarted && !loading && !loadError} class="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
       {#if loading}
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted" aria-live="polite">
           <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-dot-inactive border-t-primary-dark"></div>
@@ -353,7 +388,20 @@
 </section>
 
 <style>
-  .checkout-page { height: calc(100dvh - max(44px, var(--safe-top)) - 28px); overflow: hidden; }
+  .reserved-numbers { padding: 0 16px 16px; color: #193c33; }
+  .reserved-numbers p { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+  .reserved-numbers > div { display: flex; flex-wrap: wrap; gap: 8px; }
+  .reserved-numbers span { padding: 10px 12px; background: #e4f4eb; border-radius: 10px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .reserved-numbers small { display: block; margin-top: 12px; font-size: 12px; color: #566960; }
+  .checkout-review { padding: 28px 4px; color: #193c33; }
+  .checkout-review h2 { font-size: 21px; font-weight: 750; }
+  .checkout-review p { margin: 10px 0 24px; font-size: 14px; line-height: 1.7; color: #566960; }
+  .checkout-review button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 54px; width: 100%; border-radius: 14px; background: #193c33; color: white; font-size: 15px; font-weight: 700; }
+  .checkout-review button:disabled { opacity: .45; }
+  .checkout-review .change-numbers { background: transparent; color: #193c33; margin-top: 8px; }
+  .chapa-inline-container { min-height: 360px; }
+
+  .checkout-page { min-height: calc(100dvh - max(44px, var(--safe-top)) - 28px); padding-bottom: 20px; }
   /* The card around it is a fixed size (flex-1 inside a capped-height
      page) — if the widget's own content (phone field + method grid +
      button) ever needs more room than that, it scrolls inside this card

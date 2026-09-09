@@ -1,3 +1,5 @@
+import { startPaymentCheckout } from '../../db/queries/payments.queries.js';
+import { z } from 'zod';
 import { Hono } from 'hono';
 import { chapaWebhookSchema } from './payments.schema.js';
 import {
@@ -17,6 +19,12 @@ import { env } from '../../config/env.js';
 import type { AppEnv } from '../../types/hono.js';
 
 export const paymentsRoutes = new Hono<AppEnv>();
+paymentsRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store, private'); await next(); });
+paymentsRoutes.post('/:id/start', authMiddleware, rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  await startPaymentCheckout(id, c.get('user').id);
+  return c.json({ payment: await getPaymentStatus(id, c.get('user').id) });
+});
 
 /**
  * GET /payments/mine

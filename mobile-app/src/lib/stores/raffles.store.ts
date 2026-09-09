@@ -24,6 +24,12 @@ export interface Raffle {
   ticketsSold: number;
   maxTicketsPerUser: number;
   status: 'draft' | 'open' | 'locked' | 'awaiting_trigger' | 'drawing' | 'completed' | 'cancelled';
+  /** Admin-paused sales — the raffle stays fully visible, just not buyable.
+   *  Absent (older cached data) means enabled, same as the API's own default. */
+  salesEnabled?: boolean;
+  /** A sample/showcase raffle — always browsable, never purchasable,
+   *  regardless of salesEnabled. */
+  isDemo?: boolean;
   currentDeadline: string;
   createdAt: string;
 }

@@ -14,21 +14,18 @@ import { showBanner } from '$lib/stores/banner.store.js';
  * was charged.
  */
 export async function cancelPaymentAndReturnHome(paymentId: string): Promise<void> {
-  let completed = false;
   try {
-    const { payment } = await api.post<{ payment: { status: string } }>(`/payments/${paymentId}/cancel`);
-    completed = payment.status === 'completed';
+    const { payment } = await api.post<{ payment: { status: string; raffleId: string } }>(`/payments/${paymentId}/cancel`);
+    if (payment.status === 'failed') {
+      await goto(`/raffles/${payment.raffleId}/numbers`, { replaceState: true });
+      showBanner('Your unpaid reservation was released');
+    } else {
+      await goto(`/payments/${paymentId}`, { replaceState: true });
+    }
   } catch {
-    // Best-effort — even if this specific request fails, the background
-    // stale-payment sweep (api/src/jobs/stale-payment-check.job.ts) still
-    // guarantees the payment never lingers as 'pending' forever.
-  }
-  if (completed) {
     await goto(`/payments/${paymentId}`, { replaceState: true });
-    return;
+    showBanner('Check your payment status before starting again');
   }
-  await goto('/home', { replaceState: true });
-  showBanner('Payment was cancelled');
 }
 
 /**
