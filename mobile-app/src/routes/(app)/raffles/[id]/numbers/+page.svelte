@@ -7,6 +7,7 @@
   import type { Raffle } from '$lib/stores/raffles.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { playPaginationSound } from '$lib/native/paginationSound.js';
+  import { playSelectionSound } from '$lib/native/selectionSound.js';
   import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
   import { hapticLight } from '$lib/native/haptics.js';
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
@@ -35,6 +36,7 @@
   let releasing = false;
   let requestKey = '';
   let conflicts: number[] = [];
+  let justToggled: Set<number> = new Set();
   let resumePaymentId: string | null = null;
   let requestVersion = 0;
   const numberLabel = (n: number) => String(n).padStart(5, '0');
@@ -89,13 +91,17 @@
 
   function toggle(n: number) {
     if (purchasing) return;
-    if (selected.includes(n)) selected = selected.filter((value) => value !== n);
-    else if (selected.length < allowance) selected = [...selected, n].sort((a, b) => a - b);
+    let selecting: boolean;
+    if (selected.includes(n)) { selected = selected.filter((value) => value !== n); selecting = false; }
+    else if (selected.length < allowance) { selected = [...selected, n].sort((a, b) => a - b); selecting = true; }
     else { notice = `You can choose ${allowance} ticket${allowance === 1 ? '' : 's'} for this raffle.`; return; }
     requestKey = '';
     conflicts = conflicts.filter((value) => value !== n);
     notice = '';
     hapticLight();
+    playSelectionSound(selecting);
+    justToggled = new Set(justToggled).add(n);
+    setTimeout(() => { justToggled.delete(n); justToggled = justToggled; }, 180);
     saveDraft();
   }
 
@@ -206,7 +212,7 @@
       <div class="number-grid">
         {#each availability.numbers as row (row.number)}
           {@const isSelected = selected.includes(row.number)}
-          <button class="number-tile" class:selected={isSelected} class:unavailable={row.state !== 'available'} class:matched={search.trim() !== '' && Number(search) === row.number} class:conflict={conflicts.includes(row.number)}
+          <button class="number-tile" class:selected={isSelected} class:pop={justToggled.has(row.number)} class:unavailable={row.state !== 'available'} class:matched={search.trim() !== '' && Number(search) === row.number} class:conflict={conflicts.includes(row.number)}
             aria-label="Ticket {numberLabel(row.number)}, {conflicts.includes(row.number) ? 'no longer available' : isSelected ? 'selected' : row.state.replaceAll('_', ' ')}"
             aria-pressed={isSelected} disabled={purchasing || (!isSelected && (row.state !== 'available' || !availability.salesOpen || selected.length >= allowance))}
             on:click={() => toggle(row.number)}>
@@ -260,12 +266,14 @@
   @keyframes check-in { from { transform: scale(.55); opacity: .2; } to { transform: scale(1); opacity: 1; } }
 
   .number-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-  .number-tile, .number-skeleton { min-height: 68px; min-width: 48px; border-radius: 12px; } .number-tile { position: relative; display: flex; flex-direction: column; gap: 1px; justify-content: center; align-items: center; border: 1px solid #aebfb6; background: white; color: var(--picker-ink); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; transition: background-color 150ms ease-out, border-color 150ms ease-out, transform 150ms ease-out; } .number-tile.selected { background: #d4f4e6; border-color: #08765a; color: #064e3b; } .number-tile.unavailable:not(.selected) { background: #f0f1ee; color: #626d65; border-color: transparent; } .tile-state { font-size: 9px; font-weight: 500; } .number-tile.matched { outline: 2px solid #193c33; outline-offset: 2px; } .number-tile.conflict { border-color: #a62940; background: #fff0f1; color: #8d2136; } .number-skeleton { background: #e6eee9; }
+  .number-tile, .number-skeleton { min-height: 56px; min-width: 48px; border-radius: 12px; } .number-tile { position: relative; display: flex; flex-direction: column; gap: 1px; justify-content: center; align-items: center; border: 1px solid #aebfb6; background: white; color: var(--picker-ink); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; transition: background-color 150ms ease-out, border-color 150ms ease-out, transform 150ms ease-out; } .number-tile.selected { background: #d4f4e6; border-color: #08765a; color: #064e3b; } .number-tile.unavailable:not(.selected) { background: #f0f1ee; color: #626d65; border-color: transparent; } .tile-state { font-size: 9px; font-weight: 500; } .number-tile.matched { outline: 2px solid #193c33; outline-offset: 2px; } .number-tile.conflict { border-color: #a62940; background: #fff0f1; color: #8d2136; } .number-skeleton { background: #e6eee9; }
+  .number-tile.pop { animation: tile-pop 180ms cubic-bezier(.16, 1, .3, 1); }
+  @keyframes tile-pop { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
   .grid-note { font-size: 12px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
   .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 16px 20px max(16px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); } .selection-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; } .selection-caption > span { color: var(--picker-muted); } .selected-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 48px; align-items: center; margin: 6px 0 10px; } .selected-chips button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 9px; min-height: 44px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { color: var(--picker-muted); font-size: 12px; }
   .footer-action { display: flex; align-items: center; gap: 22px; } .footer-action > div { min-width: 85px; display: flex; flex-direction: column; gap: 2px; } .footer-action > div > span { font-size: 11px; color: var(--picker-muted); } .footer-action strong { font-size: 22px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 11px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 12px; align-items: center; justify-content: center; min-height: 54px; border-radius: 14px; background: #193c33; color: white; font-size: 15px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.6; margin-top: 12px; }
   .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 13px; line-height: 1.6; } .resume-panel h2 { font-size: 14px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { font-size: 13px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .icon-button:disabled, .page-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: #193c33; } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 359px) { .number-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .selection-footer { padding-inline: 16px; } }
-  @media (prefers-reduced-motion: reduce) { .number-tile, .tile-corner { transition: none; } .tile-corner.checked :global(svg) { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .number-tile, .tile-corner { transition: none; } .number-tile.pop { animation: none; } .tile-corner.checked :global(svg) { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>
