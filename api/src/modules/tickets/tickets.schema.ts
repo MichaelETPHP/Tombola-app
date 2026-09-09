@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { selectedNumbersSchema } from './selection.js';
 
 export const purchaseTicketsSchema = z.object({
-  quantity: z.number().int().min(1).max(5).optional(),
+  quantity: z.number().int().min(1).max(4).optional(),
   selectedNumbers: selectedNumbersSchema.optional(),
   idempotencyKey: z.string().uuid().optional(),
   paymentGateway: z.literal('chapa').default('chapa'),

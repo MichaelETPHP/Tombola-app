@@ -86,15 +86,17 @@
     if (index < 0 || !canUse(rows[index]) || disabled) return;
     engaged = false;
     void moveTo(number, 'smooth');
-    if (number !== value) {
-      playWheelTick();
-      void hapticSelection();
-      dispatch('change', { slot, number });
-    }
+    playWheelTick();
+    void hapticSelection();
+    // The checked centre row is also the clearest removal affordance:
+    // tapping it again toggles this slot back to empty.
+    dispatch('change', { slot, number: number === value ? null : number });
   }
 
   function clearSlot() {
     if (disabled || value === null) return;
+    playWheelTick();
+    void hapticSelection();
     dispatch('change', { slot, number: null });
   }
 

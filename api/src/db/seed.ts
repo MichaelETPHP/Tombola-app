@@ -98,7 +98,7 @@ const RAFFLES: RaffleSeed[] = [
     prizeImageUrl: PRIZE_IMAGES.iphone,
     ticketPrice: 100.00,
     ticketCap: 500,
-    maxTicketsPerUser: 5,
+    maxTicketsPerUser: 4,
     deadlineDays: 30,
     status: 'open',
     ticketsToSell: 187,  // ~37% sold
@@ -111,7 +111,7 @@ const RAFFLES: RaffleSeed[] = [
     prizeImageUrl: PRIZE_IMAGES.car,
     ticketPrice: 500.00,
     ticketCap: 2000,
-    maxTicketsPerUser: 5,
+    maxTicketsPerUser: 4,
     deadlineDays: 60,
     status: 'open',
     ticketsToSell: 823,  // ~41% sold
@@ -137,7 +137,7 @@ const RAFFLES: RaffleSeed[] = [
     prizeImageUrl: PRIZE_IMAGES.jewelry,
     ticketPrice: 200.00,
     ticketCap: 1000,
-    maxTicketsPerUser: 5,
+    maxTicketsPerUser: 4,
     deadlineDays: 45,
     status: 'open',
     ticketsToSell: 412,  // ~41% sold
@@ -163,7 +163,7 @@ const RAFFLES: RaffleSeed[] = [
     prizeImageUrl: PRIZE_IMAGES.appliances,
     ticketPrice: 200.00,
     ticketCap: 800,
-    maxTicketsPerUser: 5,
+    maxTicketsPerUser: 4,
     deadlineDays: 35,
     status: 'open',
     ticketsToSell: 156,  // ~20% sold

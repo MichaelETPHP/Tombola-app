@@ -26,7 +26,7 @@
   let raffle: Raffle | null = null;
   let availability: Availability | null = null;
   let selected: number[] = [];
-  let wheelSlots: (number | null)[] = [null, null, null, null, null];
+  let wheelSlots: (number | null)[] = [null, null, null, null];
   let start = 1;
   let search = '';
   let error = '';
@@ -45,6 +45,7 @@
   const numberLabel = (n: number) => String(n).padStart(5, '0');
   $: allowance = availability?.allowance ?? 0;
   $: total = selected.length * Number(raffle?.ticketPrice ?? 0);
+  $: wheelCount = Math.max(0, Math.min(4, raffle?.maxTicketsPerUser ?? 4, availability?.allowance ?? raffle?.maxTicketsPerUser ?? 4));
 
   function commitSlots(next: (number | null)[]) {
     wheelSlots = next;
@@ -84,8 +85,8 @@
     }
     const draft = getPendingPurchase();
     if (draft && draft.raffleId === $page.params.id && Array.isArray(draft.selectedNumbers)) {
-      selected = [...new Set(draft.selectedNumbers.filter((n) => Number.isInteger(n) && n > 0))].slice(0, 5);
-      wheelSlots = [...selected, ...Array(5 - selected.length).fill(null)];
+      selected = [...new Set(draft.selectedNumbers.filter((n) => Number.isInteger(n) && n > 0))].slice(0, 4);
+      wheelSlots = [...selected, ...Array(4 - selected.length).fill(null)];
       requestKey = draft.idempotencyKey ?? '';
     }
     api.get<{ raffle: Raffle }>(`/raffles/${$page.params.id}`, { skipAuth: true })
@@ -170,7 +171,7 @@
     releasing = true;
     await cancelPaymentAndReturnHome(resumePaymentId);
     selected = [];
-    wheelSlots = [null, null, null, null, null];
+    wheelSlots = [null, null, null, null];
     requestKey = '';
     conflicts = [];
     await refresh();
@@ -237,20 +238,20 @@
   {#if availability && !availability.salesOpen}<p class="picker-message">Ticket sales are not available for this raffle right now.</p>{:else if availability && allowance === 0 && !resumePaymentId}<p class="picker-message">You have reached your ticket allowance for this raffle. <a href="/tickets">View my tickets</a></p>{/if}
 
   <section class="numbers-section" aria-label="Available ticket numbers" aria-busy={refreshing}>
-    <div class="grid-heading"><div><h2>Your ticket wheels</h2><p>Four choices together, with a fifth below.</p></div><button class="icon-button" on:click={refresh} disabled={refreshing} aria-label="Refresh availability"><RefreshCw size={17} class={refreshing ? 'spin' : ''} /></button></div>
+    <div class="grid-heading"><div><h2>Your ticket wheels</h2><p>One wheel for each ticket you can choose.</p></div><button class="icon-button" on:click={refresh} disabled={refreshing} aria-label="Refresh availability"><RefreshCw size={17} class={refreshing ? 'spin' : ''} /></button></div>
     <div class="legend"><span><i class="available-dot"></i>Available</span><span><i class="selected-dot"><Check size={9} /></i>Chosen</span><span><i class="taken-dot"><X size={9} /></i>Taken</span></div>
     {#if loading}
-      <div class="wheel-grid loading-wheels" aria-label="Loading ticket wheels">{#each Array(5) as _, index}<div class:fifth={index === 4}><span></span><div></div></div>{/each}</div>
+      <div class="wheel-grid wheels-{wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} loading-wheels" style:--wheel-count={wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} aria-label="Loading ticket wheels">{#each Array(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) as _}<div><span></span><div></div></div>{/each}</div>
     {:else if availability}
-      <div class="wheel-grid">
-        {#each Array(5) as _, slot}
-          <div class:fifth={slot === 4} class:hidden-slot={slot >= allowance && wheelSlots[slot] === null}>
+      <div class="wheel-grid wheels-{wheelCount}" style:--wheel-count={wheelCount}>
+        {#each Array(wheelCount) as _, slot}
+          <div>
             <TicketNumberWheel
               {slot}
               rows={availability.numbers}
               value={wheelSlots[slot]}
               selectedNumbers={selected}
-              disabled={purchasing || refreshing || !availability.salesOpen || (slot >= allowance && wheelSlots[slot] === null)}
+              disabled={purchasing || refreshing || !availability.salesOpen}
               focusNumber={focusWheel === slot ? focusNumber : null}
               {focusNonce}
               on:change={setWheelSelection}
@@ -287,14 +288,15 @@
   .selection-tools { margin-bottom: 24px; }
   .resume-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .resume-actions button:last-child { color: #85434a; }
-  .wheel-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 7px; margin-top: 12px; }
-  .wheel-grid > .fifth { grid-column: 2 / span 2; width: calc(50% - 4px); min-width: 78px; justify-self: center; }
-  .wheel-grid > .hidden-slot { display: none; }
+  .wheel-grid { display: grid; grid-template-columns: repeat(var(--wheel-count), minmax(0, 1fr)); gap: 7px; width: 100%; margin: 12px auto 0; }
+  .wheel-grid.wheels-1 { max-width: 96px; }
+  .wheel-grid.wheels-2 { max-width: 199px; }
+  .wheel-grid.wheels-3 { max-width: 302px; }
   .loading-wheels > div > span { display: block; width: 18px; height: 18px; margin: 5px 3px; border-radius: 50%; background: #e7eee9; }
   .loading-wheels > div > div { height: 210px; border-radius: 14px; background: linear-gradient(100deg, #e8efeb 20%, #f6f9f7 45%, #e8efeb 70%); background-size: 220% 100%; animation: wheel-loading 1.15s linear infinite; }
   @keyframes wheel-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 12px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 16px 20px max(16px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); } .selection-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; } .selection-caption > span { color: var(--picker-muted); } .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; min-height: 48px; align-items: center; margin: 6px 0 10px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 42px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips button:nth-child(5) { grid-column: 2 / span 2; width: calc(50% - 3px); justify-self: center; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 12px; }
+  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 16px 20px max(16px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); } .selection-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; } .selection-caption > span { color: var(--picker-muted); } .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; min-height: 48px; align-items: center; margin: 6px 0 10px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 42px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 12px; }
   .footer-action { display: flex; align-items: center; gap: 22px; } .footer-action > div { min-width: 85px; display: flex; flex-direction: column; gap: 2px; } .footer-action > div > span { font-size: 11px; color: var(--picker-muted); } .footer-action strong { font-size: 22px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 11px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 12px; align-items: center; justify-content: center; min-height: 54px; border-radius: 14px; background: #193c33; color: white; font-size: 15px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.6; margin-top: 12px; }
   .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 13px; line-height: 1.6; } .resume-panel h2 { font-size: 14px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { font-size: 13px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: #193c33; } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }

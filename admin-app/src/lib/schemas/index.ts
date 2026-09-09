@@ -68,7 +68,7 @@ export const createRaffleSchema = z.object({
   additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
   ticketPrice: z.number().positive(),
   ticketCap: z.number().int().positive().min(10),
-  maxTicketsPerUser: z.number().int().min(1).max(5),
+  maxTicketsPerUser: z.number().int().min(1).max(4),
   deadlineDays: z.number().int().positive().min(1).max(90),
   salesEnabled: z.boolean().default(true),
   isDemo: z.boolean().default(false),

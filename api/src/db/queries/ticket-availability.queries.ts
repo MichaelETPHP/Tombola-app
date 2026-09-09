@@ -25,7 +25,7 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
     AND (checkout_started_at IS NOT NULL OR reservation_expires_at > NOW() OR review_required) ORDER BY created_at LIMIT 1`;
   return {
     numbers, start, end: Math.min(start + limit - 1, raffle.ticketCap), ticketCap: raffle.ticketCap,
-    allowance: Math.max(0, Math.min(5, raffle.maxTicketsPerUser - usage.owned - usage.held)),
+    allowance: Math.max(0, Math.min(4, raffle.maxTicketsPerUser - usage.owned - usage.held)),
     owned: usage.owned, activePaymentId: active?.id ?? null, paymentStarted: !!active?.checkoutStartedAt,
     salesOpen: raffle.status === 'open' && raffle.salesEnabled && !raffle.isDemo && raffle.deadlineAt > new Date(),
     serverTime: new Date().toISOString(),

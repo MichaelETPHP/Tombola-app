@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createRaffleSchema, updateRaffleSchema, listRafflesSchema } from '../src/modules/raffles/raffles.schema.js';
 
-const base = { title: 'Test raffle', prizeName: 'Headphones', prizeValue: 1000, categoryCode: 'TST', ticketPrice: 20, ticketCap: 150, maxTicketsPerUser: 5, deadlineDays: 30 };
+const base = { title: 'Test raffle', prizeName: 'Headphones', prizeValue: 1000, categoryCode: 'TST', ticketPrice: 20, ticketCap: 150, maxTicketsPerUser: 4, deadlineDays: 30 };
 
 describe('Raffle merchandising', () => {
   test('featuring is opt-in and can be removed', () => {

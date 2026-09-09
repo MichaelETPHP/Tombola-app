@@ -7,9 +7,9 @@ describe('ticket wheel selection contract', () => {
     expect(availabilitySchema.safeParse({ start: 1, limit: 5001 }).success).toBe(false);
   });
 
-  test('keeps five unique ticket choices', () => {
-    expect(selectedNumbersSchema.parse([1, 7, 42, 88, 150])).toHaveLength(5);
+  test('keeps four unique ticket choices', () => {
+    expect(selectedNumbersSchema.parse([1, 7, 42, 88])).toHaveLength(4);
     expect(selectedNumbersSchema.safeParse([1, 1]).success).toBe(false);
-    expect(selectedNumbersSchema.safeParse([1, 2, 3, 4, 5, 6]).success).toBe(false);
+    expect(selectedNumbersSchema.safeParse([1, 2, 3, 4, 5]).success).toBe(false);
   });
 });

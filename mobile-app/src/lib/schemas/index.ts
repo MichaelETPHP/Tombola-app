@@ -84,7 +84,7 @@ export const roomSummarySchema = z.object({
 // ── Ticket Schemas ───────────────────────────────────────
 
 export const purchaseTicketsSchema = z.object({
-  quantity: z.number().int().min(1).max(5),
+  quantity: z.number().int().min(1).max(4),
   paymentGateway: z.enum(['chapa', 'telebirr']).default('chapa'),
   returnTarget: z.enum(['web', 'native']).default('web'),
 });

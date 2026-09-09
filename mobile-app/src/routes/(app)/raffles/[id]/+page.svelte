@@ -163,7 +163,7 @@
     }
     const pending = getPendingPurchase();
     if (pending && raffle && pending.raffleId === raffle.id) {
-      quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 5);
+      quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 4);
       resumedFromAuth = $auth.isAuthenticated;
     }
   });
@@ -195,7 +195,7 @@
   // Ticket availability still gates purchasing internally — just never
   // rendered as a "N left" figure per the no-scarcity-numbers direction.
   $: ticketsRemaining = raffle ? Math.max(0, raffle.ticketCap - raffle.ticketsSold) : 0;
-  $: maxAllowed = raffle ? Math.max(1, Math.min(5, raffle.maxTicketsPerUser, ticketsRemaining || 1)) : 5;
+  $: maxAllowed = raffle ? Math.max(1, Math.min(4, raffle.maxTicketsPerUser, ticketsRemaining || 1)) : 4;
   $: odds = raffle && raffle.ticketsSold + quantity > 0 ? (quantity / (raffle.ticketsSold + quantity)) * 100 : 0;
   $: oddsDisplay = odds === 0 ? '0%' : odds < 0.1 ? '<0.1%' : `${odds.toFixed(1)}%`;
   $: rankedPrizes = raffle?.prizes && raffle.prizes.length > 1 ? [...raffle.prizes].sort((a, b) => a.tier - b.tier) : [];
@@ -315,7 +315,7 @@
   <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#152521]/45" aria-label="Close" on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
   <section class="no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
     <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">Terms and Conditions</h2><button type="button" aria-label="Close" class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
-    <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>You must be 18 or older to purchase tickets.</li><li>Purchases are final after payment confirmation.</li><li>Each paid ticket is one independent chance in the draw.</li><li>The maximum is five tickets per participant in one raffle.</li><li>The published fairness proof can be verified after the draw.</li></ul>
+    <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>You must be 18 or older to purchase tickets.</li><li>Purchases are final after payment confirmation.</li><li>Each paid ticket is one independent chance in the draw.</li><li>The maximum is four tickets per participant in one raffle.</li><li>The published fairness proof can be verified after the draw.</li></ul>
     <div class="mt-4"><Button size="md" on:click={() => (termsOpen = false)}>Understood</Button></div>
   </section>
 {/if}

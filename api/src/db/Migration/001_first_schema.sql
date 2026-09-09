@@ -138,7 +138,7 @@ CREATE TABLE raffles (
 
     ticket_price            NUMERIC(10,2) NOT NULL CHECK (ticket_price > 0),
     ticket_cap              INTEGER NOT NULL CHECK (ticket_cap > 0),
-    max_tickets_per_user    INTEGER NOT NULL DEFAULT 5 CHECK (max_tickets_per_user BETWEEN 1 AND 5),
+    max_tickets_per_user    INTEGER NOT NULL DEFAULT 4 CHECK (max_tickets_per_user BETWEEN 1 AND 4),
 
     deadline_days           INTEGER NOT NULL CHECK (deadline_days > 0),
     extension_days          INTEGER NOT NULL DEFAULT 0,   -- 0 = reuse deadline_days on extend

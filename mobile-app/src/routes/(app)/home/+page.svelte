@@ -50,7 +50,7 @@
       Pick a prize. Choose your tickets. You’re in.
     </h1>
     <p class="max-w-[390px] text-[12px] font-medium leading-[1.65] text-[#586660]">
-      Enter with as little as one ticket. You can hold up to five tickets in each raffle.
+      Enter with as little as one ticket. You can hold up to four tickets in each raffle.
     </p>
   </section>
 

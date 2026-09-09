@@ -19,7 +19,7 @@ export const createRaffleSchema = z.object({
   prizeValue: z.number().positive(),
   ticketPrice: z.number().positive(),
   ticketCap: z.number().int().positive().min(10),
-  maxTicketsPerUser: z.number().int().min(1).max(5),
+  maxTicketsPerUser: z.number().int().min(1).max(4),
   deadlineDays: z.number().int().positive().min(1).max(90),
   prizeImageUrl: z.string().url().optional(),
   additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
@@ -67,7 +67,7 @@ export const updateRaffleSchema = z.object({
   additionalPrizes: z.array(additionalPrizeSchema).max(2).optional(),
   ticketPrice: z.number().positive().optional(),
   ticketCap: z.number().int().min(10).optional(),
-  maxTicketsPerUser: z.number().int().min(1).max(5).optional(),
+  maxTicketsPerUser: z.number().int().min(1).max(4).optional(),
   opensAt: z.coerce.date().optional(),
   telegramGroupLink: z
     .string()

@@ -34,7 +34,7 @@ async function main() {
       title: `${sample.title} — ${sample.ticketPrice} Birr Demo`,
       description: `DEMO / TEST ONLY. ${sample.title}: explore this sample raffle for ${sample.ticketPrice} Birr per ticket. ${prizes.map((p, i) => `Prize ${i + 1}: ${p.name} (${p.value.toLocaleString('en-US')} Birr sample value).`).join(' ')} Limited to ${sample.ticketCap} tickets, with up to 5 per participant. These demonstration prizes are not redeemable.`,
       prizeImageUrl: `https://images.unsplash.com/${sample.image}?w=1200&fit=max&q=85`,
-      maxTicketsPerUser: 5, deadlineDays: 30, status: 'open', isDemo: true, salesEnabled: false,
+      maxTicketsPerUser: 4, deadlineDays: 30, status: 'open', isDemo: true, salesEnabled: false,
     });
     const drawServerSeed = generateServerSeed();
     await createRaffle({ ...data, id, createdBy: owner.id,

@@ -27,7 +27,7 @@
     txRef = params.get('tx_ref') ?? '';
     amount = Number(params.get('amount') ?? 0);
     raffleTitle = params.get('raffle_title') ?? 'YeneEta raffle';
-    ticketCount = Math.max(1, Math.min(5, Number(params.get('ticket_count') ?? 1)));
+    ticketCount = Math.max(1, Math.min(4, Number(params.get('ticket_count') ?? 1)));
     unitPrice = Number(params.get('unit_price') ?? amount / ticketCount);
     callbackUrl = params.get('callback_url') ?? '';
     returnUrl = params.get('return_url') ?? '';

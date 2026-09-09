@@ -26,7 +26,7 @@
   let prizeValue = 0;
   let ticketPrice = 0;
   let ticketCap = 0;
-  let maxTicketsPerUser = 5;
+  let maxTicketsPerUser = 4;
   let deadlineAt = '';
   let deadlineReason = 'Additional time approved by the Platform Owner';
   let telegramGroupLink = '';
@@ -110,7 +110,7 @@
     grandPrizeUploading = false;
     ticketPrice = value.ticketPrice;
     ticketCap = value.ticketCap;
-    maxTicketsPerUser = value.maxTicketsPerUser;
+    maxTicketsPerUser = Math.min(4, value.maxTicketsPerUser);
     salesEnabled = value.salesEnabled ?? true;
     isFeatured = value.isFeatured ?? false;
     additionalPrizes = (value.prizes ?? [])
@@ -409,7 +409,7 @@
           <span><span class="block text-sm font-bold text-ink">Most picked</span><span class="mt-1 block text-xs leading-5 text-muted">Show in the home page carousel once published. Uncheck to remove it from the carousel.</span></span>
         </label>
           <label class={labelClass}>Maximum ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" />{#if minTicketCap !== null}<span class="font-normal {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">{ticketCapTooLow ? `Below minimum — needs at least ${minTicketCap.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.` : `Sales stop at sellout, or at deadline once the minimum ${minTicketCap.toLocaleString()} (covers ${totalPrizeValue.toLocaleString()} ETB) has sold.`}</span>{:else}<span class="font-normal text-faint">Total tickets available.</span>{/if}</label>
-          <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="5" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Between 1 and 5.</span></label>
+          <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="4" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Choose 1–4. The mobile picker shows exactly this many wheels.</span></label>
         </div>
         <button type="submit" disabled={saving} class="admin-press mt-6 flex h-11 items-center gap-2 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"><Save size={15} /> {saving ? 'Saving…' : 'Save changes'}</button>
       </form>
