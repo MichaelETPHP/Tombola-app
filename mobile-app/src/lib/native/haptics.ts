@@ -13,6 +13,10 @@ async function safeHaptic(fn: () => Promise<void>): Promise<void> {
 export const hapticLight = (): Promise<void> =>
   safeHaptic(() => Haptics.impact({ style: ImpactStyle.Light }));
 
+/** Native picker-wheel detents: subtler than a button impact. */
+export const hapticSelection = (): Promise<void> =>
+  safeHaptic(() => Haptics.selectionChanged());
+
 /** Buy button, confirmations — deliberate, consequential actions. */
 export const hapticMedium = (): Promise<void> =>
   safeHaptic(() => Haptics.impact({ style: ImpactStyle.Medium }));
