@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
+  import { markInAppNavigation } from '$lib/native/navigateBack.js';
   import { App } from '@capacitor/app';
   import { Browser } from '@capacitor/browser';
   import { Capacitor } from '@capacitor/core';
@@ -27,6 +28,10 @@
   };
 
   $: directDrawRoute = $page.url.pathname.startsWith('/draw/');
+
+  afterNavigate((navigation) => {
+    if (navigation.from) markInAppNavigation();
+  });
 
   async function handleNativePaymentReturn(rawUrl: string | undefined): Promise<void> {
     if (!rawUrl) return;
