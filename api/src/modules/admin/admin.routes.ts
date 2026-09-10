@@ -11,6 +11,7 @@ import { z } from 'zod';
 import {
   listUsersSchema,
   suspendUserSchema,
+  bulkSmsSchema,
   adminLoginSchema,
   updateOwnProfileSchema,
   createAdminSchema,
@@ -26,6 +27,7 @@ import {
   getIntegrationsStatus,
   adminDeleteUser,
   adminBulkDeleteUsers,
+  adminBulkSendSms,
   getAdminProfile,
   updateOwnAdminProfile,
   listAdminUsers,
@@ -259,5 +261,18 @@ adminRoutes.delete('/users', requireRole('owner'), async (c) => {
     ids: z.array(z.string().uuid()).min(1).max(200),
   }).parse(body);
   const result = await adminBulkDeleteUsers(ids);
+  return c.json(result);
+});
+
+/**
+ * POST /admin/users/sms
+ * Send one message to a set of users' phone numbers in a single gateway
+ * request. Body: { userIds: string[], message: string }. Maximum 200 IDs
+ * per request (same cap as bulk-delete).
+ */
+adminRoutes.post('/users/sms', async (c) => {
+  const body = await c.req.json();
+  const input = bulkSmsSchema.parse(body);
+  const result = await adminBulkSendSms(input);
   return c.json(result);
 });

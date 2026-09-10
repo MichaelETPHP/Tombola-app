@@ -6,7 +6,7 @@
   import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
     CircleAlert, MessageSquareText, RefreshCw, Search, Send,
-    ShieldAlert, Trash2, Users, X, CheckSquare, Square,
+    ShieldAlert, Trash2, Users, X, CheckSquare, Square, SquareMinus,
     CheckCircle, ChevronLeft, ChevronRight, Copy,
   } from 'lucide-svelte';
 
@@ -44,6 +44,13 @@
   // Delete
   let deletingId = '';
 
+  // Bulk SMS
+  const MAX_SMS_RECIPIENTS = 200; // mirrors the server-side cap in POST /admin/users/sms
+  let composingSms = false;
+  let smsMessage = '';
+  let sendingSms = false;
+  $: selectedUsers = users.filter((u) => selectedIds.has(u.id));
+
   function showToast(msg: string) {
     toast.success(msg);
   }
@@ -77,7 +84,9 @@
   $: phoneCount     = users.length - telegramCount;
 
   // Select-all only toggles the current page
-  $: allPageSelected = pageUsers.length > 0 && pageUsers.every((u) => selectedIds.has(u.id));
+  $: pageSelectedCount = pageUsers.filter((u) => selectedIds.has(u.id)).length;
+  $: allPageSelected = pageUsers.length > 0 && pageSelectedCount === pageUsers.length;
+  $: somePageSelected = pageSelectedCount > 0 && !allPageSelected;
 
   function togglePageSelectAll() {
     if (allPageSelected) {
@@ -170,6 +179,35 @@
     }
   }
 
+  // ── Bulk SMS ─────────────────────────────────────────────────
+  function closeCompose() { composingSms = false; smsMessage = ''; }
+
+  async function sendBulkSmsToSelection() {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || ids.length > MAX_SMS_RECIPIENTS || !smsMessage.trim()) return;
+    sendingSms = true;
+    try {
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number }>(
+        '/admin/users/sms',
+        { userIds: ids, message: smsMessage.trim() }
+      );
+      if (result.failedCount === 0) {
+        toast.success(`Sent to ${result.sentCount} account${result.sentCount !== 1 ? 's' : ''}.`, 'SMS Sent');
+      } else {
+        toast.error(
+          `${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.`,
+          'SMS Partially Sent'
+        );
+      }
+      clearSelection();
+      closeCompose();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? 'SMS send failed.' : 'Network error.', 'Send Failed');
+    } finally {
+      sendingSms = false;
+    }
+  }
+
   // Page range helper for pagination buttons
   function pageRange(cur: number, total: number): (number | '…')[] {
     if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -256,6 +294,11 @@
           <span class="text-primary/40">·</span>
         {/if}
         <button type="button"
+          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg"
+          on:click={() => (composingSms = true)}>
+          <Send size={12} /> Send SMS ({selectedCount})
+        </button>
+        <button type="button"
           class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-danger/25 bg-danger-bg px-3 text-[11px] font-bold text-danger hover:bg-danger hover:text-white"
           on:click={deleteBulkUsers}>
           <Trash2 size={12} /> Delete {selectedCount}
@@ -289,11 +332,16 @@
           <thead>
             <tr class="border-b border-border bg-bg text-left">
               <th class="w-12 px-4 py-3">
-                <button type="button" aria-label={allPageSelected ? 'Deselect page' : 'Select page'}
+                <button type="button"
+                  aria-label={allPageSelected ? 'Deselect page' : 'Select page'}
+                  aria-checked={allPageSelected ? 'true' : somePageSelected ? 'mixed' : 'false'}
+                  role="checkbox"
                   class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
                   on:click={togglePageSelectAll}>
                   {#if allPageSelected}
                     <CheckSquare size={16} class="text-primary-dark" />
+                  {:else if somePageSelected}
+                    <SquareMinus size={16} class="text-primary-dark" />
                   {:else}
                     <Square size={16} />
                   {/if}
@@ -444,6 +492,49 @@
 </div>
 
 <!-- ── Suspend Dialog ──────────────────────────────────────────── -->
+{#if composingSms}
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4">
+    <div class="admin-reveal w-full max-w-[440px] rounded-card border border-border bg-card p-6 shadow-2xl">
+      <h2 class="text-base font-bold text-ink">Send SMS to {selectedUsers.length} account{selectedUsers.length !== 1 ? 's' : ''}</h2>
+      <p class="mt-1.5 text-sm text-muted">This goes out immediately to every phone number below.</p>
+
+      {#if selectedUsers.length > MAX_SMS_RECIPIENTS}
+        <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
+          <CircleAlert size={14} /> Too many recipients — maximum {MAX_SMS_RECIPIENTS} per send. Narrow your selection.
+        </div>
+      {/if}
+
+      <div class="mt-4 max-h-[140px] overflow-y-auto rounded-button border border-border bg-bg p-2">
+        <ul class="flex flex-wrap gap-1.5">
+          {#each selectedUsers as user (user.id)}
+            <li class="rounded-[6px] border border-border bg-card px-2 py-1 font-mono text-[11px] text-ink">
+              {user.phone}{#if user.fullName}<span class="text-faint"> · {user.fullName}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+      </div>
+
+      <label class="mt-4 block">
+        <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-faint">Message</span>
+        <textarea bind:value={smsMessage} rows="4" maxlength="1000" placeholder="Type your message…"
+          class="w-full resize-none rounded-button border border-border bg-card p-3 text-sm text-ink outline-none focus:border-primary"
+        ></textarea>
+        <span class="mt-1 block text-right text-[10px] text-faint">{smsMessage.length}/1000</span>
+      </label>
+
+      <div class="mt-2 flex justify-end gap-2">
+        <button type="button" class="admin-press h-10 rounded-button border border-border px-5 text-xs font-bold text-ink" disabled={sendingSms} on:click={closeCompose}>Cancel</button>
+        <button type="button"
+          class="admin-press inline-flex h-10 items-center gap-1.5 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"
+          disabled={sendingSms || !smsMessage.trim() || selectedUsers.length === 0 || selectedUsers.length > MAX_SMS_RECIPIENTS}
+          on:click={sendBulkSmsToSelection}>
+          {#if sendingSms}<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span> Sending…{:else}<Send size={13} /> Send{/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if confirmingUser}
   <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4">
     <div class="admin-reveal w-full max-w-[380px] rounded-card border border-border bg-card p-6 shadow-2xl">

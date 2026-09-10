@@ -15,6 +15,20 @@ export interface SmsGatewayResponse {
 interface GatewaySendSuccess {
   id: string;
   state: string;
+  recipients: { phoneNumber: string; state: string; error?: string }[];
+}
+
+export interface BulkSmsRecipientResult {
+  phoneNumber: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BulkSmsResponse {
+  success: boolean;
+  messageId?: string;
+  recipients: BulkSmsRecipientResult[];
+  error?: string;
 }
 
 /**
@@ -74,6 +88,88 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`SMS send exception: ${errorMessage}`);
     return { success: false, error: errorMessage };
+  }
+}
+
+/** A phone that survives `toE164` normalization still matching Ethiopian E.164 shape. */
+function isValidE164(phone: string): boolean {
+  return /^\+251[0-9]{9}$/.test(phone);
+}
+
+/**
+ * Send one message to many recipients in a single gateway request — the
+ * 3rdparty API accepts a `phoneNumbers` array natively (confirmed: one
+ * request with N numbers returns one message id with a per-recipient
+ * `recipients[]` breakdown), so this is one HTTP call regardless of batch
+ * size, not a loop of N calls.
+ *
+ * Malformed/unnormalizable numbers are excluded from the request entirely
+ * (reported back as failed with a clear reason) rather than letting one
+ * bad row reject the whole batch.
+ */
+export async function sendBulkSms(phones: string[], message: string): Promise<BulkSmsResponse> {
+  const normalized = phones.map((phone) => ({ original: phone, e164: toE164(phone) }));
+  const valid = normalized.filter((p) => isValidE164(p.e164));
+  const invalid: BulkSmsRecipientResult[] = normalized
+    .filter((p) => !isValidE164(p.e164))
+    .map((p) => ({ phoneNumber: p.original, success: false, error: 'Invalid phone number format' }));
+
+  if (valid.length === 0) {
+    return { success: false, recipients: invalid, error: 'No valid phone numbers to send to' };
+  }
+
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
+    if (env.NODE_ENV === 'development') {
+      logger.warn(`[SMS DEV MODE] To: ${valid.map((p) => p.e164).join(', ')}, Message: ${message}`);
+      return {
+        success: true,
+        messageId: 'dev-mode',
+        recipients: [...valid.map((p) => ({ phoneNumber: p.e164, success: true })), ...invalid],
+      };
+    }
+    throw new Error('SMS gateway not configured: SMS_API_URL/SMS_API_USERNAME/SMS_API_PASSWORD required');
+  }
+
+  try {
+    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
+      },
+      body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: valid.map((p) => p.e164) }),
+    });
+
+    const data = await response.json().catch(() => null) as
+      | GatewaySendSuccess
+      | { message: string }
+      | null;
+
+    if (!response.ok || !data || !('id' in data)) {
+      const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
+      logger.error(`Bulk SMS send failed (${response.status}): ${errorMessage}`);
+      return {
+        success: false,
+        error: errorMessage,
+        recipients: [...valid.map((p) => ({ phoneNumber: p.e164, success: false, error: errorMessage })), ...invalid],
+      };
+    }
+
+    const sentResults: BulkSmsRecipientResult[] = data.recipients.map((r) => ({
+      phoneNumber: r.phoneNumber,
+      success: r.state !== 'Failed',
+      error: r.state === 'Failed' ? (r.error ?? 'Rejected by gateway') : undefined,
+    }));
+
+    return { success: true, messageId: data.id, recipients: [...sentResults, ...invalid] };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
+    logger.error(`Bulk SMS send exception: ${errorMessage}`);
+    return {
+      success: false,
+      error: errorMessage,
+      recipients: [...valid.map((p) => ({ phoneNumber: p.e164, success: false, error: errorMessage })), ...invalid],
+    };
   }
 }
 

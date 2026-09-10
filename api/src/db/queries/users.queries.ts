@@ -197,6 +197,14 @@ export async function deleteUser(id: string): Promise<DbUser | null> {
   return rows[0] ?? null;
 }
 
+/** Look up phone numbers for a set of user IDs — for bulk-SMS recipients. */
+export async function findPhonesByIds(ids: string[]): Promise<{ id: string; phoneNumber: string }[]> {
+  if (ids.length === 0) return [];
+  return sql<{ id: string; phoneNumber: string }[]>`
+    SELECT id, phone_number FROM users WHERE id = ANY(${ids}::uuid[])
+  `;
+}
+
 /**
  * Hard-delete multiple users in one statement.
  * Returns the IDs that were actually found and deleted.

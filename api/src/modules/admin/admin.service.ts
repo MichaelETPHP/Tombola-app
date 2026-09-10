@@ -1,4 +1,4 @@
-import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers } from '../../db/queries/users.queries.js';
+import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds } from '../../db/queries/users.queries.js';
 import { listAuditLog as dbListAuditLog } from '../../db/queries/audit.queries.js';
 import {
   findAdminByPhone,
@@ -15,7 +15,8 @@ import { requireAdminSessionVersion } from '../../lib/admin-session.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput } from './admin.schema.js';
+import { sendBulkSms } from '../../lib/sms.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 
@@ -447,6 +448,28 @@ export async function adminBulkDeleteUsers(ids: string[]) {
   if (ids.length > 200) throw new AppError(400, 'Too many IDs — maximum 200 per request');
   const deletedIds = await bulkDeleteUsers(ids);
   return { deletedCount: deletedIds.length, deletedIds };
+}
+
+/**
+ * Send one message to a set of users in a single gateway request. IDs with
+ * no matching user (deleted mid-flight) are silently skipped; everything
+ * else is attempted, and per-recipient outcomes come straight back so the
+ * caller can show partial failures instead of a flat success/fail.
+ */
+export async function adminBulkSendSms(input: BulkSmsInput) {
+  const rows = await findPhonesByIds(input.userIds);
+  if (rows.length === 0) throw new AppError(404, 'None of the selected users could be found');
+
+  const result = await sendBulkSms(rows.map((r) => r.phoneNumber), input.message);
+  const sentCount = result.recipients.filter((r) => r.success).length;
+  const failedCount = result.recipients.length - sentCount;
+
+  return {
+    requested: input.userIds.length,
+    sentCount,
+    failedCount,
+    recipients: result.recipients,
+  };
 }
 
 /**
