@@ -161,7 +161,8 @@ export async function getProfitOverview() {
  * are set via deployment environment variables, not through this API.
  */
 export function getIntegrationsStatus(): IntegrationStatus[] {
-  const smsConfigured = !isPlaceholder(env.SMS_API_URL) && !isPlaceholder(env.SMS_API_KEY);
+  const smsConfigured =
+    !isPlaceholder(env.SMS_API_URL) && !isPlaceholder(env.SMS_API_USERNAME) && !isPlaceholder(env.SMS_API_PASSWORD);
   const otp: IntegrationStatus = env.DEMO_OTP_ENABLED
     ? {
         key: 'otp',
@@ -170,7 +171,12 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
         detail: '123456 is accepted as the code for any phone number. Set DEMO_OTP_ENABLED=false once a real gateway is live.',
       }
     : smsConfigured
-      ? { key: 'otp', name: 'OTP delivery (SMS)', mode: 'live', detail: 'SMS_API_URL and SMS_API_KEY are set — codes send for real.' }
+      ? {
+          key: 'otp',
+          name: 'OTP delivery (SMS)',
+          mode: 'live',
+          detail: 'SMS_API_URL, SMS_API_USERNAME and SMS_API_PASSWORD are set — codes send for real.',
+        }
       : {
           key: 'otp',
           name: 'OTP delivery (SMS)',

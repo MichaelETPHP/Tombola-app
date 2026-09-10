@@ -12,60 +12,59 @@ export interface SmsGatewayResponse {
   error?: string;
 }
 
-/** SMS Ethiopia (smsethiopia.com) API v2 send endpoint — same auth/body as v1. */
-const SMS_ETHIOPIA_SEND_URL = 'https://smsethiopia.com/api/v2/sms/send';
-
-interface SmsEthiopiaSuccess {
-  sent: true;
+interface GatewaySendSuccess {
   id: string;
-  description: string;
-  segments: number;
-  status: string;
-}
-
-/** SMS Ethiopia requires MSISDN as `2519XXXXXXXX` — 12 digits, no `+`. */
-function toMsisdn(phone: string): string {
-  return phone.replace(/\D/g, '');
+  state: string;
 }
 
 /**
- * SMS Gateway client for OTP and notification delivery, backed by
- * SMS Ethiopia (smsethiopia.com) API v2.
- * https://smsethiopia.com/#/landing/docs/api-v2
+ * The gateway's 3rdparty API rejects local-format numbers outright (400
+ * "invalid phone number") — it requires E.164. Callers throughout this app
+ * pass Ethiopian local format (0916182957), so normalize that one specific,
+ * known shape here rather than pushing this concern onto every caller.
+ */
+function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (phone.trim().startsWith('+')) return `+${digits}`;
+  if (digits.startsWith('0') && digits.length === 10) return `+251${digits.slice(1)}`;
+  if (digits.startsWith('251')) return `+${digits}`;
+  return phone;
+}
+
+/**
+ * SMS Gateway client for OTP and notification delivery, backed by a private
+ * self-hosted android-sms-gateway 3rdparty API (HTTP Basic Auth, relays
+ * through a registered Android phone's own SIM).
  */
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
   const { to, message } = options;
 
-  if (!env.SMS_API_KEY) {
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
     // In development, log the OTP instead of sending
     if (env.NODE_ENV === 'development') {
       logger.warn(`[SMS DEV MODE] To: ${to}, Message: ${message}`);
       return { success: true, messageId: 'dev-mode' };
     }
-    throw new Error('SMS gateway not configured: SMS_API_KEY required');
+    throw new Error('SMS gateway not configured: SMS_API_URL/SMS_API_USERNAME/SMS_API_PASSWORD required');
   }
 
   try {
-    const response = await fetch(env.SMS_API_URL || SMS_ETHIOPIA_SEND_URL, {
+    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'KEY': env.SMS_API_KEY,
+        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
       },
-      body: JSON.stringify({ msisdn: toMsisdn(to), text: message }),
+      body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: [toE164(to)] }),
     });
 
     const data = await response.json().catch(() => null) as
-      | SmsEthiopiaSuccess
-      | { error_message: string }
-      | Record<string, string>
+      | GatewaySendSuccess
+      | { message: string }
       | null;
 
-    if (!response.ok || !data || !('sent' in data && data.sent)) {
-      const errorMessage =
-        data && 'error_message' in data ? data.error_message
-        : data ? Object.values(data).join('; ')
-        : `HTTP ${response.status}`;
+    if (!response.ok || !data || !('id' in data)) {
+      const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`SMS send failed (${response.status}): ${errorMessage}`);
       return { success: false, error: errorMessage };
     }

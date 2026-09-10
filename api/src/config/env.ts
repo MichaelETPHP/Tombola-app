@@ -25,9 +25,11 @@ const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
 
-  // SMS Gateway
+  // SMS Gateway — private self-hosted android-sms-gateway 3rdparty API
+  // (Basic Auth, e.g. https://<host>/sms-api/3rdparty/v1)
   SMS_API_URL: emptyToUndefined(z.string().url().optional()),
-  SMS_API_KEY: z.string().optional(),
+  SMS_API_USERNAME: z.string().optional(),
+  SMS_API_PASSWORD: z.string().optional(),
   DEMO_OTP_ENABLED: z.string().default('false').transform((val) => val === 'true'),
 
   // Telegram Mini App + Login. Bot token and OIDC client ID must belong to
