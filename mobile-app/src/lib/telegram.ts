@@ -64,6 +64,27 @@ export function getTelegramMiniApp(): TelegramWebApp | null {
   return webApp?.initData ? webApp : null;
 }
 
+/**
+ * Every one of these is cosmetic/best-effort — none of them being able to
+ * run is ever a reason the app itself shouldn't open. `ready`/`expand` used
+ * to be called directly (no `?.()`, no try/catch) despite being the only
+ * two calls in this function not guarded that way, which meant a throw
+ * from either — on a Telegram client/platform where one behaves
+ * unexpectedly, e.g. Telegram Desktop's WebView, an older app build, or a
+ * mini app relaunched into an already-expanded state — crashed this
+ * function, and with it the entire boot sequence, before the rest of the
+ * app ever got a chance to render. That's this exact "works in a browser
+ * and the APK, but Telegram shows an error and the page never opens" bug:
+ * this bridge code only ever runs inside Telegram in the first place.
+ */
+function safeBridgeCall(name: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`Telegram bridge call failed: ${name}`, error);
+  }
+}
+
 export function prepareTelegramMiniApp(): TelegramWebApp | null {
   const webApp = getTelegramMiniApp();
   if (!webApp) return null;
@@ -76,17 +97,17 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
   // Telegram can finalize this inset after the first paint or after entering
   // fullscreen. Mirror the live bridge value into our own stable CSS variable
   // so the app header always begins below Telegram's floating controls.
-  syncTelegramContentSafeArea(webApp);
-  webApp.onEvent?.('contentSafeAreaChanged', () => syncTelegramContentSafeArea(webApp));
-  webApp.onEvent?.('fullscreenChanged', () => syncTelegramContentSafeArea(webApp));
+  safeBridgeCall('syncTelegramContentSafeArea', () => syncTelegramContentSafeArea(webApp));
+  safeBridgeCall('onEvent(contentSafeAreaChanged)', () => webApp.onEvent?.('contentSafeAreaChanged', () => syncTelegramContentSafeArea(webApp)));
+  safeBridgeCall('onEvent(fullscreenChanged)', () => webApp.onEvent?.('fullscreenChanged', () => syncTelegramContentSafeArea(webApp)));
 
-  webApp.ready();
-  webApp.expand();
-  webApp.disableVerticalSwipes?.();
-  webApp.enableClosingConfirmation?.();
-  webApp.setHeaderColor?.('#00D3A0');
-  webApp.setBackgroundColor?.('#E3F9EF');
-  webApp.setBottomBarColor?.('#FFFFFF');
+  safeBridgeCall('ready', () => webApp.ready());
+  safeBridgeCall('expand', () => webApp.expand());
+  safeBridgeCall('disableVerticalSwipes', () => webApp.disableVerticalSwipes?.());
+  safeBridgeCall('enableClosingConfirmation', () => webApp.enableClosingConfirmation?.());
+  safeBridgeCall('setHeaderColor', () => webApp.setHeaderColor?.('#00D3A0'));
+  safeBridgeCall('setBackgroundColor', () => webApp.setBackgroundColor?.('#E3F9EF'));
+  safeBridgeCall('setBottomBarColor', () => webApp.setBottomBarColor?.('#FFFFFF'));
 
   // Fullscreen is available from Bot API 8.0. Keep the version guard as old
   // Telegram clients expose a smaller bridge and throw for unknown methods.

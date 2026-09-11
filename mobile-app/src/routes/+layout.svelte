@@ -172,7 +172,16 @@
     // hold the native/HTML splash on a slow request.
     const splashSafetyTimer = setTimeout(hideBootSplash, 120);
 
-    const telegram = prepareTelegramMiniApp();
+    // prepareTelegramMiniApp() already guards every individual bridge call
+    // internally — this is just a last-resort net so a future change to it
+    // can't reintroduce "one Telegram bridge quirk crashes the entire
+    // boot sequence, on the one platform this code even runs on."
+    let telegram: ReturnType<typeof prepareTelegramMiniApp> = null;
+    try {
+      telegram = prepareTelegramMiniApp();
+    } catch (error) {
+      console.error('prepareTelegramMiniApp failed', error);
+    }
     try {
       if (telegram) {
         try {

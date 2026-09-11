@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, tick } from 'svelte';
   import { _ } from 'svelte-i18n';
-  import { Check } from 'lucide-svelte';
+  import { Check, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { playWheelTick } from '$lib/native/ticketWheelSound.js';
   // Impact, not selectionChanged: Capacitor's selectionChanged only fires
   // reliably on some Android builds after a preceding selectionStart(),
@@ -35,6 +35,12 @@
   // scramble the server actually applied for this raffle.
   $: labelByNumber = new Map(rows.map((row) => [row.number, row.displayNumber]));
   $: label = (number: number) => labelByNumber.get(number) ?? String(number).padStart(5, '0');
+  // A first-time visitor has no reason to assume this looks-like-a-list
+  // control is actually a scroll wheel — this nudge only shows for a slot
+  // that's still genuinely untouched (empty, never engaged) and disappears
+  // the instant either changes, so it never sits there nagging someone who
+  // already knows what to do.
+  $: showScrollHint = !engaged && value === null;
   const isUnavailable = (row: { number: number; state: NumberState }) => row.state !== 'available' && row.number !== value;
   const isUsedElsewhere = (number: number) => selectedNumbers.includes(number) && number !== value;
   const canUse = (row: { number: number; state: NumberState }) => !isUnavailable(row) && !isUsedElsewhere(row.number);
@@ -133,6 +139,10 @@
     <div class="selection-band" aria-hidden="true"></div>
     <div class="wheel-fade top" aria-hidden="true"></div>
     <div class="wheel-fade bottom" aria-hidden="true"></div>
+    {#if showScrollHint}
+      <span class="wheel-hint top" aria-hidden="true"><ChevronUp size={13} strokeWidth={2.6} /></span>
+      <span class="wheel-hint bottom" aria-hidden="true"><ChevronDown size={13} strokeWidth={2.6} /></span>
+    {/if}
     <div
       bind:this={scroller}
       class="wheel-scroll"
@@ -187,7 +197,15 @@
   .wheel-fade { position: absolute; z-index: 3; pointer-events: none; left: 0; right: 0; height: 72px; }
   .wheel-fade.top { top: 0; background: linear-gradient(to bottom, #f8faf9 8%, rgba(248,250,249,0)); }
   .wheel-fade.bottom { bottom: 0; background: linear-gradient(to top, #f8faf9 8%, rgba(248,250,249,0)); }
+  /* "You can scroll this" nudge — only ever shown on an untouched, empty
+     slot (see showScrollHint), so it never lingers as noise once someone
+     already knows what to do with it. */
+  .wheel-hint { position: absolute; z-index: 4; left: 50%; pointer-events: none; color: #08765a; opacity: .78; transform: translateX(-50%); }
+  .wheel-hint.top { top: 10px; animation: wheel-hint-up 1.3s ease-in-out infinite; }
+  .wheel-hint.bottom { bottom: 10px; animation: wheel-hint-down 1.3s ease-in-out infinite; }
+  @keyframes wheel-hint-up { 0%, 100% { transform: translate(-50%, 0); opacity: .5; } 50% { transform: translate(-50%, -5px); opacity: .95; } }
+  @keyframes wheel-hint-down { 0%, 100% { transform: translate(-50%, 0); opacity: .5; } 50% { transform: translate(-50%, 5px); opacity: .95; } }
   .wheel-scroll:focus-visible { outline: 2px solid #08765a; outline-offset: -3px; border-radius: 14px; }
   @media (max-width: 359px) { .wheel-shell { height: 190px; } .wheel-scroll { padding-block: 74px; } .selection-band { top: 74px; } .wheel-scroll > button { font-size: 9px; } }
-  @media (prefers-reduced-motion: reduce) { .wheel-scroll { scroll-behavior: auto; } .wheel-scroll > button { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .wheel-scroll { scroll-behavior: auto; } .wheel-scroll > button { transition: none; } .wheel-hint.top, .wheel-hint.bottom { animation: none; opacity: .7; } }
 </style>
