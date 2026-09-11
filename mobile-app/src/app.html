@@ -14,6 +14,51 @@
     <meta name="apple-mobile-web-app-title" content="YeneEta" />
     <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
+      // Self-heals the one class of error a stale service worker actually
+      // causes: an already-open tab is still running an OLD JS bundle while
+      // a NEW service worker (installed in the background, per
+      // registerType:'autoUpdate') has already claimed every client and is
+      // now serving fetches from its NEW precache manifest. The old JS then
+      // fails in one of two ways — a lazy route chunk it wants isn't in
+      // that new manifest (workbox's "non-precached-url"), or a shared
+      // singleton module (svelte-i18n) ends up duplicated/reset by the
+      // mismatch and throws "Cannot format a message without first setting
+      // the initial locale". Both are unrecoverable for that tab short of a
+      // reload — so catch them here, as early as possible (before the app
+      // even boots), and reload once. sessionStorage guards against a
+      // reload loop if a real, different error happens to match by
+      // coincidence; hideBootSplash() clears the flag once the app has
+      // actually rendered successfully, so a *later* genuine deploy can
+      // still trigger exactly one more self-heal.
+      (function () {
+        var FLAG = 'yeneeta:stale-chunk-reload';
+        function looksStale(message) {
+          return typeof message === 'string' && (
+            message.indexOf('setting the initial locale') !== -1 ||
+            message.indexOf('non-precached-url') !== -1 ||
+            message.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+            message.indexOf('Importing a module script failed') !== -1
+          );
+        }
+        function handle(message) {
+          if (!looksStale(message)) return;
+          try {
+            if (sessionStorage.getItem(FLAG)) return;
+            sessionStorage.setItem(FLAG, '1');
+          } catch {
+            // No sessionStorage (privacy mode, etc.) — fall through and
+            // reload anyway; a loop here is still better than staying broken.
+          }
+          location.reload();
+        }
+        window.addEventListener('error', function (e) { handle(e.message); });
+        window.addEventListener('unhandledrejection', function (e) {
+          var reason = e.reason;
+          handle(reason && (reason.message || String(reason)));
+        });
+      })();
+    </script>
+    <script>
       // Public SMS draw links are deliberately instant: suppress the web
       // boot artwork and its preload before the first paint. Other routes
       // retain the high-priority splash preload.

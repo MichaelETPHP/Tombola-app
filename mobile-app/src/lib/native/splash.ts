@@ -15,6 +15,16 @@ export async function hideBootSplash(): Promise<void> {
     setTimeout(() => el.remove(), 360);
   }
 
+  // The app actually rendered — clear the stale-chunk self-heal flag from
+  // app.html so a *future* deploy can still trigger exactly one more
+  // automatic reload if it hits the same stale-service-worker symptom,
+  // instead of the guard permanently blocking after the first time.
+  try {
+    sessionStorage.removeItem('yeneeta:stale-chunk-reload');
+  } catch {
+    // No sessionStorage available — nothing to clear.
+  }
+
   if (Capacitor.isNativePlatform()) {
     try {
       await SplashScreen.hide();
