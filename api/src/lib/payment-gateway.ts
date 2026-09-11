@@ -130,6 +130,20 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
 /**
  * Verify a Chapa payment by transaction reference.
  */
+/**
+ * Thrown by chapaVerify on a non-ok response, carrying the HTTP status so
+ * callers can tell "Chapa says this tx_ref will never be valid" (400/404 —
+ * retrying changes nothing) apart from a transient failure worth retrying
+ * (5xx, or 401/403 from a credentials/outage problem, which affects every
+ * payment, not just this one — see stale-payment-check.job.ts).
+ */
+export class ChapaVerifyError extends Error {
+  constructor(public httpStatus: number, message: string) {
+    super(message);
+    this.name = 'ChapaVerifyError';
+  }
+}
+
 export async function chapaVerify(txRef: string): Promise<ChapaVerifyResponse> {
   if (!env.CHAPA_SECRET_KEY) {
     throw new Error('CHAPA_SECRET_KEY not configured');
@@ -147,7 +161,7 @@ export async function chapaVerify(txRef: string): Promise<ChapaVerifyResponse> {
   if (!response.ok) {
     logger.error(`Chapa verify failed for ${txRef}: ${JSON.stringify(data)}`);
     logIntegrationEvent('chapa', 'error', 'verify', { txRef, httpStatus: response.status, message: data.message });
-    throw new Error(`Chapa verification failed for tx_ref: ${txRef}`);
+    throw new ChapaVerifyError(response.status, `Chapa verification failed for tx_ref: ${txRef}`);
   }
 
   logIntegrationEvent('chapa', 'success', 'verify', { txRef, status: data.data?.status });

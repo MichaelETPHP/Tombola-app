@@ -209,6 +209,17 @@ export async function findStalePendingChapaPayments(olderThanMs: number): Promis
 }
 
 /**
+ * Pulls a payment out of the stale-payment sweep for good — used when
+ * Chapa itself says a tx_ref will never verify (400/404: not "try again
+ * later", but "this reference doesn't exist"), so it stops being retried
+ * every sweep forever and instead surfaces in the admin refund-review
+ * queue like any other unresolved payment.
+ */
+export async function markPaymentReviewRequired(id: string): Promise<void> {
+  await sql`UPDATE payments SET review_required = true WHERE id = ${id}`;
+}
+
+/**
  * Find a payment by ID.
  */
 export async function findPaymentById(id: string): Promise<DbPayment | null> {
