@@ -7,6 +7,8 @@
    * the server-computed value (it accounts for per-user ticket caps and
    * any weighting rules that live in the DB, which this cannot see).
    */
+  import { _ } from 'svelte-i18n';
+
   export let ticketsOwned: number;
   export let ticketsSold: number;
 
@@ -16,5 +18,5 @@
 
 <span class="inline-flex items-center gap-2 rounded-full bg-blue-bg px-3 py-1 text-xs font-semibold text-blue">
   <span class="h-1.5 w-1.5 rounded-full bg-blue"></span>
-  {display} win odds
+  {$_('oddsBadge.winOdds', { values: { pct: display } })}
 </span>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { _ } from 'svelte-i18n';
   import type { Raffle } from '../stores/raffles.store.js';
   import PrizeImage from './PrizeImage.svelte';
   import { formatEtb } from '../utils/currency.js';
@@ -21,7 +22,7 @@
   href="/raffles/{raffle.id}"
   class="raffle-ticket tappable pressable grid min-h-[158px] grid-cols-[112px_1fr] overflow-hidden rounded-[18px] bg-card text-inherit no-underline"
   in:fly={{ y: 8, duration: 220, delay: Math.min(index, 4) * 35, easing: cubicOut }}
-  aria-label="View {raffle.title}"
+  aria-label={$_('raffleCard.viewAria', { values: { title: raffle.title } })}
 >
   <div class="relative min-h-full overflow-hidden bg-[#dff7ee]">
     <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="sm" fit="contain" {eager} />
@@ -39,14 +40,14 @@
 
     <div class="mt-auto">
       <div class="mb-1.5 flex items-center justify-between gap-2 text-[9px] font-semibold text-[#626878]">
-        <span class="flex items-center gap-1"><Ticket size={10} /> {ticketsRemaining} left</span>
-        <span class="flex items-center gap-1"><Clock3 size={10} /> {daysLeft}d</span>
+        <span class="flex items-center gap-1"><Ticket size={10} /> {$_('raffleCard.left', { values: { n: ticketsRemaining } })}</span>
+        <span class="flex items-center gap-1"><Clock3 size={10} /> {$_('raffleCard.daysShort', { values: { n: daysLeft } })}</span>
       </div>
       <div class="h-1.5 overflow-hidden rounded-full bg-dot-inactive/75">
         <div class="h-full rounded-full bg-primary-dark transition-[width] duration-500 ease-[var(--ease-out)]" style="width: {soldPct}%"></div>
       </div>
       <p class="mt-2 text-[10px] font-extrabold text-primary-dark">
-        {#if ticketsOwned > 0}{ticketsOwned} tickets owned{:else if canEnter}Choose your tickets{:else}View raffle result{/if}
+        {#if ticketsOwned > 0}{$_('raffleCard.ticketsOwned', { values: { n: ticketsOwned } })}{:else if canEnter}{$_('raffleCard.chooseTickets')}{:else}{$_('raffleCard.viewResult')}{/if}
       </p>
     </div>
   </div>

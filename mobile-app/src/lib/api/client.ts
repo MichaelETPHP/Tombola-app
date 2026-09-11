@@ -1,4 +1,5 @@
 import { get } from 'svelte/store';
+import { _ } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { auth, setAuth, clearAuth } from '../stores/auth.store.js';
 import { language } from '../stores/language.store.js';
@@ -17,7 +18,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const { skipAuth = false, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers);
-  headers.set('Accept-Language', get(language));
+  headers.set('Accept-Language', get(language) ?? 'en');
 
   if (!headers.has('Content-Type') && fetchOptions.body) {
     headers.set('Content-Type', 'application/json');
@@ -59,10 +60,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       // a newer login elsewhere. Surface that plainly rather than leaving
       // the user stranded on a broken page wondering why requests fail.
       if (refreshResult.code === 'AUTH_SESSION_REVOKED') {
-        showBanner("You've been logged out — this account signed in on another device.", 3000);
+        showBanner(get(_)('apiErrors.sessionRevoked'), 3000);
         goto('/login', { replaceState: true });
       }
-      throw new ApiError(401, 'Session expired. Please log in again.');
+      throw new ApiError(401, get(_)('apiErrors.sessionExpired'));
     }
   }
 

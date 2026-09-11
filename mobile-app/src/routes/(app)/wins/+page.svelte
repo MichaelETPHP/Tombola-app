@@ -1,5 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store';
+  import { _ } from 'svelte-i18n';
+  import { language } from '$lib/stores/language.store.js';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
@@ -15,13 +17,14 @@
   let loading = payouts.length === 0;
   let hasFetched = false;
 
-  const statusLabels: Record<Payout['status'], string> = {
-    pending_claim: 'Claim your prize',
-    id_submitted: 'Claim under review',
-    verified: 'Verified — preparing delivery',
-    fulfilled: 'Delivered',
-    expired: 'Claim window expired',
-    rejected: 'Claim rejected',
+  let statusLabels: Record<Payout['status'], string>;
+  $: statusLabels = {
+    pending_claim: $_('wins.status.pendingClaim'),
+    id_submitted: $_('wins.status.idSubmitted'),
+    verified: $_('wins.status.verified'),
+    fulfilled: $_('wins.status.fulfilled'),
+    expired: $_('wins.status.expired'),
+    rejected: $_('wins.status.rejected'),
   };
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
@@ -53,23 +56,23 @@
 </script>
 
 {#if $auth.isLoading}
-  <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
+  <div class="flex flex-col gap-3" aria-busy="true" aria-label={$_('wins.loadingAria')}>
     <ListItemSkeleton />
     <ListItemSkeleton />
     <ListItemSkeleton />
   </div>
 {:else if $auth.isAuthenticated}
   <div class="flex flex-col gap-4">
-    <h1 class="text-[22px] font-extrabold text-ink">My wins</h1>
+    <h1 class="text-[22px] font-extrabold text-ink">{$_('wins.title')}</h1>
 
     {#if loading}
-      <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading wins">
+      <div class="flex flex-col gap-3" aria-busy="true" aria-label={$_('wins.loadingWinsAria')}>
         <ListItemSkeleton />
         <ListItemSkeleton />
         <ListItemSkeleton />
       </div>
     {:else if payouts.length === 0}
-      <p class="text-[13px] text-muted">No wins yet — keep entering raffles!</p>
+      <p class="text-[13px] text-muted">{$_('wins.emptyBody')}</p>
     {:else}
       <div class="flex flex-col gap-3">
         {#each payouts as payout (payout.id)}
@@ -79,7 +82,7 @@
               <span class="text-sm font-bold text-ink">{statusLabels[payout.status]}</span>
               {#if payout.status === 'pending_claim'}
                 <span class="text-xs text-coral-start">
-                  Claim by {new Date(payout.claimDeadline).toLocaleDateString()}
+                  {$_('wins.claimBy', { values: { date: new Date(payout.claimDeadline).toLocaleDateString($language ?? undefined) } })}
                 </span>
               {/if}
             </div>

@@ -71,7 +71,7 @@
     }
     initBackButtonHandling();
     disableZoom();
-    initLanguage();
+    await initLanguage();
 
     if (directDrawRoute) {
       // This route is an intentionally public, one-time SMS experience.

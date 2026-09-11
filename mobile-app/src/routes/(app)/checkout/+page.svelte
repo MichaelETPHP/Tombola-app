@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { beforeNavigate, goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
@@ -148,8 +150,8 @@
         showFlag: true,
         showPaymentMethodsNames: true,
         customizations: {
-          buttonText: `Pay ${formatEtb(amount)} ETB`,
-          successMessage: 'Payment received. Confirming your tickets…',
+          buttonText: get(_)('checkout.payButton', { values: { amount: formatEtb(amount) } }),
+          successMessage: get(_)('checkout.paymentReceived'),
           styles: `
             #chapa-inline-form { color: #1a1d29; font-family: inherit; }
             /* The +251 prefix badge and the typed digits were rendering on
@@ -183,7 +185,7 @@
           resolved = true;
         },
         onPaymentFailure: (message) => {
-          paymentError = message || 'Payment was not completed. Releasing your numbers...';
+          paymentError = message || get(_)('checkout.paymentFailedReleasing');
           void cancel();
         },
       });
@@ -212,9 +214,12 @@
       ready = true;
       loading = false;
       renderObserver?.disconnect();
-    } catch (cause) {
+    } catch {
+      // Whatever the internal reason (script load failure, Chapa init
+      // failure, render timeout), none of the specific English reasons are
+      // more actionable to the user than this one translated message.
       loading = false;
-      loadError = cause instanceof Error ? cause.message : 'The secure payment form could not be loaded';
+      loadError = $_('checkout.formLoadError');
       clearRuntimeChecks();
     }
   }
@@ -268,7 +273,11 @@
       else if (checkoutStarted) {
         resolved = true;
         await goto(`/payments/${paymentId}`, { replaceState: true });
-      } else loading = false;
+      } else {
+        // Skip the extra "Continue to payment" tap — go straight from the
+        // ticket summary into loading the payment methods.
+        await initializeCheckout();
+      }
     } catch {
       reservationError = true;
       reservationLoaded = false;
@@ -296,59 +305,59 @@
   });
 </script>
 
-<svelte:head><title>Secure checkout · YeneEta</title></svelte:head>
+<svelte:head><title>{$_('checkout.pageTitle')}</title></svelte:head>
 
 <section class="checkout-page flex min-h-0 flex-col">
   <header class="flex h-12 shrink-0 items-center justify-between">
-    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-ink disabled:opacity-50" aria-label="Cancel checkout and go back" disabled={cancelling} on:click={cancel}>
+    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-ink disabled:opacity-50" aria-label={$_('checkout.cancelAria')} disabled={cancelling} on:click={cancel}>
       <ArrowLeft size={20} />
     </button>
-    <div class="flex items-center gap-1.5 text-xs font-bold text-muted"><LockKeyhole size={14} class="text-primary-dark" /> Secure checkout</div>
+    <div class="flex items-center gap-1.5 text-xs font-bold text-muted"><LockKeyhole size={14} class="text-primary-dark" /> {$_('checkout.secureCheckout')}</div>
     <span class="h-11 w-11" aria-hidden="true"></span>
   </header>
 
   {#if reservationError}
     <div class="flex flex-1 flex-col items-center justify-center px-6 text-center" role="alert">
       <AlertCircle size={30} class="text-pink" />
-      <h1 class="mt-4 text-lg font-extrabold text-ink">Could not load your reservation</h1>
-      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">Keep this page open, check your connection, and try again.</p>
+      <h1 class="mt-4 text-lg font-extrabold text-ink">{$_('checkout.reservationLoadErrorTitle')}</h1>
+      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">{$_('checkout.reservationLoadErrorBody')}</p>
       <button type="button" class="pressable mt-5 flex min-h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={loadReservation}>
-        <RefreshCw size={16} /> Retry checkout
+        <RefreshCw size={16} /> {$_('checkout.retryCheckout')}
       </button>
     </div>
   {:else if !reservationLoaded && !invalid}
     <div class="flex flex-1 flex-col items-center justify-center gap-3 text-muted" aria-live="polite">
       <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-dot-inactive border-t-primary-dark"></div>
-      <p class="text-sm font-semibold">Loading your ticket reservation…</p>
+      <p class="text-sm font-semibold">{$_('checkout.loadingReservation')}</p>
     </div>
   {:else if invalid}
     <div class="flex flex-1 flex-col items-center justify-center px-6 text-center" role="alert">
       <AlertCircle size={30} class="text-pink" />
-      <h1 class="mt-4 text-lg font-extrabold text-ink">Checkout details are incomplete</h1>
-      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">Return to the raffle and select your tickets again.</p>
-      <button type="button" class="pressable mt-5 min-h-11 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={cancel}>Back to raffles</button>
+      <h1 class="mt-4 text-lg font-extrabold text-ink">{$_('checkout.incompleteTitle')}</h1>
+      <p class="mt-2 max-w-[280px] text-sm leading-6 text-muted">{$_('checkout.incompleteBody')}</p>
+      <button type="button" class="pressable mt-5 min-h-11 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={cancel}>{$_('checkout.backToRaffles')}</button>
     </div>
   {:else}
     <div class="mt-3 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
       <div class="flex items-start justify-between gap-4 p-4">
         <div class="min-w-0">
-          <h1 class="line-clamp-2 text-base font-extrabold leading-6 tracking-[-0.025em] text-ink">{raffleTitle || 'Raffle tickets'}</h1>
+          <h1 class="line-clamp-2 text-base font-extrabold leading-6 tracking-[-0.025em] text-ink">{raffleTitle || $_('checkout.defaultRaffleTitle')}</h1>
           <p class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
-            <Ticket size={13} /> {ticketCount} ticket{ticketCount === 1 ? '' : 's'}{#if ticketCount > 0} · {formatEtb(amount / ticketCount)} ETB each{/if}
+            <Ticket size={13} /> {$_('checkout.ticketCount', { values: { n: ticketCount } })}{#if ticketCount > 0} · {$_('checkout.eachPrice', { values: { amount: formatEtb(amount / ticketCount) } })}{/if}
           </p>
         </div>
         <div class="shrink-0 text-right">
-          <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Total</p>
+          <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">{$_('checkout.total')}</p>
           <p class="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatEtb(amount)}</p>
           <p class="text-[10px] font-bold text-muted">ETB</p>
         </div>
       </div>
       {#if selectedNumbers.length}
-        <div class="reserved-numbers"><p>Your ticket numbers</p><div>{#each selectedNumbers as n}<span>{String(n).padStart(5, '0')}</span>{/each}</div><small>{checkoutStarted ? 'Held while your payment is confirmed' : secondsLeft > 0 ? `Reserved for you ? ${countdown} remaining` : 'Reservation expired. Please choose your numbers again.'}</small></div>
+        <div class="reserved-numbers"><p>{$_('checkout.yourTicketNumbers')}</p><div>{#each selectedNumbers as n}<span>{String(n).padStart(5, '0')}</span>{/each}</div><small>{checkoutStarted ? $_('checkout.heldWhileConfirmed') : secondsLeft > 0 ? $_('checkout.reservedFor', { values: { countdown } }) : $_('checkout.reservationExpired')}</small></div>
       {/if}
       <div class="flex items-center gap-2 border-t border-dot-inactive/60 bg-bg-start/60 px-4 py-2.5 text-xs font-semibold text-muted">
         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>
-        Select a payment method and confirm on your phone
+        {$_('checkout.selectMethodHint')}
       </div>
     </div>
 
@@ -358,41 +367,33 @@
       </div>
     {/if}
 
-    {#if !checkoutStarted && !loading && !loadError}
-      <div class="checkout-review">
-        <h2>Everything look right?</h2>
-        <p>These are the exact numbers you will receive after your payment is confirmed.</p>
-        <button disabled={!!expiresAt && secondsLeft <= 0} on:click={() => initializeCheckout()}>Continue to payment <ArrowLeft size={17} class="rotate-180" /></button>
-        <button class="change-numbers" on:click={cancel}>Change my numbers</button>
-      </div>
-    {/if}
-    <div class:hidden={!checkoutStarted && !loading && !loadError} class="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
+    <div class="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-card border border-dot-inactive/70 bg-card">
       {#if loading}
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted" aria-live="polite">
           <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-dot-inactive border-t-primary-dark"></div>
-          <p class="text-sm font-semibold">Preparing payment methods…</p>
+          <p class="text-sm font-semibold">{$_('checkout.preparingMethods')}</p>
         </div>
       {/if}
 
       {#if loadError}
         <div class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center" role="alert">
           <span class="flex h-14 w-14 items-center justify-center rounded-full bg-pink-bg text-pink"><AlertCircle size={24} /></span>
-          <h2 class="mt-4 text-base font-extrabold text-ink">Payment form did not load</h2>
-          <p class="mt-2 max-w-[290px] text-sm leading-6 text-muted">Keep this page open, check your connection, then retry securely inside the app.</p>
+          <h2 class="mt-4 text-base font-extrabold text-ink">{$_('checkout.formLoadErrorTitle')}</h2>
+          <p class="mt-2 max-w-[290px] text-sm leading-6 text-muted">{$_('checkout.formLoadErrorBody')}</p>
           <button type="button" class="pressable mt-5 flex min-h-11 items-center gap-2 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={() => initializeCheckout(true)}>
-            <RefreshCw size={16} /> Retry payment form
+            <RefreshCw size={16} /> {$_('checkout.retryForm')}
           </button>
         </div>
       {/if}
 
-      <div id={CONTAINER_ID} class:hidden={!ready} class="chapa-inline-container h-full p-4" aria-label="Chapa payment form"></div>
+      <div id={CONTAINER_ID} class:hidden={!ready} class="chapa-inline-container h-full p-4" aria-label={$_('checkout.formAria')}></div>
     </div>
 
     <footer class="shrink-0 border-t border-dot-inactive/60 pb-1 pt-3">
       <p class="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-muted">
-        <ShieldCheck size={13} class="text-primary-dark" /> Payment status is verified before tickets are issued
+        <ShieldCheck size={13} class="text-primary-dark" /> {$_('checkout.verifiedBeforeIssued')}
       </p>
-      <p class="mt-1 text-center text-[10px] font-medium text-muted/70">Secured by Chapa · Telebirr, CBE Birr, Ebirr &amp; M-Pesa</p>
+      <p class="mt-1 text-center text-[10px] font-medium text-muted/70">{$_('checkout.securedBy')}</p>
     </footer>
   {/if}
 </section>
@@ -403,12 +404,6 @@
   .reserved-numbers > div { display: flex; flex-wrap: wrap; gap: 8px; }
   .reserved-numbers span { padding: 10px 12px; background: #e4f4eb; border-radius: 10px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .reserved-numbers small { display: block; margin-top: 12px; font-size: 12px; color: #566960; }
-  .checkout-review { padding: 28px 4px; color: #193c33; }
-  .checkout-review h2 { font-size: 21px; font-weight: 750; }
-  .checkout-review p { margin: 10px 0 24px; font-size: 14px; line-height: 1.7; color: #566960; }
-  .checkout-review button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 54px; width: 100%; border-radius: 14px; background: #193c33; color: white; font-size: 15px; font-weight: 700; }
-  .checkout-review button:disabled { opacity: .45; }
-  .checkout-review .change-numbers { background: transparent; color: #193c33; margin-top: 8px; }
   .chapa-inline-container { min-height: 360px; }
 
   .checkout-page { min-height: calc(100dvh - max(44px, var(--safe-top)) - 28px); padding-bottom: 20px; }

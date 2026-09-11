@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, tick } from 'svelte';
+  import { _ } from 'svelte-i18n';
 
   export let length = 6;
   export let value = '';
@@ -76,7 +77,7 @@
       enterkeyhint={i === length - 1 ? 'done' : 'next'}
       maxlength={i === 0 ? length : 1}
       autocomplete={i === 0 ? 'one-time-code' : 'off'}
-      aria-label="Verification code digit {i + 1} of {length}"
+      aria-label={$_('otpInput.digitAria', { values: { n: i + 1, length } })}
       {disabled}
       class="h-14 w-11 rounded-button bg-bg-start text-center font-display text-2xl font-semibold text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] focus:ring-primary disabled:opacity-60"
     />

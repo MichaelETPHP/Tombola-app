@@ -4,42 +4,25 @@
   import { cubicOut } from 'svelte/easing';
   import { CheckCircle2, RefreshCw, Signal, Wifi, WifiOff } from 'lucide-svelte';
   import { connectivity, checkConnectivity, startConnectivityMonitoring } from '$lib/stores/connectivity.store.js';
-  import { language } from '$lib/stores/language.store.js';
+  import { _ } from 'svelte-i18n';
 
   let showRestored = false;
   let hasLostConnection = false;
   let restoredTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const copy = {
-    en: {
-      checking: 'Checking your connection',
-      checkingBody: 'YeneEta needs an internet connection to load the latest raffles.',
-      offlineLabel: 'Connection problem',
-      offlineTitle: "You're offline",
-      offlineBody: 'Turn on Wi-Fi or mobile data, then try again. YeneEta cannot be used without an internet connection.',
-      serviceTitle: 'YeneEta is not reachable',
-      serviceBody: 'Your network is connected, but we cannot reach YeneEta right now. Please try again shortly.',
-      waiting: 'Waiting for a connection',
-      retry: 'Try again',
-      restored: 'Connection restored',
-      restoredBody: 'YeneEta is back online.',
-    },
-    am: {
-      checking: 'የኢንተርኔት ግንኙነትዎን እያረጋገጥን ነው',
-      checkingBody: 'የቅርብ ጊዜ ዕጣዎችን ለማሳየት የኔዕጣ የኢንተርኔት ግንኙነት ይፈልጋል።',
-      offlineLabel: 'የግንኙነት ችግር',
-      offlineTitle: 'ከኢንተርኔት ውጭ ነዎት',
-      offlineBody: 'Wi-Fi ወይም የሞባይል ዳታን ያብሩና እንደገና ይሞክሩ። የኔዕጣ ያለ ኢንተርኔት አይሰራም።',
-      serviceTitle: 'የኔዕጣን ማግኘት አልተቻለም',
-      serviceBody: 'ኔትወርክዎ ተገናኝቷል፣ ነገር ግን የኔዕጣን አሁን ማግኘት አልቻልንም። እባክዎ ትንሽ ቆይተው ይሞክሩ።',
-      waiting: 'ግንኙነት በመጠበቅ ላይ',
-      retry: 'እንደገና ይሞክሩ',
-      restored: 'ግንኙነቱ ተመልሷል',
-      restoredBody: 'የኔዕጣ እንደገና መስመር ላይ ነው።',
-    },
-  } as const;
-
-  $: text = copy[$language];
+  $: text = {
+    checking: $_('connectivity.checking'),
+    checkingBody: $_('connectivity.checkingBody'),
+    offlineLabel: $_('connectivity.offlineLabel'),
+    offlineTitle: $_('connectivity.offlineTitle'),
+    offlineBody: $_('connectivity.offlineBody'),
+    serviceTitle: $_('connectivity.serviceTitle'),
+    serviceBody: $_('connectivity.serviceBody'),
+    waiting: $_('connectivity.waiting'),
+    retry: $_('connectivity.retry'),
+    restored: $_('connectivity.restored'),
+    restoredBody: $_('connectivity.restoredBody'),
+  };
   $: isInitialCheck = !$connectivity.initialized && $connectivity.checking;
   // Let online launches render immediately while the first health check is
   // in flight. A confirmed offline result still blocks the app at once.

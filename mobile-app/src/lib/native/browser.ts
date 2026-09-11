@@ -1,3 +1,5 @@
+import { get } from 'svelte/store';
+import { _ } from 'svelte-i18n';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { goto } from '$app/navigation';
@@ -20,13 +22,13 @@ export async function cancelPaymentAndReturnHome(paymentId: string): Promise<voi
     if (payment.status === 'failed') {
       clearPendingPurchase();
       await goto(`/raffles/${payment.raffleId}/numbers`, { replaceState: true });
-      showBanner('Reservation cancelled. Your numbers are available again.');
+      showBanner(get(_)('apiErrors.reservationCancelled'));
     } else {
       await goto(`/payments/${paymentId}`, { replaceState: true });
     }
   } catch {
     await goto(`/payments/${paymentId}`, { replaceState: true });
-    showBanner('Check your payment status before starting again');
+    showBanner(get(_)('apiErrors.checkPaymentStatus'));
   }
 }
 

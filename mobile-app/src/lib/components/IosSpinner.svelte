@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
+
   /** Size in pixels (default 24px) */
   export let size: number = 24;
   /** Color of the spinner bars (default white) */
@@ -9,9 +11,9 @@
   class="ios-spinner"
   style="width: {size}px; height: {size}px;"
   role="status"
-  aria-label="Loading"
+  aria-label={$_('common.loading')}
 >
-  {#each Array(12) as _, i}
+  {#each Array(12) as blade, i}
     <div
       class="ios-blade"
       style="

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fly, fade, scale } from 'svelte/transition';
@@ -70,21 +71,21 @@
   }
 
   function telegramErrorMessage(err: unknown): string {
-    if (!(err instanceof ApiError)) return 'Connection problem. Check your internet and try again.';
+    if (!(err instanceof ApiError)) return $_('login.telegramConnError');
 
     try {
       const response = JSON.parse(err.body) as { code?: string };
       if (response.code === 'AUTH_TELEGRAMEXPIRED') {
-        return 'This Telegram session expired. Close YeneEta and open it again from the bot menu.';
+        return $_('login.telegramExpired');
       }
       if (response.code === 'AUTH_TELEGRAMNOTCONFIGURED') {
-        return 'Telegram login is temporarily unavailable. The bot configuration needs attention.';
+        return $_('login.telegramNotConfigured');
       }
     } catch {
       // Fall through to the signed-session recovery message.
     }
 
-    return 'Telegram could not verify this bot session. Reopen YeneEta from the bot menu and try again.';
+    return $_('login.telegramSessionInvalid');
   }
 
   $: returnTo = $page.url.searchParams.get('returnTo') ?? '';
@@ -108,7 +109,7 @@
 
     const fullPhone = toE164(phone);
     if (fullPhone.length !== 13) {
-      error = 'Enter a valid 9-digit phone number';
+      error = $_('login.invalidPhone');
       return;
     }
 
@@ -122,9 +123,13 @@
       const params = new URLSearchParams({ phone: fullPhone });
       if (returnTo) params.set('returnTo', returnTo);
       if (otp.demoOtpEnabled) params.set('demo', '1');
-      goto(`/verify?${params}`);
+      // Replace, not push — login and verify are two steps of one sign-in
+      // action, not separate browsable pages. Pushing here would leave a
+      // stale "login" entry in history that the back button could land on
+      // even after the user is authenticated (see navigateBack.ts).
+      goto(`/verify?${params}`, { replaceState: true });
     } catch (err) {
-      error = err instanceof ApiError ? 'Could not send code. Please try again.' : 'Network error.';
+      error = err instanceof ApiError ? $_('login.sendCodeError') : $_('login.networkError');
     } finally {
       loading = false;
     }
@@ -143,7 +148,7 @@
     try {
       const telegram = getTelegramMiniApp();
       if (!telegram) {
-        error = 'Open YeneEta from the Telegram bot to continue.';
+        error = $_('login.openFromBot');
         return;
       }
 
@@ -153,8 +158,8 @@
         // Navigate first, *then* show the banner — <Banner /> lives in the
         // root layout and persists across navigation, so it renders on top
         // of the destination page instead of flashing on this one first.
-        await goto('/home', { replaceState: true });
-        showBanner('Login successful');
+        await goto(returnTo.startsWith('/raffles') ? returnTo : '/home', { replaceState: true });
+        showBanner($_('login.loginSuccessBanner'));
         return;
       }
 
@@ -178,8 +183,8 @@
         if (cancelled) return;
         if (completion.status === 'authenticated') {
           setAuth(completion.accessToken, completion.user);
-          await goto('/home', { replaceState: true });
-          showBanner('Login successful');
+          await goto(returnTo.startsWith('/raffles') ? returnTo : '/home', { replaceState: true });
+          showBanner($_('login.loginSuccessBanner'));
           return;
         }
       }
@@ -195,7 +200,7 @@
 <div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-7 overflow-y-auto p-6">
   <button
     type="button"
-    aria-label="Back to home"
+    aria-label={$_('login.backHomeAria')}
     on:click={backToHome}
     class="safe-area-floating-top tappable pressable absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
   >
@@ -219,11 +224,13 @@
     <p class="max-w-[300px] text-sm leading-relaxed text-muted">
       {isTelegramMiniApp
         ? telegramUser
-          ? `Hi${telegramUser.fullName ? ` ${telegramUser.fullName}` : ''} — one tap to share your number and you're in.`
-          : 'Continue securely with the Telegram account you used to open YeneEta.'
+          ? telegramUser.fullName
+            ? $_('login.greetingNamed', { values: { name: telegramUser.fullName } })
+            : $_('login.greetingAnon')
+          : $_('login.telegramContinueBody')
         : returnTo.startsWith('/raffles')
-          ? "Sign in to confirm your tickets — you'll come right back."
-          : 'Enter your phone number to start playing.'}
+          ? $_('login.signInForTickets')
+          : $_('login.enterPhoneBody')}
     </p>
   </div>
 
@@ -232,7 +239,7 @@
       <section
         class="flex flex-col gap-4 rounded-card bg-card p-6 shadow-card"
         in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
-        aria-label="Telegram login"
+        aria-label={$_('login.telegramSectionAria')}
       >
         <div class="flex items-start gap-3 rounded-button bg-bg-start p-3.5 text-left">
           <span
@@ -241,9 +248,9 @@
             <ShieldCheck size={19} />
           </span>
           <div>
-            <p class="text-[13px] font-semibold text-ink">Verified Telegram session</p>
+            <p class="text-[13px] font-semibold text-ink">{$_('login.verifiedSessionTitle')}</p>
             <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
-              YeneEta uses Telegram's signed identity to keep your account secure.
+              {$_('login.verifiedSessionBody')}
             </p>
           </div>
         </div>
@@ -254,11 +261,11 @@
           <div class="rounded-button bg-coral-start/10 p-3.5 text-left">
             <p class="text-[13px] font-semibold text-coral-start">
               {telegramStep === 'declined'
-                ? "We need your phone number to continue — you can share it from Telegram's own prompt."
-                : "Didn't hear back from Telegram in time."}
+                ? $_('login.declinedMessage')
+                : $_('login.timedOutMessage')}
             </p>
             <p class="mt-1 text-[11px] leading-relaxed text-muted">
-              Or open YeneEta directly (outside the bot) to sign in with your phone number instead.
+              {$_('login.fallbackHint')}
             </p>
           </div>
         {/if}
@@ -271,16 +278,16 @@
         >
           {#if telegramStep === 'polling'}
             <IosSpinner size={18} color="#ffffff" />
-            Confirming your number…
+            {$_('login.confirmingNumber')}
           {:else if telegramStep === 'requesting_contact'}
             <IosSpinner size={18} color="#ffffff" />
-            Waiting for Telegram…
+            {$_('login.waitingForTelegram')}
           {:else if telegramStep === 'declined' || telegramStep === 'timed_out'}
             <Send size={19} fill="currentColor" />
-            Try again
+            {$_('login.tryAgain')}
           {:else}
             <Send size={19} fill="currentColor" />
-            Continue with Telegram
+            {$_('login.continueWithTelegram')}
           {/if}
         </button>
       </section>
@@ -290,7 +297,7 @@
         in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
         on:submit|preventDefault={submit}
       >
-        <label for="phone" class="text-[13px] font-semibold text-muted">Phone number</label>
+        <label for="phone" class="text-[13px] font-semibold text-muted">{$_('login.phoneLabel')}</label>
         <div
           class="flex h-13 items-stretch rounded-button bg-bg-start ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] focus-within:ring-primary"
         >
@@ -305,7 +312,7 @@
             type="tel"
             inputmode="numeric"
             enterkeyhint="send"
-            placeholder="9XXXXXXXX"
+            placeholder={$_('login.phonePlaceholder')}
             value={phone}
             on:input={(e) => (phone = e.currentTarget.value.replace(/\D/g, '').slice(0, 10))}
             autocomplete="tel-national"
@@ -316,7 +323,7 @@
           />
         </div>
         {#if error}<p class="text-[13px] text-coral-start" role="alert">{error}</p>{/if}
-        <Button type="submit" loading={loading}>Send code</Button>
+        <Button type="submit" loading={loading}>{$_('login.sendCode')}</Button>
       </form>
     {/if}
 
@@ -325,7 +332,7 @@
         type="button"
         role="checkbox"
         aria-checked={agreedToTerms}
-        aria-label="Agree to Terms &amp; Conditions"
+        aria-label={$_('login.agreeAria')}
         on:click={() => (agreedToTerms = !agreedToTerms)}
         on:animationend={() => (termsShake = false)}
         class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
@@ -348,18 +355,18 @@
           ? 'font-semibold text-coral-start'
           : 'text-muted'}"
       >
-        I agree to the
+        {$_('login.agreeToThe')}
         <button
           type="button"
           class="tappable inline-flex min-h-11 items-center font-semibold text-primary-dark underline underline-offset-2"
           on:click={() => (termsOpen = true)}
-        >Terms &amp; Conditions</button>
+        >{$_('login.termsAndConditions')}</button>
       </p>
     </div>
   {:else}
     <div
       class="h-[188px] animate-pulse rounded-card bg-card/70 shadow-card"
-      aria-label="Loading login options"
+      aria-label={$_('login.loadingOptionsAria')}
     ></div>
   {/if}
 </div>
@@ -368,7 +375,7 @@
   <button
     type="button"
     class="fixed inset-0 z-40 cursor-default bg-black/40"
-    aria-label="Close"
+    aria-label={$_('login.closeAria')}
     on:click={() => (termsOpen = false)}
     transition:fade={{ duration: 160 }}
   ></button>
@@ -377,10 +384,10 @@
     transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}
   >
     <div class="mb-3 flex items-center justify-between">
-      <p class="text-[15px] font-extrabold text-ink">Terms &amp; Conditions</p>
+      <p class="text-[15px] font-extrabold text-ink">{$_('login.termsAndConditions')}</p>
       <button
         type="button"
-        aria-label="Close"
+        aria-label={$_('login.closeAria')}
         class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark"
         on:click={() => (termsOpen = false)}
       >
@@ -388,14 +395,14 @@
       </button>
     </div>
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted">
-      <li>You must be 18 or older to create a YeneEta account.</li>
-      <li>Your phone number is used only to send a one-time verification code and account-related updates.</li>
-      <li>One account per phone number — the 5-ticket limit per raffle applies across every login method.</li>
-      <li>Keep your verification code private; YeneEta staff will never ask you for it.</li>
-      <li>Accounts found using fraudulent phone numbers or payment methods may be suspended.</li>
+      <li>{$_('login.termsList.age')}</li>
+      <li>{$_('login.termsList.phoneUse')}</li>
+      <li>{$_('login.termsList.oneAccount')}</li>
+      <li>{$_('login.termsList.keepPrivate')}</li>
+      <li>{$_('login.termsList.fraud')}</li>
     </ul>
     <div class="mt-4">
-      <Button size="md" on:click={() => (termsOpen = false)}>Got it</Button>
+      <Button size="md" on:click={() => (termsOpen = false)}>{$_('login.gotIt')}</Button>
     </div>
   </div>
 {/if}

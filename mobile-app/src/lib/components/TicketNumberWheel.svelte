@@ -1,8 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { Check } from 'lucide-svelte';
   import { playWheelTick } from '$lib/native/ticketWheelSound.js';
-  import { hapticSelection } from '$lib/native/haptics.js';
+  // Impact, not selectionChanged: Capacitor's selectionChanged only fires
+  // reliably on some Android builds after a preceding selectionStart(),
+  // which made the wheel feel silent/vibration-less on real devices.
+  // impact({style: Light}) has no such prerequisite and always fires.
+  import { hapticLight } from '$lib/native/haptics.js';
 
   type NumberState = 'available' | 'sold' | 'owned' | 'held' | 'held_by_you';
   export let slot: number;
@@ -61,7 +66,7 @@
       candidate = rows[rawIndex].number;
       if (engaged) {
         playWheelTick();
-        void hapticSelection();
+        void hapticLight();
       }
     }
     clearTimeout(settleTimer);
@@ -87,7 +92,7 @@
     engaged = false;
     void moveTo(number, 'smooth');
     playWheelTick();
-    void hapticSelection();
+    void hapticLight();
     // The checked centre row is also the clearest removal affordance:
     // tapping it again toggles this slot back to empty.
     dispatch('change', { slot, number: number === value ? null : number });
@@ -96,7 +101,7 @@
   function clearSlot() {
     if (disabled || value === null) return;
     playWheelTick();
-    void hapticSelection();
+    void hapticLight();
     dispatch('change', { slot, number: null });
   }
 
@@ -118,7 +123,7 @@
 </script>
 
 <div class="wheel-slot" class:filled={value !== null}>
-  <div class="slot-label"><span>{slot + 1}</span>{#if value !== null}<button type="button" on:click={clearSlot} disabled={disabled} aria-label="Remove ticket {label(value)}">Clear</button>{/if}</div>
+  <div class="slot-label"><span>{slot + 1}</span>{#if value !== null}<button type="button" on:click={clearSlot} disabled={disabled} aria-label={$_('ticketWheel.removeTicketAria', { values: { number: label(value) } })}>{$_('ticketWheel.clear')}</button>{/if}</div>
   <div class="wheel-shell">
     <div class="selection-band" aria-hidden="true"></div>
     <div class="wheel-fade top" aria-hidden="true"></div>
@@ -127,7 +132,7 @@
       bind:this={scroller}
       class="wheel-scroll"
       role="listbox"
-      aria-label="Ticket choice {slot + 1}"
+      aria-label={$_('ticketWheel.ticketChoiceAria', { values: { n: slot + 1 } })}
       aria-activedescendant={candidate ? `wheel-${slot}-${candidate}` : undefined}
       tabindex={disabled ? -1 : 0}
       on:pointerdown={markEngaged}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut, backOut } from 'svelte/easing';
   import { goto } from '$app/navigation';
@@ -113,7 +114,7 @@
       if (err instanceof ApiError && err.body.includes('ROOM_NOTAMEMBER')) {
         notAMember = true;
       } else {
-        error = 'Could not load this room.';
+        error = $_('rooms.loadError');
       }
     }
   }
@@ -180,11 +181,11 @@
     } catch (err) {
       if (err instanceof ApiError && err.body.includes('ROOM_READONLY')) {
         readOnly = true;
-        error = "This raffle has ended — the room is now read-only.";
+        error = $_('rooms.nowReadOnly');
       } else if (err instanceof ApiError && err.body.includes('Links')) {
-        error = "Links aren't allowed here — only text and emoji.";
+        error = $_('rooms.linksNotAllowed');
       } else {
-        error = 'Could not send that — try again.';
+        error = $_('rooms.sendError');
       }
     } finally {
       sending = false;
@@ -204,8 +205,8 @@
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
-    if (sameDay(d, today)) return 'Today';
-    if (sameDay(d, yesterday)) return 'Yesterday';
+    if (sameDay(d, today)) return $_('rooms.today');
+    if (sameDay(d, yesterday)) return $_('rooms.yesterday');
     return d.toLocaleDateString([], {
       month: 'short',
       day: 'numeric',
@@ -248,7 +249,7 @@
   }
 </script>
 
-<svelte:head><title>{roomTitle || 'Room'} · YeneEta</title></svelte:head>
+<svelte:head><title>{roomTitle || $_('rooms.roomFallback')} · YeneEta</title></svelte:head>
 
 <div class="relative">
   <!-- Header -->
@@ -257,7 +258,7 @@
   >
     <button
       type="button"
-      aria-label="Back to rooms"
+      aria-label={$_('rooms.backToRoomsAria')}
       on:click={() => {
         hapticLight();
         goto('/rooms');
@@ -269,22 +270,22 @@
 
     <div class="min-w-0 flex-1">
       <h1 class="truncate font-display text-[17px] font-bold leading-tight text-ink">
-        {roomTitle || 'Raffle room'}
+        {roomTitle || $_('rooms.raffleRoom')}
       </h1>
       <p class="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium">
         {#if roomEnded}
           <span class="h-1.5 w-1.5 rounded-full bg-nav-inactive"></span>
-          <span class="text-muted">Ended · read-only</span>
+          <span class="text-muted">{$_('rooms.endedReadOnly')}</span>
         {:else}
           <span class="live-dot h-1.5 w-1.5 rounded-full bg-primary"></span>
-          <span class="text-primary-dark">Live chat</span>
+          <span class="text-primary-dark">{$_('rooms.liveChat')}</span>
         {/if}
       </p>
     </div>
 
     <button
       type="button"
-      aria-label={soundMuted ? 'Unmute message sound' : 'Mute message sound'}
+      aria-label={soundMuted ? $_('rooms.unmuteAria') : $_('rooms.muteAria')}
       on:click={toggleSound}
       class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-muted shadow-card-light"
     >
@@ -306,8 +307,8 @@
         <Send size={15} fill="currentColor" />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-[13px] font-bold text-[#0d6d94]">Join the Telegram group</p>
-        <p class="text-[11px] text-[#229ED9]">Chat and get raffle updates outside the app</p>
+        <p class="text-[13px] font-bold text-[#0d6d94]">{$_('rooms.joinTelegramGroup')}</p>
+        <p class="text-[11px] text-[#229ED9]">{$_('rooms.joinTelegramBody')}</p>
       </div>
       <ExternalLink size={14} class="shrink-0 text-[#229ED9]" />
     </button>
@@ -330,14 +331,14 @@
   {:else if notAMember}
     <div class="flex flex-col items-center justify-center gap-3 rounded-card bg-card p-8 text-center shadow-card-light">
       <Lock size={22} class="text-muted" />
-      <p class="text-sm font-semibold text-ink">Buy a ticket to join</p>
+      <p class="text-sm font-semibold text-ink">{$_('rooms.buyTicketToJoin')}</p>
       <p class="text-[13px] leading-relaxed text-muted">
-        This room is only open to people who hold a ticket for this raffle.
+        {$_('rooms.membersOnly')}
       </p>
       <a
         href="/raffles/{raffleId}"
         class="tappable mt-1 text-[13px] font-semibold text-primary-dark underline underline-offset-2"
-      >View the raffle</a>
+      >{$_('rooms.viewTheRaffle')}</a>
     </div>
   {:else}
     <div>
@@ -381,7 +382,7 @@
                 {#if groupStart && !message.isMine}
                   <p class="mb-0.5 flex items-baseline gap-1 px-1 text-[11px]">
                     <span class="font-bold {message.senderType === 'admin' ? 'text-gold' : 'text-ink'}">
-                      {message.senderType === 'admin' ? 'YeneEta Team' : message.senderName}
+                      {message.senderType === 'admin' ? $_('rooms.yeneEtaTeam') : message.senderName}
                     </span>
                     {#if message.senderPhoneMasked}
                       <span class="font-mono text-[10px] text-muted">{message.senderPhoneMasked}</span>
@@ -423,7 +424,7 @@
               <span class="flex h-12 w-12 items-center justify-center rounded-full bg-bg-start text-primary-dark">
                 <MessageCircle size={21} />
               </span>
-              <p class="text-[13px] font-medium text-muted">No messages yet — be the first to say hi</p>
+              <p class="text-[13px] font-medium text-muted">{$_('rooms.beFirstToSayHi')}</p>
             </div>
           {/each}
         <div bind:this={bottomSentinel} class="h-px w-full" aria-hidden="true"></div>
@@ -438,7 +439,7 @@
           style="bottom: calc(164px + var(--safe-bottom, 0px));"
         >
           <ChevronDown size={14} />
-          {unreadCount} new message{unreadCount > 1 ? 's' : ''}
+          {$_('rooms.newMessages', { values: { n: unreadCount } })}
         </button>
       {/if}
     </div>
@@ -447,7 +448,7 @@
 
     {#if readOnly}
       <p class="flex items-center justify-center gap-1.5 rounded-button bg-bg-start py-3 text-[12px] font-semibold text-muted">
-        <Lock size={13} /> This room is read-only now that the raffle has ended.
+        <Lock size={13} /> {$_('rooms.readOnlyEnded')}
       </p>
     {:else}
       <form
@@ -464,7 +465,7 @@
           spellcheck="true"
           bind:value={draft}
           maxlength="500"
-          placeholder="Write a message — no links"
+          placeholder={$_('rooms.messagePlaceholder')}
           on:focus={handleInputFocus}
           on:blur={() => (inputFocused = false)}
           class="chat-input h-11 min-w-0 flex-1 rounded-button border-none bg-bg-start px-3.5 font-sans text-base text-ink outline-none placeholder:text-muted"
@@ -472,7 +473,7 @@
         <button
           type="submit"
           disabled={!draft.trim() || sending}
-          aria-label="Send"
+          aria-label={$_('rooms.sendAria')}
           class="pressable tappable send-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-dark text-[#0d221c] disabled:opacity-40 {draft.trim() ? 'send-armed' : ''}"
         >
           {#if sending}

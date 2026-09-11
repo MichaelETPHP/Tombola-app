@@ -1,5 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store';
+  import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -12,19 +13,20 @@
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { User, MessageCircle, ChevronRight, Pencil, Ticket as TicketIcon, Check, Info } from 'lucide-svelte';
-  import { language, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
+  import { User, MessageCircle, ChevronLeft, ChevronRight, Pencil, Ticket as TicketIcon, Check, Info } from 'lucide-svelte';
+  import { language, languages, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
   import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
 
   const pullRefresh = getPullRefreshContext();
 
-  const statusLabels: Record<PaymentHistoryItem['status'], string> = {
-    completed: 'Paid',
-    pending: 'Processing',
-    failed: 'Failed',
-    refunded: 'Refunded',
+  let statusLabels: Record<PaymentHistoryItem['status'], string>;
+  $: statusLabels = {
+    completed: $_('profile.paymentStatus.completed'),
+    pending: $_('profile.paymentStatus.pending'),
+    failed: $_('profile.paymentStatus.failed'),
+    refunded: $_('profile.paymentStatus.refunded'),
   };
   const statusColors: Record<PaymentHistoryItem['status'], string> = {
     completed: 'bg-bg-start text-primary-dark',
@@ -34,7 +36,7 @@
   };
 
   let fullName = $auth.user?.fullName ?? '';
-  let preferredLanguage: AppLanguage = $auth.user?.preferredLanguage ?? $language;
+  let preferredLanguage: AppLanguage = $auth.user?.preferredLanguage ?? ($language === 'am' ? 'am' : 'en');
   let saving = false;
   let error = '';
   let editOpen = false;
@@ -47,6 +49,12 @@
   // Seeded from the session cache — same reasoning as the Tickets page.
   let payments: PaymentHistoryItem[] = get(paymentsStore);
   let paymentsLoading = payments.length === 0;
+  const paymentsPageSize = 8;
+  let paymentsPage = 0;
+  $: paymentsPageCount = Math.max(1, Math.ceil(payments.length / paymentsPageSize));
+  // A refresh can shrink the list out from under whatever page was showing.
+  $: if (paymentsPage > paymentsPageCount - 1) paymentsPage = paymentsPageCount - 1;
+  $: pagedPayments = payments.slice(paymentsPage * paymentsPageSize, (paymentsPage + 1) * paymentsPageSize);
   let hasFetchedPayments = false;
 
   // Only fetched here to power "My tickets" link card's live count — the
@@ -111,10 +119,10 @@
       auth.update((state) => ({ ...state, user: res.user }));
       setLanguage(preferredLanguage);
       hapticMedium();
-      showBanner('Profile updated');
+      showBanner($_('profile.updatedBanner'));
       editOpen = false;
     } catch (err) {
-      error = err instanceof ApiError ? 'Could not update profile.' : 'Network error.';
+      error = err instanceof ApiError ? $_('profile.updateError') : $_('login.networkError');
     } finally {
       saving = false;
     }
@@ -140,12 +148,12 @@
     // Navigate first so the root-level banner appears on the login screen,
     // matching the existing successful-login notification sequence.
     await goto('/login', { replaceState: true });
-    showBanner('Logout successful');
+    showBanner($_('profile.logoutSuccessBanner'));
   }
 </script>
 
 {#if $auth.isLoading}
-  <div class="flex flex-col gap-5" aria-busy="true" aria-label="Loading profile">
+  <div class="flex flex-col gap-5" aria-busy="true" aria-label={$_('profile.loadingAria')}>
     <Skeleton class="h-7 w-28 rounded-full" />
 
     <div class="flex items-center gap-3.5 rounded-card bg-card p-4 shadow-card">
@@ -168,7 +176,7 @@
   </div>
 {:else if $auth.isAuthenticated}
   <div class="flex flex-col gap-5">
-    <h1 class="font-display text-2xl font-semibold text-ink">Profile</h1>
+    <h1 class="font-display text-2xl font-semibold text-ink">{$_('profile.title')}</h1>
 
     <!-- Compact identity row — avatar, name and phone read at a glance;
          editing is opt-in via the pencil rather than always taking a full
@@ -188,12 +196,12 @@
         {/if}
       </div>
       <div class="min-w-0 flex-1">
-        <p class="truncate text-[15px] font-bold text-ink">{$auth.user?.fullName || 'Add your name'}</p>
+        <p class="truncate text-[15px] font-bold text-ink">{$auth.user?.fullName || $_('profile.addYourName')}</p>
         <p class="mt-0.5 text-xs text-muted">{$auth.user?.phone ?? ''}</p>
       </div>
       <button
         type="button"
-        aria-label={editOpen ? 'Close edit profile' : 'Edit profile'}
+        aria-label={editOpen ? $_('profile.closeEditAria') : $_('profile.editAria')}
         aria-expanded={editOpen}
         on:click={toggleEdit}
         class="tappable pressable flex h-10 w-10 shrink-0 items-center justify-center rounded-full {editOpen
@@ -210,7 +218,7 @@
         transition:slide={{ duration: 220, easing: cubicOut }}
         on:submit|preventDefault={save}
       >
-        <label for="name" class="text-[13px] font-semibold text-muted">Full name</label>
+        <label for="name" class="text-[13px] font-semibold text-muted">{$_('profile.fullNameLabel')}</label>
         <input
           id="name"
           type="text"
@@ -220,13 +228,13 @@
           spellcheck="true"
           maxlength="100"
           bind:value={fullName}
-          placeholder="Add your name"
+          placeholder={$_('profile.addYourName')}
           class="h-12 rounded-button border-none bg-bg-start px-4 font-sans text-[15px] text-ink outline-none ring-2 ring-transparent transition-[box-shadow] duration-150 ease-[var(--ease-out)] placeholder:text-muted focus:ring-primary"
         />
 
-        <span class="text-[13px] font-semibold text-muted">Language</span>
+        <span class="text-[13px] font-semibold text-muted">{$_('profile.languageLabel')}</span>
         <div class="grid grid-cols-2 gap-2">
-          {#each [{ code: 'en', label: 'English' }, { code: 'am', label: 'አማርኛ' }] as opt (opt.code)}
+          {#each languages as opt (opt.code)}
             <button
               type="button"
               on:click={() => (preferredLanguage = opt.code as AppLanguage)}
@@ -245,7 +253,7 @@
           <p class="text-[13px] text-coral-start">{error}</p>
         {/if}
 
-        <Button type="submit" variant="secondary" loading={saving}>Save changes</Button>
+        <Button type="submit" variant="secondary" loading={saving}>{$_('profile.saveChanges')}</Button>
       </form>
     {/if}
 
@@ -258,8 +266,8 @@
         <MessageCircle size={18} />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold text-ink">My Rooms</p>
-        <p class="text-xs text-muted">Chat with buyers in raffles you've bought tickets for</p>
+        <p class="text-sm font-semibold text-ink">{$_('profile.myRooms')}</p>
+        <p class="text-xs text-muted">{$_('profile.myRoomsBody')}</p>
       </div>
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
@@ -273,11 +281,11 @@
         <TicketIcon size={18} />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold text-ink">My Tickets</p>
+        <p class="text-sm font-semibold text-ink">{$_('tickets.title')}</p>
         <p class="text-xs text-muted">
           {tickets.length === 0
-            ? 'Your ticket numbers and receipts'
-            : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'} across ${raffleCount} raffle${raffleCount === 1 ? '' : 's'}`}
+            ? $_('profile.ticketsSubtitleEmpty')
+            : $_('profile.ticketsSubtitle', { values: { n: tickets.length, r: raffleCount } })}
         </p>
       </div>
       <ChevronRight size={16} class="shrink-0 text-muted" />
@@ -292,24 +300,24 @@
         <Info size={18} />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold text-ink">About YeneEta</p>
-        <p class="text-xs text-muted">Support, FAQs and official channels</p>
+        <p class="text-sm font-semibold text-ink">{$_('profile.aboutYeneEta')}</p>
+        <p class="text-xs text-muted">{$_('profile.aboutBody')}</p>
       </div>
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
 
     <section class="flex flex-col gap-3">
-      <h2 class="font-display text-lg font-semibold text-ink">Payment history</h2>
+      <h2 class="font-display text-lg font-semibold text-ink">{$_('profile.paymentHistory')}</h2>
       {#if paymentsLoading}
         <div class="flex flex-col gap-3">
           <ListItemSkeleton />
           <ListItemSkeleton />
         </div>
       {:else if payments.length === 0}
-        <p class="text-[13px] text-muted">No purchases yet.</p>
+        <p class="text-[13px] text-muted">{$_('profile.noPurchases')}</p>
       {:else}
         <div class="flex flex-col gap-3">
-          {#each payments as payment (payment.id)}
+          {#each pagedPayments as payment (payment.id)}
             <a
               href="/raffles/{payment.raffleId}"
               class="tappable flex flex-col gap-2 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
@@ -325,7 +333,7 @@
                 </span>
               </div>
               <div class="flex items-center justify-between text-xs text-muted">
-                <span>{new Date(payment.createdAt).toLocaleDateString()}</span>
+                <span>{new Date(payment.createdAt).toLocaleDateString($language ?? undefined)}</span>
                 <span class="font-semibold text-ink">{formatEtb(payment.amount)} ETB</span>
               </div>
               {#if payment.ticketCodes.length > 0}
@@ -340,9 +348,33 @@
             </a>
           {/each}
         </div>
+
+        {#if paymentsPageCount > 1}
+          <nav class="flex items-center justify-center gap-4 pt-1" aria-label={$_('profile.paymentPagesAria')}>
+            <button
+              type="button"
+              class="tappable pressable flex h-8 w-8 items-center justify-center rounded-full bg-card text-ink shadow-card-light disabled:opacity-35"
+              disabled={paymentsPage === 0}
+              on:click={() => (paymentsPage -= 1)}
+              aria-label={$_('profile.previousPageAria')}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span class="text-xs font-medium text-muted">{$_('profile.pageOf', { values: { n: paymentsPage + 1, total: paymentsPageCount } })}</span>
+            <button
+              type="button"
+              class="tappable pressable flex h-8 w-8 items-center justify-center rounded-full bg-card text-ink shadow-card-light disabled:opacity-35"
+              disabled={paymentsPage >= paymentsPageCount - 1}
+              on:click={() => (paymentsPage += 1)}
+              aria-label={$_('profile.nextPageAria')}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </nav>
+        {/if}
       {/if}
     </section>
 
-    <Button variant="danger" on:click={logout}>Log out</Button>
+    <Button variant="danger" on:click={logout}>{$_('profile.logOut')}</Button>
   </div>
 {/if}

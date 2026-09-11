@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { raffles, isLoadingRaffles, type Raffle } from '$lib/stores/raffles.store.js';
   import { api } from '$lib/api/client.js';
   import Header from '$lib/components/Header.svelte';
@@ -44,13 +45,13 @@
   <section class="flex flex-col gap-2.5 pt-1">
     <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary-dark px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_7px_16px_-12px_rgba(0,105,80,0.8)]">
       <span class="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true"></span>
-      Live prizes
+      {$_('home.livePrizes')}
     </span>
     <h1 class="max-w-[370px] font-sans text-[29px] font-extrabold leading-[1.07] tracking-[-0.035em] text-ink">
-      Pick a prize. Choose your tickets. You’re in.
+      {$_('home.heroTitle')}
     </h1>
     <p class="max-w-[390px] text-[12px] font-medium leading-[1.65] text-[#586660]">
-      Enter with as little as one ticket. You can hold up to four tickets in each raffle.
+      {$_('home.heroSubtitle')}
     </p>
   </section>
 
@@ -58,36 +59,36 @@
     <BannerSkeleton />
   {:else if loadError}
     <section class="flex flex-col items-start gap-3 rounded-card border border-white/70 bg-card p-5 shadow-card-light">
-      <p class="text-sm font-bold text-ink">Couldn’t load the live prizes</p>
-      <p class="text-xs leading-relaxed text-muted">Check your connection, then try again.</p>
+      <p class="text-sm font-bold text-ink">{$_('home.loadErrorTitle')}</p>
+      <p class="text-xs leading-relaxed text-muted">{$_('home.loadErrorBody')}</p>
       <button
         type="button"
         class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#10211d]"
         on:click={loadRaffles}
       >
-        Try again <ArrowRight size={15} />
+        {$_('home.tryAgain')} <ArrowRight size={15} />
       </button>
     </section>
   {:else if featuredRaffles.length > 0}
     <section class="flex flex-col gap-3" aria-labelledby="most-picked-heading">
-      <div><h2 id="most-picked-heading" class="text-[17px] font-extrabold text-ink">Most picked</h2><p class="mt-1 text-xs text-muted">Selected by our team</p></div>
+      <div><h2 id="most-picked-heading" class="text-[17px] font-extrabold text-ink">{$_('home.mostPicked')}</h2><p class="mt-1 text-xs text-muted">{$_('home.selectedByTeam')}</p></div>
       <BannerCarousel raffles={featuredRaffles} />
     </section>
   {:else if $raffles.length === 0}
     <section class="rounded-card border border-white/70 bg-card p-5 shadow-card-light">
-      <p class="text-sm font-bold text-ink">New prizes are coming</p>
-      <p class="mt-1 text-xs leading-relaxed text-muted">There are no open raffles right now. Check again soon.</p>
+      <p class="text-sm font-bold text-ink">{$_('home.newPrizesTitle')}</p>
+      <p class="mt-1 text-xs leading-relaxed text-muted">{$_('home.newPrizesBody')}</p>
     </section>
   {/if}
 
   <section class="deferred-section flex flex-col gap-3">
     <div class="flex items-end justify-between gap-4">
       <div>
-        <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">More ways to win</h2>
-        <p class="mt-1 text-[10px] font-medium text-[#586660]">Every ticket gives you one fair chance</p>
+        <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('home.moreWaysToWin')}</h2>
+        <p class="mt-1 text-[10px] font-medium text-[#586660]">{$_('home.fairChance')}</p>
       </div>
       <a href="/raffles" class="tappable flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-extrabold text-primary-dark no-underline">
-        View all <ArrowRight size={14} />
+        {$_('home.viewAll')} <ArrowRight size={14} />
       </a>
     </div>
 

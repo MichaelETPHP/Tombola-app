@@ -1,5 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store';
+  import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
@@ -27,7 +28,7 @@
   // tickets for the same raffle sees one group of 5, not 5 separate rows.
   $: groups = Object.values(
     tickets.reduce<Record<string, RaffleGroup>>((acc, t) => {
-      if (!acc[t.raffleId]) acc[t.raffleId] = { raffleId: t.raffleId, raffleTitle: t.raffleTitle ?? 'Raffle', tickets: [] };
+      if (!acc[t.raffleId]) acc[t.raffleId] = { raffleId: t.raffleId, raffleTitle: t.raffleTitle ?? $_('raffle.pageTitleFallback'), tickets: [] };
       acc[t.raffleId].tickets.push(t);
       return acc;
     }, {})
@@ -61,13 +62,13 @@
   }
 </script>
 
-<svelte:head><title>My Tickets · YeneEta</title></svelte:head>
+<svelte:head><title>{$_('tickets.pageTitle')}</title></svelte:head>
 
 <div class="flex flex-col gap-5">
   <div class="flex items-center gap-3">
     <button
       type="button"
-      aria-label="Back to profile"
+      aria-label={$_('tickets.backToProfileAria')}
       on:click={() => {
         hapticLight();
         goto('/profile');
@@ -76,11 +77,11 @@
     >
       <ChevronLeft size={20} />
     </button>
-    <h1 class="font-display text-2xl font-semibold text-ink">My Tickets</h1>
+    <h1 class="font-display text-2xl font-semibold text-ink">{$_('tickets.title')}</h1>
   </div>
 
   {#if loading}
-    <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading tickets">
+    <div class="flex flex-col gap-3" aria-busy="true" aria-label={$_('tickets.loadingAria')}>
       <ListItemSkeleton />
       <ListItemSkeleton />
       <ListItemSkeleton />
@@ -90,9 +91,9 @@
       <span class="flex h-12 w-12 items-center justify-center rounded-full bg-bg-start text-primary-dark">
         <TicketIcon size={22} />
       </span>
-      <p class="text-sm font-semibold text-ink">No tickets yet</p>
+      <p class="text-sm font-semibold text-ink">{$_('tickets.emptyTitle')}</p>
       <p class="text-[13px] leading-relaxed text-muted">
-        Buy a ticket for any raffle and it shows up here with its receipt.
+        {$_('tickets.emptyBody')}
       </p>
     </div>
   {:else}
@@ -115,7 +116,7 @@
             </span>
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold text-ink">{group.raffleTitle}</p>
-              <p class="mt-0.5 text-xs text-muted">{group.tickets.length} ticket{group.tickets.length === 1 ? '' : 's'}</p>
+              <p class="mt-0.5 text-xs text-muted">{$_('checkout.ticketCount', { values: { n: group.tickets.length } })}</p>
             </div>
             <ChevronDown
               size={16}

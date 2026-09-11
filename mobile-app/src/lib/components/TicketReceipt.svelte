@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import { formatEtb } from '$lib/utils/currency.js';
   import { Ticket as TicketIcon } from 'lucide-svelte';
 
@@ -18,23 +19,23 @@
 <div class="ticket-receipt-paper relative bg-[#fbf8f0] px-4 pb-5 pt-6 text-[#2b2b26]">
   <div class="flex items-center justify-center gap-1.5 text-center">
     <TicketIcon size={11} class="text-[#8a8578]" />
-    <p class="text-[10px] font-black uppercase tracking-[0.22em]">YeneEta ticket</p>
+    <p class="text-[10px] font-black uppercase tracking-[0.22em]">{$_('ticketReceipt.title')}</p>
   </div>
 
   <div class="ticket-receipt-rule my-3"></div>
 
   <p class="truncate text-center text-[10px] font-bold uppercase tracking-[0.03em] text-[#5a564a]">{raffleTitle}</p>
   <p class="mt-1 text-center font-mono text-lg font-black tracking-[0.02em]">{ticketCode}</p>
-  <p class="mt-0.5 text-center text-[9px] text-[#8a8578]">Ticket No. {ticketNumber}</p>
+  <p class="mt-0.5 text-center text-[9px] text-[#8a8578]">{$_('ticketReceipt.ticketNo', { values: { n: ticketNumber } })}</p>
 
   <div class="ticket-receipt-rule my-3"></div>
 
   <dl class="space-y-1.5 font-mono text-[10px]">
-    <div class="flex justify-between"><dt class="text-[#8a8578]">PAID</dt><dd class="font-bold">{formatEtb(amount)} ETB</dd></div>
-    <div class="flex justify-between"><dt class="text-[#8a8578]">ISSUED</dt><dd class="font-bold">{fmt(purchasedAt)}</dd></div>
+    <div class="flex justify-between"><dt class="text-[#8a8578]">{$_('receipt.paid')}</dt><dd class="font-bold">{formatEtb(amount)} ETB</dd></div>
+    <div class="flex justify-between"><dt class="text-[#8a8578]">{$_('ticketReceipt.issued')}</dt><dd class="font-bold">{fmt(purchasedAt)}</dd></div>
     {#if expiresAt}
       <div class="flex justify-between">
-        <dt class="text-[#8a8578]">{expired ? 'EXPIRED' : 'EXPIRES'}</dt>
+        <dt class="text-[#8a8578]">{expired ? $_('ticketReceipt.expired') : $_('ticketReceipt.expires')}</dt>
         <dd class="font-bold {expired ? 'text-[#c74d4d]' : ''}">{fmt(expiresAt)}</dd>
       </div>
     {/if}
@@ -43,7 +44,7 @@
   <div class="ticket-receipt-rule my-3"></div>
 
   <p class="text-center text-[9px] font-black uppercase tracking-[0.12em] {expired ? 'text-[#8a8578]' : 'text-[#00a884]'}">
-    {expired ? 'Draw closed' : '✓ Valid entry'}
+    {expired ? $_('ticketReceipt.drawClosed') : $_('ticketReceipt.validEntry')}
   </p>
 </div>
 

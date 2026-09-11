@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
@@ -71,21 +72,21 @@
     if (!iso) return '';
     const ms = Date.now() - new Date(iso).getTime();
     const min = Math.floor(ms / 60000);
-    if (min < 1) return 'now';
-    if (min < 60) return `${min}m`;
+    if (min < 1) return $_('rooms.now');
+    if (min < 60) return $_('rooms.minutesAgo', { values: { n: min } });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h`;
-    return `${Math.floor(hr / 24)}d`;
+    if (hr < 24) return $_('rooms.hoursAgo', { values: { n: hr } });
+    return $_('rooms.daysAgo', { values: { n: Math.floor(hr / 24) } });
   }
 </script>
 
-<svelte:head><title>My Rooms · YeneEta</title></svelte:head>
+<svelte:head><title>{$_('rooms.pageTitle')}</title></svelte:head>
 
 <div class="flex flex-col gap-5">
   <div class="flex items-center gap-3">
     <button
       type="button"
-      aria-label="Back to profile"
+      aria-label={$_('tickets.backToProfileAria')}
       on:click={() => {
         hapticLight();
         goto('/profile');
@@ -94,11 +95,11 @@
     >
       <ChevronLeft size={20} />
     </button>
-    <h1 class="font-display text-2xl font-semibold text-ink">My Rooms</h1>
+    <h1 class="font-display text-2xl font-semibold text-ink">{$_('rooms.title')}</h1>
   </div>
 
   {#if loading}
-    <div class="flex flex-col gap-3" aria-busy="true" aria-label="Loading rooms">
+    <div class="flex flex-col gap-3" aria-busy="true" aria-label={$_('rooms.loadingAria')}>
       <ListItemSkeleton />
       <ListItemSkeleton />
       <ListItemSkeleton />
@@ -108,9 +109,9 @@
       <span class="flex h-12 w-12 items-center justify-center rounded-full bg-bg-start text-primary-dark">
         <MessageCircle size={22} />
       </span>
-      <p class="text-sm font-semibold text-ink">No rooms yet</p>
+      <p class="text-sm font-semibold text-ink">{$_('rooms.emptyTitle')}</p>
       <p class="text-[13px] leading-relaxed text-muted">
-        Buy a ticket for any raffle and its room opens here automatically — chat with other buyers about it.
+        {$_('rooms.emptyBody')}
       </p>
     </div>
   {:else}
@@ -134,7 +135,7 @@
               {/if}
             </div>
             <p class="mt-0.5 truncate text-xs text-muted">
-              {room.lastMessagePreview ?? 'No messages yet — start the conversation'}
+              {room.lastMessagePreview ?? $_('rooms.noMessagesYet')}
             </p>
           </div>
         </button>

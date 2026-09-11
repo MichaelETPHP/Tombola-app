@@ -2,16 +2,17 @@
   import { page } from '$app/stores';
   import { scale } from 'svelte/transition';
   import { backOut } from 'svelte/easing';
+  import { _ } from 'svelte-i18n';
   import { auth } from '../stores/auth.store.js';
   import { hapticLight } from '../native/haptics.js';
   import { unreadRoomCount } from '../stores/unreadRooms.js';
   import { Home, Ticket, Trophy, User } from 'lucide-svelte';
 
-  const items = [
-    { href: '/home', label: 'Home', icon: Home, requiresAuth: false },
-    { href: '/raffles', label: 'Raffles', icon: Ticket, requiresAuth: false },
-    { href: '/wins', label: 'Wins', icon: Trophy, requiresAuth: true },
-    { href: '/profile', label: 'Profile', icon: User, requiresAuth: true },
+  $: items = [
+    { href: '/home', label: $_('nav.home'), icon: Home, requiresAuth: false },
+    { href: '/raffles', label: $_('nav.raffles'), icon: Ticket, requiresAuth: false },
+    { href: '/wins', label: $_('nav.wins'), icon: Trophy, requiresAuth: true },
+    { href: '/profile', label: $_('nav.profile'), icon: User, requiresAuth: true },
   ];
 
   $: current = $page.url.pathname;
@@ -28,7 +29,7 @@
 
 <nav
   class="native-bottom-nav-position bottom-nav fixed inset-x-4 z-10 grid h-[76px] grid-cols-4 items-center rounded-nav bg-card px-1 shadow-nav"
-  aria-label="Primary navigation"
+  aria-label={$_('nav.primaryNavAria')}
 >
   {#each items as item (item.href)}
     {@const active = current.startsWith(item.href)}
@@ -58,7 +59,7 @@
             <span
               class="unread-badge absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-coral-start px-1 font-mono text-[10px] font-bold leading-none text-white"
               in:scale={{ duration: 340, easing: backOut, start: 0.4 }}
-              aria-label="{$unreadRoomCount} unread chat{$unreadRoomCount > 1 ? 's' : ''}"
+              aria-label={$_('nav.unreadChats', { values: { count: $unreadRoomCount } })}
             >
               {$unreadRoomCount > 9 ? '9+' : $unreadRoomCount}
             </span>

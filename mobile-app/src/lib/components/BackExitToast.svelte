@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { _ } from 'svelte-i18n';
   import { showExitHint } from '../stores/backExit.store.js';
 </script>
 
@@ -10,7 +11,7 @@
     transition:fly={{ y: 12, duration: 220, easing: cubicOut }}
   >
     <div class="rounded-full bg-ink/90 px-4 py-2.5 text-[13px] font-medium text-white shadow-nav backdrop-blur-sm">
-      Press back again to exit
+      {$_('common.pressBackToExit')}
     </div>
   </div>
 {/if}

@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import Skeleton from './Skeleton.svelte';
 </script>
 
-<div class="flex h-[calc(100dvh-140px)] min-h-0 flex-col gap-3 overflow-hidden" aria-busy="true" aria-label="Loading raffle">
+<div class="flex h-[calc(100dvh-140px)] min-h-0 flex-col gap-3 overflow-hidden" aria-busy="true" aria-label={$_('raffleDetailSkeleton.loadingAria')}>
   <div class="detail-artwork-skeleton w-full shrink-0">
     <Skeleton class="h-full w-full rounded-[26px]" />
   </div>

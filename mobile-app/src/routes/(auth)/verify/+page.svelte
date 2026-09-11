@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fly } from 'svelte/transition';
@@ -53,7 +54,7 @@
         await verifyCode(code);
       }
     } catch {
-      error = 'Could not resend the code. Please try again.';
+      error = $_('verify.resendError');
     } finally {
       resending = false;
     }
@@ -63,7 +64,11 @@
     hapticLight();
     const params = new URLSearchParams();
     if (returnTo) params.set('returnTo', returnTo);
-    goto(`/login${params.toString() ? `?${params}` : ''}`);
+    // Replace, not push — same reasoning as login's navigation to verify:
+    // this is a step backward within one sign-in action, not a new page,
+    // so it must not leave a stale "verify" entry behind for the back
+    // button to land on later.
+    goto(`/login${params.toString() ? `?${params}` : ''}`, { replaceState: true });
   }
 
   onMount(async () => {
@@ -94,7 +99,7 @@
     error = '';
     const parsed = verifyOtpSchema.safeParse({ phone, code: enteredCode });
     if (!parsed.success) {
-      error = parsed.error.issues[0]?.message ?? 'Enter the 6-digit code';
+      error = parsed.error.issues[0]?.message ?? $_('verify.enterCode');
       return;
     }
 
@@ -118,9 +123,9 @@
       // rendered. <Banner /> lives in the root layout, so it persists
       // across the navigation and shows correctly on top of the new page.
       await goto(destination, { replaceState: true });
-      showBanner('Login successful');
+      showBanner($_('login.loginSuccessBanner'));
     } catch (err) {
-      error = err instanceof ApiError ? 'Invalid or expired code.' : 'Network error.';
+      error = err instanceof ApiError ? $_('verify.invalidCode') : $_('login.networkError');
       // A demo deployment can immediately offer its known test code again;
       // a real OTP is cleared so the user can safely retype it.
       code = demoOtpEnabled ? '123456' : '';
@@ -132,7 +137,7 @@
 <div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-8 overflow-y-auto p-6">
   <button
     type="button"
-    aria-label="Back to login"
+    aria-label={$_('verify.backToLoginAria')}
     on:click={backToLogin}
     class="safe-area-floating-top tappable pressable absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"
   >
@@ -146,8 +151,8 @@
     <div class="flex h-16 w-16 items-center justify-center rounded-[20px] bg-bg-start shadow-card">
       <MessageCircle size={30} class="text-primary-dark" />
     </div>
-    <h1 class="font-display text-[26px] font-semibold text-ink">Verify your number</h1>
-    <p class="max-w-[280px] text-sm text-muted">We sent a 6-digit code to {phone}</p>
+    <h1 class="font-display text-[26px] font-semibold text-ink">{$_('verify.title')}</h1>
+    <p class="max-w-[280px] text-sm text-muted">{$_('verify.sentCode', { values: { phone } })}</p>
   </div>
 
   <div
@@ -156,12 +161,12 @@
   >
     <OtpInput bind:value={code} disabled={loading} on:complete={handleComplete} />
     {#if demoOtpEnabled && !error}
-      <p class="text-center text-[11px] font-semibold text-primary-dark">Test code filled automatically</p>
+      <p class="text-center text-[11px] font-semibold text-primary-dark">{$_('verify.testCodeFilled')}</p>
     {/if}
     {#if error}
       <p class="text-[13px] text-coral-start">{error}</p>
     {:else if loading}
-      <p class="text-[13px] text-muted">Verifying…</p>
+      <p class="text-[13px] text-muted">{$_('verify.verifying')}</p>
     {/if}
 
     <button
@@ -172,7 +177,7 @@
         ? 'text-muted'
         : 'text-primary-dark'}"
     >
-      {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : resending ? 'Sending…' : 'Resend code'}
+      {resendCooldown > 0 ? $_('verify.resendIn', { values: { s: resendCooldown } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
     </button>
   </div>
 </div>

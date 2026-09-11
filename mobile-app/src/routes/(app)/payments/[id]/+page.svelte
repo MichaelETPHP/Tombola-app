@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
@@ -61,7 +62,7 @@
       if (res.payment.status === 'completed' && !bannerShown) {
         bannerShown = true;
         showReceipt = true;
-        showBanner('Your tickets are ready');
+        showBanner($_('payments.ticketsReadyBanner'));
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -112,24 +113,24 @@
   onDestroy(stopPolling);
 </script>
 
-<svelte:head><title>Payment receipt · YeneEta</title></svelte:head>
+<svelte:head><title>{$_('payments.pageTitle')}</title></svelte:head>
 
 <div class="payment-page flex flex-col">
   <header class="flex h-11 items-center justify-between">
-    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink" aria-label="Back to raffle" on:click={goBack}><ArrowLeft size={20} /></button>
-    <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">Payment receipt</p>
+    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-ink" aria-label={$_('payments.backAria')} on:click={goBack}><ArrowLeft size={20} /></button>
+    <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">{$_('payments.headerLabel')}</p>
     <span class="h-11 w-11"></span>
   </header>
 
   {#if loadError}
     <section class="flex flex-1 flex-col items-center justify-center px-5 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-pink-bg text-pink"><X size={28} /></span>
-      <h1 class="text-xl font-extrabold tracking-[-0.025em] text-ink">Payment not found</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">We could not match this receipt to your account. Your existing tickets are still safe.</p>
-      <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={() => goto('/tickets')}>View my tickets</button>
+      <h1 class="text-xl font-extrabold tracking-[-0.025em] text-ink">{$_('payments.notFoundTitle')}</h1>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">{$_('payments.notFoundBody')}</p>
+      <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={() => goto('/tickets')}>{$_('numbers.viewMyTickets')}</button>
     </section>
   {:else if !payment}
-    <div class="flex flex-1 flex-col justify-center gap-4 px-2" aria-busy="true" aria-label="Checking payment status">
+    <div class="flex flex-1 flex-col justify-center gap-4 px-2" aria-busy="true" aria-label={$_('payments.checkingStatusAria')}>
       <Skeleton class="mx-auto h-16 w-16 rounded-full" />
       <Skeleton class="mx-auto h-6 w-44 rounded-full" />
       <Skeleton class="mx-auto h-4 w-64 rounded-full" />
@@ -139,9 +140,9 @@
     <section class="flex flex-1 flex-col pt-4" transition:fly={{ y: 10, duration: 240, easing: cubicOut }}>
       <div class="text-center">
         <span class="success-mark mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={29} strokeWidth={2.5} /></span>
-        <p class="mt-4 text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">Payment confirmed</p>
-        <h1 class="mt-1 text-[22px] font-extrabold tracking-[-0.03em] text-ink">You are in the draw</h1>
-        <p class="mx-auto mt-1 max-w-[300px] text-xs leading-5 text-muted">Every ticket below is one independent chance to win.</p>
+        <p class="mt-4 text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">{$_('payments.confirmedLabel')}</p>
+        <h1 class="mt-1 text-[22px] font-extrabold tracking-[-0.03em] text-ink">{$_('payments.inDrawTitle')}</h1>
+        <p class="mx-auto mt-1 max-w-[300px] text-xs leading-5 text-muted">{$_('payments.independentChanceBody')}</p>
       </div>
 
       <div class="mt-5 overflow-hidden rounded-card bg-card shadow-card">
@@ -155,52 +156,52 @@
         </div>
         <div class="ticket-perforation"></div>
         <dl class="space-y-2.5 px-5 py-4 text-xs">
-          <div class="flex justify-between"><dt class="text-muted">Paid</dt><dd class="font-extrabold text-ink">{formatEtb(payment.amount)} ETB</dd></div>
-          <div class="flex justify-between"><dt class="text-muted">Method</dt><dd class="font-bold capitalize text-ink">{payment.gateway}</dd></div>
-          <div class="flex justify-between"><dt class="text-muted">Receipt</dt><dd class="max-w-[170px] truncate font-mono text-[10px] font-semibold text-muted">{payment.id}</dd></div>
+          <div class="flex justify-between"><dt class="text-muted">{$_('payments.paidLabel')}</dt><dd class="font-extrabold text-ink">{formatEtb(payment.amount)} ETB</dd></div>
+          <div class="flex justify-between"><dt class="text-muted">{$_('payments.methodLabel')}</dt><dd class="font-bold capitalize text-ink">{payment.gateway}</dd></div>
+          <div class="flex justify-between"><dt class="text-muted">{$_('payments.receiptLabel')}</dt><dd class="max-w-[170px] truncate font-mono text-[10px] font-semibold text-muted">{payment.id}</dd></div>
         </dl>
       </div>
 
       <div class="mt-auto space-y-2.5 pt-4">
-        <button type="button" class="pressable h-12 w-full rounded-button bg-primary text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(0,181,137,0.18)]" on:click={() => goto('/tickets')}>View all my tickets</button>
-        <button type="button" class="pressable h-11 w-full text-xs font-bold text-muted" on:click={goToRaffle}>Back to raffle</button>
+        <button type="button" class="pressable h-12 w-full rounded-button bg-primary text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(0,181,137,0.18)]" on:click={() => goto('/tickets')}>{$_('payments.viewAllTickets')}</button>
+        <button type="button" class="pressable h-11 w-full text-xs font-bold text-muted" on:click={goToRaffle}>{$_('payments.backToRaffleButton')}</button>
       </div>
     </section>
   {:else if payment.status === 'review'}
     <section class="flex flex-1 flex-col justify-center gap-4 py-8">
       <Clock3 size={32} class="text-ink" />
-      <h1 class="text-2xl font-bold text-ink">Your payment needs a review</h1>
-      <p class="text-sm leading-6 text-[#566960]">Payment was verified, but we could not issue your selected numbers. Do not pay again. Our team needs to reconcile this payment and arrange a refund.</p>
-      <p class="break-all text-xs text-[#566960]">Payment reference: {payment.id}</p>
-      <button class="min-h-12 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={() => goto('/profile')}>View payment history</button>
+      <h1 class="text-2xl font-bold text-ink">{$_('payments.reviewTitle')}</h1>
+      <p class="text-sm leading-6 text-[#566960]">{$_('payments.reviewBody')}</p>
+      <p class="break-all text-xs text-[#566960]">{$_('payments.paymentReference', { values: { id: payment.id } })}</p>
+      <button class="min-h-12 rounded-button bg-ink px-5 text-sm font-bold text-white" on:click={() => goto('/profile')}>{$_('payments.viewPaymentHistory')}</button>
     </section>
   {:else if payment.status === 'failed'  || payment.status === 'refunded'}
     <section class="flex flex-1 flex-col items-center justify-center px-4 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-pink-bg text-pink"><X size={28} /></span>
-      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-pink">Payment unsuccessful</p>
-      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">No tickets were issued</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">No tickets were confirmed for this attempt. If your provider shows a debit, check the payment status before trying again.</p>
-      <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={goToRaffle}>Try payment again</button>
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-pink">{$_('payments.unsuccessfulLabel')}</p>
+      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">{$_('payments.noTicketsTitle')}</h1>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">{$_('payments.noTicketsBody')}</p>
+      <button type="button" class="pressable mt-6 h-12 w-full rounded-button bg-ink text-sm font-bold text-white" on:click={goToRaffle}>{$_('payments.tryPaymentAgain')}</button>
     </section>
   {:else if timedOut}
     <section class="flex flex-1 flex-col items-center justify-center px-4 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-gold-bg text-gold"><Clock3 size={27} /></span>
-      <h1 class="text-xl font-extrabold tracking-[-0.025em] text-ink">Confirmation is delayed</h1>
-      <p class="mt-2 max-w-[310px] text-sm leading-6 text-muted">Do not pay again yet. We will keep the payment record while the gateway responds.</p>
-      <button type="button" class="pressable mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-ink text-sm font-bold text-white" on:click={restartPolling}><RefreshCw size={16} /> Check again</button>
-      <button type="button" class="pressable mt-2 h-11 px-3 text-xs font-bold text-muted" on:click={() => goto('/tickets')}>Check my tickets</button>
+      <h1 class="text-xl font-extrabold tracking-[-0.025em] text-ink">{$_('payments.delayedTitle')}</h1>
+      <p class="mt-2 max-w-[310px] text-sm leading-6 text-muted">{$_('payments.delayedBody')}</p>
+      <button type="button" class="pressable mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-ink text-sm font-bold text-white" on:click={restartPolling}><RefreshCw size={16} /> {$_('payments.checkAgain')}</button>
+      <button type="button" class="pressable mt-2 h-11 px-3 text-xs font-bold text-muted" on:click={() => goto('/tickets')}>{$_('payments.checkMyTickets')}</button>
     </section>
   {:else}
     <section class="flex flex-1 flex-col items-center justify-center px-5 text-center" transition:fly={{ y: 10, duration: 220, easing: cubicOut }}>
       <span class="processing-ring relative mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/65"><ReceiptText size={25} class="text-primary-dark" /></span>
-      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">Checking payment</p>
-      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">Confirming your payment</h1>
-      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">Your selected numbers are held while we check the payment provider. Please do not pay again.</p>
-      <div class="mt-6 flex items-center gap-2 rounded-full bg-white/60 px-3 py-2 text-[11px] font-semibold text-muted"><ShieldCheck size={14} class="text-primary-dark" /> Secure server confirmation {checking ? 'in progress' : 'queued'}</div>
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">{$_('payments.checkingLabel')}</p>
+      <h1 class="mt-1 text-xl font-extrabold tracking-[-0.025em] text-ink">{$_('payments.confirmingTitle')}</h1>
+      <p class="mt-2 max-w-[300px] text-sm leading-6 text-muted">{$_('payments.confirmingBody')}</p>
+      <div class="mt-6 flex items-center gap-2 rounded-full bg-white/60 px-3 py-2 text-[11px] font-semibold text-muted"><ShieldCheck size={14} class="text-primary-dark" /> {checking ? $_('payments.confirmationInProgress') : $_('payments.confirmationQueued')}</div>
     </section>
   {/if}
   {#if payment?.status === 'pending'}
-    <button type="button" class="mt-3 min-h-12 shrink-0 rounded-xl bg-white/70 px-4 text-sm font-semibold text-[#85434a]" disabled={cancelling} on:click={cancelReservation}>{cancelling ? 'Releasing your numbers...' : 'Cancel & release numbers'}</button>
+    <button type="button" class="mt-3 min-h-12 shrink-0 rounded-xl bg-white/70 px-4 text-sm font-semibold text-[#85434a]" disabled={cancelling} on:click={cancelReservation}>{cancelling ? $_('payments.releasingNumbers') : $_('numbers.cancelRelease')}</button>
   {/if}
 </div>
 

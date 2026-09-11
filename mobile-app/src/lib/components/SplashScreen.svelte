@@ -1,25 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ } from 'svelte-i18n';
   import IosSpinner from './IosSpinner.svelte';
   import { Sparkles, ArrowRight, Dices, Trophy, ShieldCheck } from 'lucide-svelte';
 
   export let autoRedirect: boolean = true;
   export let redirectDelayMs: number = 4000;
 
-  const slides = [
+  $: slides = [
     {
       image: '/images/splash-screen-1.jpg',
-      title: 'Win Big Daily',
-      subtitle: 'Transparent, provably-fair raffles with incredible prizes in Ethiopia',
-      tag: 'Ethiopia #1 Raffle Platform',
+      title: $_('splash.slide1.title'),
+      subtitle: $_('splash.slide1.subtitle'),
+      tag: $_('splash.slide1.tag'),
       color: '#7C3AED',
     },
     {
       image: '/images/splash-screen-2.jpg',
-      title: 'Your Turn to Win',
-      subtitle: 'Buy tickets easily with Telebirr & Chapa. Track your odds in real time',
-      tag: 'Instant Digital Payouts',
+      title: $_('splash.slide2.title'),
+      subtitle: $_('splash.slide2.subtitle'),
+      tag: $_('splash.slide2.tag'),
       color: '#F59E0B',
     },
   ];
@@ -79,7 +80,7 @@
   {/each}
 
   <!-- Top Bar: Brand + Slide Indicators + iOS Spinner -->
-  <header class="relative z-20 flex items-center justify-between px-6 pt-12">
+  <header class="safe-area-top relative z-20 flex items-center justify-between px-6">
     <div class="flex items-center gap-2.5 rounded-full bg-black/40 px-3.5 py-1.5 backdrop-blur-md border border-white/10">
       <div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-black">
         <Dices size={14} class="stroke-[2.5]" />
@@ -90,7 +91,7 @@
     <!-- Small iPhone Spinning Icon Loader -->
     <div class="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-md border border-white/10">
       <IosSpinner size={16} color="#00D3A0" />
-      <span class="text-[11px] font-medium text-white/80">Loading</span>
+      <span class="text-[11px] font-medium text-white/80">{$_('splash.loading')}</span>
     </div>
   </header>
 
@@ -110,7 +111,7 @@
   </div>
 
   <!-- Bottom Content Card -->
-  <div class="relative z-20 flex flex-col gap-6 px-6 pb-10">
+  <div class="relative z-20 flex flex-col gap-6 px-6 pb-[max(2.5rem,var(--safe-bottom))]">
     <!-- Slide Text -->
     <div class="flex flex-col gap-2">
       <h1 class="text-3xl font-extrabold tracking-tight text-white sm:text-4xl drop-shadow-md">
@@ -123,12 +124,12 @@
 
     <!-- Slide Indicators / Progress Bars -->
     <div class="flex gap-2">
-      {#each slides as _, i}
+      {#each slides as slide, i}
         <button
           type="button"
           on:click={() => selectSlide(i)}
           class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20"
-          aria-label="Slide {i + 1}"
+          aria-label={$_('splash.slideAria', { values: { n: i + 1 } })}
         >
           <div
             class="slide-progress h-full rounded-full bg-primary {currentSlide === i
@@ -144,6 +145,21 @@
 
     <!-- Action Buttons with iPhone Activity Indicator -->
     <div class="flex flex-col gap-3 pt-2">
+      <!-- Trusted payment methods — persists across both slides, sits right
+           above the CTA so trust is reinforced at the moment of decision -->
+      <div class="flex items-center justify-center gap-2.5">
+        <span class="text-[11px] text-white/50">{$_('splash.payWith')}</span>
+        <div class="payment-badge flex h-10 items-center rounded-xl bg-white px-3 shadow-md">
+          <img src="/telebirr-logo.png" alt="Telebirr" class="h-6 w-auto object-contain" />
+        </div>
+        <div class="payment-badge flex h-10 items-center rounded-xl bg-white px-3 shadow-md">
+          <img src="/M-PESA-logo.png" alt="M-PESA" class="h-6 w-auto object-contain" />
+        </div>
+        <div class="payment-badge flex h-10 items-center rounded-xl bg-white px-3 shadow-md">
+          <img src="/chapa-logo.png" alt="Chapa" class="h-6 w-auto object-contain" />
+        </div>
+      </div>
+
       <button
         type="button"
         on:click={handleStart}
@@ -151,9 +167,9 @@
       >
         {#if isNavigating}
           <IosSpinner size={18} color="#000000" />
-          <span>Opening App…</span>
+          <span>{$_('splash.openingApp')}</span>
         {:else}
-          <span>Explore Raffles</span>
+          <span>{$_('splash.explore')}</span>
           <ArrowRight size={18} />
         {/if}
       </button>
@@ -161,11 +177,11 @@
       <!-- Sub-features badges -->
       <div class="flex items-center justify-center gap-4 text-[11px] text-white/60 pt-1">
         <span class="flex items-center gap-1">
-          <ShieldCheck size={13} class="text-primary" /> Provably Fair
+          <ShieldCheck size={13} class="text-primary" /> {$_('splash.provablyFair')}
         </span>
         <span>•</span>
         <span class="flex items-center gap-1">
-          <Trophy size={13} class="text-yellow-400" /> Real Cash & Prizes
+          <Trophy size={13} class="text-yellow-400" /> {$_('splash.realCash')}
         </span>
       </div>
     </div>
@@ -196,6 +212,39 @@
     .slide-progress.is-active {
       animation: none;
       transform: scaleX(1);
+    }
+  }
+
+  .payment-badge {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: payment-badge-in 320ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  .payment-badge:nth-of-type(1) {
+    animation-delay: 150ms;
+  }
+
+  .payment-badge:nth-of-type(2) {
+    animation-delay: 230ms;
+  }
+
+  .payment-badge:nth-of-type(3) {
+    animation-delay: 310ms;
+  }
+
+  @keyframes payment-badge-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .payment-badge {
+      animation: none;
+      opacity: 1;
+      transform: none;
     }
   }
 </style>

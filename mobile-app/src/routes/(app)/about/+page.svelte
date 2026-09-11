@@ -1,6 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { _ } from 'svelte-i18n';
   import {
     ArrowLeft,
     ChevronDown,
@@ -18,32 +19,12 @@
   const BOT_LINK = 'https://t.me/yeneEtabot/yeneeta';
   const TIKTOK_URL = 'https://www.tiktok.com/@yeneeta';
 
-  const faqs = [
-    {
-      question: 'How do I enter a raffle?',
-      answer:
-        'Open a live raffle, choose your ticket quantity, accept the conditions and complete payment. Your confirmed ticket numbers will then appear under My Tickets.',
-    },
-    {
-      question: 'How many tickets can I buy?',
-      answer:
-        'Each raffle shows its own ticket limit before purchase. Choose any quantity from one up to the maximum displayed on that raffle.',
-    },
-    {
-      question: 'When will I receive my ticket numbers?',
-      answer:
-        'Ticket numbers are issued after payment is confirmed. You can review them anytime from Profile → My Tickets.',
-    },
-    {
-      question: 'How are winners announced?',
-      answer:
-        'Every paid ticket represents one entry. Draw information and confirmed results are published inside YeneEta so you can follow the raffle from entry to result.',
-    },
-    {
-      question: 'Where can I review a payment?',
-      answer:
-        'Open Profile to see your payment history and status. If you still need help, call the support number on this page.',
-    },
+  $: faqs = [
+    { question: $_('about.faq.enter.q'), answer: $_('about.faq.enter.a') },
+    { question: $_('about.faq.howMany.q'), answer: $_('about.faq.howMany.a') },
+    { question: $_('about.faq.whenNumbers.q'), answer: $_('about.faq.whenNumbers.a') },
+    { question: $_('about.faq.winners.q'), answer: $_('about.faq.winners.a') },
+    { question: $_('about.faq.reviewPayment.q'), answer: $_('about.faq.reviewPayment.a') },
   ];
 
   let openFaq: number | null = 0;
@@ -66,12 +47,12 @@
     try {
       await shareYeneEtaContent({
         title: 'YeneEta',
-        text: 'Join YeneEta on Telegram to discover live raffles and prizes.',
+        text: $_('about.shareText'),
         url: BOT_LINK,
       });
     } catch {
       await copyText(BOT_LINK);
-      showBanner('YeneEta link copied');
+      showBanner($_('about.linkCopiedBanner'));
     } finally {
       sharing = false;
     }
@@ -83,21 +64,21 @@
   }
 </script>
 
-<svelte:head><title>About us · YeneEta</title></svelte:head>
+<svelte:head><title>{$_('about.pageTitle')}</title></svelte:head>
 
 <div class="about-page flex flex-col gap-6">
   <header class="flex items-center gap-3">
     <button
       type="button"
-      aria-label="Back to Profile"
+      aria-label={$_('about.backAria')}
       on:click={goBack}
       class="tappable pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-primary-dark shadow-card-light"
     >
       <ArrowLeft size={19} />
     </button>
     <div>
-      <h1 class="font-display text-2xl font-semibold tracking-[-0.02em] text-ink">About us</h1>
-      <p class="mt-0.5 text-[11px] font-medium text-muted">YeneEta support and information</p>
+      <h1 class="font-display text-2xl font-semibold tracking-[-0.02em] text-ink">{$_('about.title')}</h1>
+      <p class="mt-0.5 text-[11px] font-medium text-muted">{$_('about.subtitle')}</p>
     </div>
   </header>
 
@@ -113,33 +94,33 @@
       />
       <div>
         <p class="text-[20px] font-extrabold leading-none tracking-[-0.03em]">YeneEta</p>
-        <p class="mt-1.5 text-[11px] font-semibold text-white/65">Real prizes. Fair draws.</p>
+        <p class="mt-1.5 text-[11px] font-semibold text-white/65">{$_('header.tagline')}</p>
       </div>
     </div>
     <p class="relative mt-5 max-w-[34ch] text-[13px] font-medium leading-[1.7] text-white/82">
-      YeneEta brings live raffles, ticket entry and draw results together in one simple mobile experience.
+      {$_('about.brandBody')}
     </p>
   </section>
 
   <section class="flex flex-col gap-3">
     <div>
-      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">Support</h2>
-      <p class="mt-1 text-[10px] font-medium text-muted">Talk directly with the YeneEta team</p>
+      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('about.support')}</h2>
+      <p class="mt-1 text-[10px] font-medium text-muted">{$_('about.supportBody')}</p>
     </div>
     <a
       href="tel:+251951043859"
       on:click={hapticLight}
       class="tappable pressable flex min-h-[72px] items-center gap-3.5 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
-      aria-label="Call YeneEta support at plus two five one, nine five, one zero four, three eight five nine"
+      aria-label={$_('about.callAria')}
     >
       <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark">
         <Phone size={19} />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-[11px] font-semibold text-muted">Support phone</p>
+        <p class="text-[11px] font-semibold text-muted">{$_('about.supportPhone')}</p>
         <p class="mt-0.5 text-[15px] font-extrabold tabular-nums text-ink">+251 95 104 3859</p>
       </div>
-      <span class="rounded-full bg-bg-start px-3 py-1.5 text-[10px] font-extrabold text-primary-dark">Call</span>
+      <span class="rounded-full bg-bg-start px-3 py-1.5 text-[10px] font-extrabold text-primary-dark">{$_('about.call')}</span>
     </a>
   </section>
 
@@ -149,8 +130,8 @@
         <Share2 size={18} />
       </span>
       <div class="min-w-0 flex-1">
-        <h2 class="text-[15px] font-extrabold text-ink">Share YeneEta</h2>
-        <p class="mt-1 text-[11px] leading-relaxed text-muted">Invite someone directly to our main Telegram page.</p>
+        <h2 class="text-[15px] font-extrabold text-ink">{$_('about.shareTitle')}</h2>
+        <p class="mt-1 text-[11px] leading-relaxed text-muted">{$_('about.shareBody')}</p>
       </div>
     </div>
     <button
@@ -160,34 +141,34 @@
       class="share-button tappable pressable mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#10211d] disabled:opacity-60"
     >
       <Share2 size={17} />
-      {sharing ? 'Opening share options…' : 'Share Telegram link'}
+      {sharing ? $_('about.openingShare') : $_('about.shareTelegramLink')}
     </button>
     <p class="mt-2.5 truncate text-center text-[10px] font-medium text-muted">t.me/yeneEtabot/yeneeta</p>
   </section>
 
   <section class="flex flex-col gap-3">
     <div>
-      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">Official channels</h2>
-      <p class="mt-1 text-[10px] font-medium text-muted">Follow announcements from YeneEta</p>
+      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('about.officialChannels')}</h2>
+      <p class="mt-1 text-[10px] font-medium text-muted">{$_('about.followAnnouncements')}</p>
     </div>
     <div class="grid grid-cols-3 gap-2.5">
       <button
         type="button"
         disabled
         class="channel flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[16px] bg-card text-muted shadow-card-light disabled:opacity-65"
-        aria-label="Facebook, coming soon"
+        aria-label={$_('about.facebookComingSoonAria')}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M13.7 21v-8h2.7l.4-3.1h-3.1v-2c0-.9.3-1.5 1.6-1.5H17V3.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.1H7.5V13h2.8v8h3.4Z" />
         </svg>
         <span class="text-[11px] font-bold">Facebook</span>
-        <span class="text-[8px] font-bold uppercase tracking-[0.08em]">Coming soon</span>
+        <span class="text-[8px] font-bold uppercase tracking-[0.08em]">{$_('about.comingSoon')}</span>
       </button>
       <button
         type="button"
         on:click={openTikTok}
         class="channel tappable pressable flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[16px] bg-card text-ink shadow-card-light"
-        aria-label="Open the official YeneEta TikTok"
+        aria-label={$_('about.tiktokAria')}
       >
         <TikTokIcon size={20} />
         <span class="text-[11px] font-bold">TikTok</span>
@@ -197,21 +178,21 @@
         type="button"
         disabled
         class="channel flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[16px] bg-card text-muted shadow-card-light disabled:opacity-65"
-        aria-label="YouTube, coming soon"
+        aria-label={$_('about.youtubeComingSoonAria')}
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31 31 0 0 0 1.9 12c0 1.6.2 3.2.5 4.8a3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1c.3-1.6.5-3.2.5-4.8s-.2-3.2-.5-4.8ZM10 15.2V8.8l5.5 3.2-5.5 3.2Z" />
         </svg>
         <span class="text-[11px] font-bold">YouTube</span>
-        <span class="text-[8px] font-bold uppercase tracking-[0.08em]">Coming soon</span>
+        <span class="text-[8px] font-bold uppercase tracking-[0.08em]">{$_('about.comingSoon')}</span>
       </button>
     </div>
   </section>
 
   <section class="flex flex-col gap-3">
     <div>
-      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">Common questions</h2>
-      <p class="mt-1 text-[10px] font-medium text-muted">Quick answers before you enter</p>
+      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('about.commonQuestions')}</h2>
+      <p class="mt-1 text-[10px] font-medium text-muted">{$_('about.quickAnswers')}</p>
     </div>
     <div class="faq-list overflow-hidden rounded-[18px] bg-card shadow-card-light">
       {#each faqs as faq, index (faq.question)}
@@ -241,7 +222,7 @@
 
   <footer class="mb-2 flex items-center justify-center gap-2 text-center text-[10px] font-semibold text-muted">
     <Code2 size={13} class="text-primary-dark" />
-    <span>Developed by <strong class="font-extrabold text-ink">Michael Masresha</strong></span>
+    <span>{$_('about.developedBy')} <strong class="font-extrabold text-ink">Michael & Masresha</strong></span>
   </footer>
 </div>
 

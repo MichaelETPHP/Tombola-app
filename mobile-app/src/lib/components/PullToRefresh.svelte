@@ -188,7 +188,7 @@
   </div>
   <div
     class="pull-content"
-    style="transform: translate3d(0, {pullDistance}px, 0); transition: {dragging ? 'none' : 'transform 220ms var(--ease-out)'};"
+    style="transform: {pullDistance === 0 ? 'none' : `translate3d(0, ${pullDistance}px, 0)`}; transition: {dragging ? 'none' : 'transform 220ms var(--ease-out)'};"
   >
     <slot />
   </div>

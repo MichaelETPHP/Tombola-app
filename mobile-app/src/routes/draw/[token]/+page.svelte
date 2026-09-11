@@ -2,6 +2,8 @@
   import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
   import { fade } from 'svelte/transition';
+  import { _ } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   import { api, ApiError } from '$lib/api/client.js';
   import { CheckCircle2, Clock3, LockKeyhole, ShieldCheck, Users } from 'lucide-svelte';
   import { hapticMedium } from '$lib/native/haptics.js';
@@ -41,12 +43,6 @@
 
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  function ordinal(n: number): string {
-    const v = n % 100;
-    if (v >= 11 && v <= 13) return `${n}th`;
-    return `${n}${n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'}`;
-  }
 
   function randomTicket(): string {
     const value = Math.floor(Math.random() * 100000);
@@ -102,8 +98,8 @@
       draw = response.draw;
       if (!draw.canSpin || !draw.spinNonce) {
         error = draw.status === 'clicked'
-          ? 'This draw has already been completed.'
-          : 'This one-time draw invitation is no longer available.';
+          ? get(_)('draw.alreadyCompleted')
+          : get(_)('draw.noLongerAvailable');
         return;
       }
 
@@ -121,10 +117,10 @@
       await hapticMedium();
     } catch (cause) {
       error = cause instanceof ApiError && cause.status === 404
-        ? 'This draw invitation is invalid.'
+        ? get(_)('draw.invalidInvitation')
         : cause instanceof ApiError && [409, 410].includes(cause.status)
-          ? 'This one-time draw invitation has already been used, replaced, or expired.'
-          : 'The draw could not be completed. Please check your connection.';
+          ? get(_)('draw.usedOrExpired')
+          : get(_)('draw.connectionError');
     } finally {
       resultReady = true;
       spinning = false;
@@ -135,7 +131,7 @@
     ? new Intl.DateTimeFormat('en-ET', {
         dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Addis_Ababa',
       }).format(new Date(value))
-    : 'Preparing draw time';
+    : get(_)('draw.preparingTime');
 
   function unlockSound(): void { void enableSound(); }
 
@@ -150,7 +146,7 @@
 </script>
 
 <svelte:head>
-  <title>Fair draw · YeneEta</title>
+  <title>{$_('draw.pageTitle')}</title>
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <meta name="referrer" content="no-referrer" />
 </svelte:head>
@@ -159,8 +155,8 @@
   <div class="mx-auto flex min-h-[calc(100dvh-48px)] max-w-md flex-col">
     <header class="flex items-start justify-between pt-2">
       <div class="min-w-0 pr-4">
-        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">YeneEta verified draw</p>
-        <h1 class="mt-1 truncate text-xl font-black tracking-[-0.03em]">{draw?.raffleName ?? 'Loading raffle'}</h1>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">{$_('draw.verifiedDraw')}</p>
+        <h1 class="mt-1 truncate text-xl font-black tracking-[-0.03em]">{draw?.raffleName ?? $_('draw.loadingRaffle')}</h1>
       </div>
       <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0c9f7d] shadow-sm"><ShieldCheck size={21} /></span>
     </header>
@@ -168,15 +164,15 @@
     {#if error}
       <section class="my-auto text-center" in:fade={{ duration: 160 }}>
         <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm"><LockKeyhole size={27} /></span>
-        <h2 class="mt-5 text-xl font-black">Draw unavailable</h2>
+        <h2 class="mt-5 text-xl font-black">{$_('draw.unavailable')}</h2>
         <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{error}</p>
       </section>
     {:else}
       <section class="mt-8 border-y border-[#bddfd5] py-4">
-        <p class="text-center text-sm font-black text-[#0c9f7d]">{draw ? `${ordinal(draw.tier)} Prize · ${draw.prizeName}` : 'Preparing prize'}</p>
+        <p class="text-center text-sm font-black text-[#0c9f7d]">{draw ? $_('draw.tierPrize', { values: { ordinal: $_('raffle.ordinal', { values: { tier: draw.tier } }), prize: draw.prizeName } }) : $_('draw.preparingPrize')}</p>
         <div class="mt-3 flex items-center justify-center gap-5 text-[11px] font-bold text-[#60746f]">
           <span class="flex items-center gap-1.5"><Clock3 size={14} /> {drawTime(draw?.drawDateTime)}</span>
-          <span class="flex items-center gap-1.5"><Users size={14} /> {draw?.registeredUsers ?? 0} participants</span>
+          <span class="flex items-center gap-1.5"><Users size={14} /> {$_('draw.participants', { values: { n: draw?.registeredUsers ?? 0 } })}</span>
         </div>
       </section>
 
@@ -185,18 +181,18 @@
           {#if result}
             <div class="px-5" in:fade={{ duration: 220 }}>
               <CheckCircle2 size={28} class="mx-auto text-[#0c9f7d]" />
-              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">Winning ticket</p>
+              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">{$_('draw.winningTicket')}</p>
               <p class="mt-1 text-2xl font-black tracking-[-0.03em] tabular-nums">{result.winnerTicketCode}</p>
-              <p class="mt-3 text-xs font-bold text-[#0c9f7d]">Result securely recorded</p>
+              <p class="mt-3 text-xs font-bold text-[#0c9f7d]">{$_('draw.recordedSecurely')}</p>
             </div>
           {:else}
             <div class="px-4">
               <p class="text-xl font-black tracking-[-0.025em] tabular-nums">{displayTicket}</p>
-              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0c9f7d]">Shuffle {pass} of 3</p>
+              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0c9f7d]">{$_('draw.shuffleOf', { values: { pass } })}</p>
             </div>
           {/if}
         </div>
-        <p class="mt-6 max-w-[290px] text-center text-xs leading-5 text-[#60746f]">Each paid ticket is one independent chance. No participant details are displayed during the draw.</p>
+        <p class="mt-6 max-w-[290px] text-center text-xs leading-5 text-[#60746f]">{$_('draw.independentChance')}</p>
       </div>
     {/if}
   </div>
