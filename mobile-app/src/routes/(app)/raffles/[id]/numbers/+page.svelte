@@ -51,6 +51,16 @@
   let focusWheel = 0;
   let focusNumber: number | null = null;
   let focusNonce = 0;
+  let wheelsSectionEl: HTMLElement;
+  // Picking a search result already scrolls the *wheel itself* to center
+  // the number (see focusNumber/focusNonce below) — but the wheels live
+  // further down the page than the search box, so without this the wheel
+  // was doing that entirely off-screen and nothing visibly happened. This
+  // brings the wheels into view in the same motion, so the red centered
+  // number is actually what the user sees land.
+  $: if (focusNonce > 0 && wheelsSectionEl) {
+    wheelsSectionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
   let searchFocused = false;
   let searching = false;
   let searchFeedback = '';
@@ -391,7 +401,7 @@
   {#if notice}<p class="picker-notice" role="status">{notice}</p>{/if}
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<p class="picker-message">{$_('numbers.allowanceReached')} <a href="/tickets">{$_('numbers.viewMyTickets')}</a></p>{/if}
 
-  <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
+  <section class="numbers-section" bind:this={wheelsSectionEl} aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
     <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
     {#if loading || manualRefreshing}

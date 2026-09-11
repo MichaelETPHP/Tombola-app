@@ -212,7 +212,7 @@
   .wheel-scroll::-webkit-scrollbar { display: none; }
   .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #0a0a0a; font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
   .wheel-scroll > button[aria-selected='true'] { color: #c81e1e; font-size: 11px; font-weight: 800; }
-  .wheel-scroll > button.unavailable { color: #9a817f; opacity: .38; text-decoration: line-through; }
+  .wheel-scroll > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
   .wheel-scroll > button.held-elsewhere:not(.selected) { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-radius: 6px; }
   .wheel-scroll > button.used:not(.selected) { opacity: .28; }
   .selection-band { position: absolute; z-index: 1; top: 84px; left: 4px; right: 4px; height: 42px; border-block: 1px solid rgba(72,91,82,.14); border-radius: 9px; background: #edf1ef; }

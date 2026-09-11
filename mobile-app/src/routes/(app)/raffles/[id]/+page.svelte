@@ -395,8 +395,7 @@
       <button
         type="button"
         aria-label={$_('raffle.closeAria')}
-        class="tappable pressable absolute right-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
-        style="top: max(16px, var(--safe-top));"
+        class="safe-area-floating-top tappable pressable absolute right-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
         on:click={closeLightbox}
       ><X size={19} /></button>
 
