@@ -5,6 +5,7 @@ import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
 import { sendDrawInvitation } from '../../lib/sms.js';
+import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -380,9 +381,9 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
     }
     const [raffle] = await tx<{
       id: string; title: string; publicCode: string; status: string;
-      drawServerSeed: string | null; drawServerSeedHash: string | null;
+      drawServerSeed: string | null; drawServerSeedHash: string | null; numberSeed: number | null;
     }[]>`
-      SELECT id, title, public_code, status, draw_server_seed, draw_server_seed_hash
+      SELECT id, title, public_code, status, draw_server_seed, draw_server_seed_hash, number_seed
       FROM raffles WHERE id = ${trigger.raffleId} FOR UPDATE
     `;
     if (!raffle || raffle.status !== 'awaiting_trigger') throw new AppError(409, 'This raffle is not ready to draw');
@@ -463,7 +464,7 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
       )
     `;
 
-    const winnerTicketCode = `${raffle.publicCode}-${String(winningTicket.ticketNumber).padStart(5, '0')}`;
+    const winnerTicketCode = `${raffle.publicCode}-${ticketDisplayNumber(raffle.numberSeed, winningTicket.ticketNumber)}`;
 
     // Atomic check-and-set: the row is already locked by the FOR UPDATE
     // SELECT above (so a concurrent spin can't be mid-flight on the same
@@ -590,6 +591,6 @@ export async function getRaffleEngine(raffleId: string) {
         maskedPhone: trigger.phone ? maskPhone(trigger.phone) : null,
       })),
     extensions,
-    draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${String(d.winningTicketNumber).padStart(5, '0')}` })),
+    draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${ticketDisplayNumber(raffle.numberSeed, d.winningTicketNumber)}` })),
   };
 }

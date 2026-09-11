@@ -3,6 +3,7 @@ import { sql, closeDb } from './client.js';
 import { createRaffle } from './queries/raffles.queries.js';
 import { createRaffleSchema } from '../modules/raffles/raffles.schema.js';
 import { generateServerSeed, commitServerSeed } from '../lib/provably-fair.js';
+import { generateNumberSeed } from '../lib/ticket-display-number.js';
 
 const samples = [
   { title: 'Sound On', prizeName: 'Portable Bluetooth Speaker', categoryCode: 'SND', prizeValue: 2000, ticketPrice: 20, ticketCap: 150, image: 'photo-1608043152269-423dbba4e7e1', additionalPrizes: [], isFeatured: true },
@@ -39,7 +40,8 @@ async function main() {
     const drawServerSeed = generateServerSeed();
     await createRaffle({ ...data, id, createdBy: owner.id,
       isFeatured: featureReady ? data.isFeatured : undefined,
-      drawServerSeed, drawServerSeedHash: await commitServerSeed(drawServerSeed) });
+      drawServerSeed, drawServerSeedHash: await commitServerSeed(drawServerSeed),
+      numberSeed: generateNumberSeed() });
     await sql`UPDATE raffle_prizes SET image_url = ${data.prizeImageUrl!} WHERE raffle_id = ${id} AND tier = 1`;
   }
   const raffles = await sql`

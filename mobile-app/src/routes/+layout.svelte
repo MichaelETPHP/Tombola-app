@@ -17,7 +17,7 @@
   import { initBackButtonHandling } from '$lib/native/backButton.js';
   import { disableZoom } from '$lib/native/disableZoom.js';
   import { hapticLight } from '$lib/native/haptics.js';
-  import { RefreshCw } from 'lucide-svelte';
+  import { RefreshCw, TriangleAlert } from 'lucide-svelte';
   import BackExitToast from '$lib/components/BackExitToast.svelte';
   import Banner from '$lib/components/Banner.svelte';
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
@@ -46,6 +46,44 @@
   function applyUpdate() {
     hapticLight();
     void updateServiceWorker(true);
+  }
+
+  // Nothing in this app ever wrapped routed content in an error boundary —
+  // an exception thrown while rendering any page (a bad reactive statement,
+  // a store read on data that hasn't arrived yet, exactly the stale-chunk
+  // class of bug app.html's own script watches for) had nothing to catch
+  // it, so the page just went blank with no visible sign anything failed.
+  // That's the "splash plays once, then a blank screen" report inside the
+  // Telegram Mini App in particular — no devtools there to even see the
+  // console error. <svelte:boundary> (stable since Svelte 5.3) catches
+  // exactly this class of failure and renders `failed` instead of leaving
+  // the DOM half-mounted. Known transient/stale-build errors still
+  // self-heal via one silent reload, same signatures app.html's inline
+  // script already watches for; anything else shows a real "something
+  // broke, tap to reload" screen instead of nothing at all.
+  const STALE_BUILD_RELOAD_FLAG = 'yeneeta:stale-chunk-reload';
+  function looksLikeStaleBuild(message: string | undefined): boolean {
+    if (!message) return false;
+    return (
+      message.includes('setting the initial locale') ||
+      message.includes('non-precached-url') ||
+      message.includes('Failed to fetch dynamically imported module') ||
+      message.includes('Importing a module script failed') ||
+      message.includes('MIME type')
+    );
+  }
+  function handleBoundaryError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Caught by root error boundary', error);
+    if (looksLikeStaleBuild(message)) {
+      try {
+        if (sessionStorage.getItem(STALE_BUILD_RELOAD_FLAG)) return;
+        sessionStorage.setItem(STALE_BUILD_RELOAD_FLAG, '1');
+      } catch {
+        // No sessionStorage — fall through and reload anyway.
+      }
+      location.reload();
+    }
   }
 
   type MeResponse = {
@@ -180,21 +218,47 @@
   });
 </script>
 
-<slot />
-{#if !directDrawRoute}
-  <BackExitToast />
-  <Banner />
-  <ConnectivityGate />
-  {#if $needRefresh}
-    <div class="update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
+<svelte:boundary onerror={handleBoundaryError}>
+  <slot />
+  {#if !directDrawRoute}
+    <BackExitToast />
+    <Banner />
+    <ConnectivityGate />
+    {#if $needRefresh}
+      <div class="update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
+        <button
+          type="button"
+          class="tappable pressable flex items-center gap-2.5 rounded-full bg-ink px-4 py-3 text-[13px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,0,0,0.5)]"
+          on:click={applyUpdate}
+        >
+          <RefreshCw size={16} />
+          {$_('common.updateAvailable')}
+        </button>
+      </div>
+    {/if}
+  {/if}
+
+  {#snippet failed(error, reset)}
+    <!-- Deliberately plain, hardcoded, bilingual text — no $_()/svelte-i18n
+         here. This screen exists to survive exactly the case where the
+         app's own reactive/store machinery (i18n included) is what broke;
+         a fallback that depends on the same thing that might have just
+         failed isn't a fallback. -->
+    <div class="fixed inset-0 z-[9998] flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#e9faf3] px-6 text-center">
+      <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm">
+        <TriangleAlert size={27} />
+      </span>
+      <div>
+        <h1 class="text-lg font-extrabold text-ink">Something went wrong</h1>
+        <p class="mt-1 max-w-xs text-xs text-muted">ችግር ተፈጥሯል — Please try reloading the app.</p>
+      </div>
       <button
         type="button"
-        class="tappable pressable flex items-center gap-2.5 rounded-full bg-ink px-4 py-3 text-[13px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,0,0,0.5)]"
-        on:click={applyUpdate}
+        class="tappable pressable flex h-12 min-w-44 items-center justify-center gap-2 rounded-2xl bg-ink px-6 text-sm font-bold text-white"
+        on:click={() => location.reload()}
       >
-        <RefreshCw size={16} />
-        {$_('common.updateAvailable')}
+        <RefreshCw size={16} /> Reload
       </button>
     </div>
-  {/if}
-{/if}
+  {/snippet}
+</svelte:boundary>

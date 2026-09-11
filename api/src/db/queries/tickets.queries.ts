@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { sql } from '../client.js';
+import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
 
 export interface DbTicket {
   id: string;
@@ -64,14 +65,19 @@ export async function countUserTicketsInRaffle(
  * List all tickets for a user across all raffles.
  */
 export async function listUserTickets(userId: string): Promise<DbTicket[]> {
-  return sql<DbTicket[]>`
-    SELECT t.*, r.public_code || '-' || lpad(t.ticket_number::text, 5, '0') AS ticket_code,
+  const rows = await sql<(DbTicket & { publicCode: string; numberSeed: number | null })[]>`
+    SELECT t.*, r.public_code, r.number_seed,
            r.title AS raffle_title, r.deadline_at AS raffle_deadline_at, r.ticket_price
     FROM tickets t
     JOIN raffles r ON t.raffle_id = r.id
     WHERE t.user_id = ${userId}
     ORDER BY t.purchased_at DESC
   `;
+  // Built in JS rather than SQL's lpad() so this shares the exact same
+  // scramble as everywhere else a ticket number is shown (see
+  // ticket-display-number.ts) — a raffle with no number_seed falls back to
+  // the original plain zero-padded number, unchanged.
+  return rows.map((row) => ({ ...row, ticketCode: `${row.publicCode}-${ticketDisplayNumber(row.numberSeed, row.ticketNumber)}` }));
 }
 
 /**

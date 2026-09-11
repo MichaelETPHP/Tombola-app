@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 import { logIntegrationEvent } from './integration-log.js';
+import { ticketDisplayNumber } from './ticket-display-number.js';
 
 export interface SendSmsOptions {
   to: string;
@@ -274,9 +275,9 @@ const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
  */
 export async function sendTicketPurchaseConfirmation(
   phone: string,
-  details: { raffleName: string; raffleCode: string; ticketNumbers: number[] }
+  details: { raffleName: string; raffleCode: string; ticketNumbers: number[]; numberSeed: number | null }
 ): Promise<SmsGatewayResponse> {
-  const codes = details.ticketNumbers.map((n) => `${details.raffleCode}-${String(n).padStart(5, '0')}`);
+  const codes = details.ticketNumbers.map((n) => `${details.raffleCode}-${ticketDisplayNumber(details.numberSeed, n)}`);
   const count = codes.length;
   const message = [
     `🎉 Thank you for your purchase!`,

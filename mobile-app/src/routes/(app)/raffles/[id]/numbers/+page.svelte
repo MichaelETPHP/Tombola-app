@@ -19,10 +19,18 @@
 
   type NumberState = 'available' | 'sold' | 'owned' | 'held' | 'held_by_you';
   type Availability = {
-    numbers: { number: number; state: NumberState }[];
+    numbers: { number: number; state: NumberState; displayNumber: string }[];
     start: number; end: number; ticketCap: number; allowance: number; owned: number;
     activePaymentId: string | null; paymentStarted: boolean; salesOpen: boolean;
   };
+  // The server always renders a fixed 5-digit display number (see
+  // api/lib/ticket-display-number.ts) — a scrambled scatter across
+  // 00000-99999 for newer raffles, or a plain zero-padded 1..cap for older
+  // ones with no seed. Either way it's always exactly 5 digits, which is
+  // what "how many digits before treating this as one specific ticket"
+  // needs to key off — not ticketCap, since a scrambled number for a
+  // 50-ticket raffle can still be anywhere in the full 5-digit range.
+  const DISPLAY_DIGIT_LENGTH = 5;
   const pageSize = 5000;
   let raffle: Raffle | null = null;
   let availability: Availability | null = null;
@@ -46,34 +54,39 @@
   let searchFocused = false;
   let searching = false;
   let searchFeedback = '';
-  const numberLabel = (n: number) => String(n).padStart(5, '0');
+  // The server is the only source of truth for what a ticket number looks
+  // like (see Availability.displayNumber above) — this is a pure lookup,
+  // never a computation, so it can't drift from whatever scramble the
+  // server actually applied. Falls back to plain zero-padding only for a
+  // number this page hasn't loaded availability for yet.
+  $: displayNumberByInternal = new Map((availability?.numbers ?? []).map((r) => [r.number, r.displayNumber]));
+  $: numberLabel = (n: number) => displayNumberByInternal.get(n) ?? String(n).padStart(DISPLAY_DIGIT_LENGTH, '0');
   const canPick = (row: { number: number; state: NumberState }) => row.state === 'available' || selected.includes(row.number);
-  $: digitLength = String(availability?.ticketCap ?? 99999).length;
   // All numbers up to the raffle's cap are already in memory (see the
   // pageSize=5000 fetch below) — autocomplete filters that client-side
   // list rather than round-tripping to the server on every keystroke. Any
-  // digit sequence matches anywhere in the padded label (not just a
-  // prefix) — typing "9" for ticket 23896 finds it just as "896" would.
-  // Taken/held numbers are included too (not hidden) so the reason a
-  // number can't be picked is visible right in the dropdown, instantly.
+  // digit sequence matches anywhere in the displayed number (not just a
+  // prefix) — typing "9" for a ticket showing "23896" finds it just as
+  // "896" would. Taken/held numbers are included too (not hidden) so the
+  // reason a number can't be picked is visible right in the dropdown,
+  // instantly.
   $: suggestions = (() => {
     if (!availability || !searchFocused) return [];
     const query = search.replace(/\D/g, '');
     if (!query) return [];
     return availability.numbers
-      .filter((row) => numberLabel(row.number).includes(query))
+      .filter((row) => row.displayNumber.includes(query))
       .slice(0, 8);
   })();
   // Instant "already taken" / "doesn't exist" feedback the moment a full,
-  // unambiguous ticket number has been typed — no need to press search.
+  // unambiguous display number has been typed — no need to press search.
   $: {
     const query = search.replace(/\D/g, '');
-    if (!availability || query.length < digitLength) {
+    if (!availability || query.length < DISPLAY_DIGIT_LENGTH) {
       searchFeedback = '';
     } else {
-      const n = Number(query);
-      const row = availability.numbers.find((item) => item.number === n);
-      if (!row || n < 1 || n > availability.ticketCap) searchFeedback = $_('numbers.notExist');
+      const row = availability.numbers.find((item) => item.displayNumber === query);
+      if (!row) searchFeedback = $_('numbers.notExist');
       else if (!canPick(row)) searchFeedback = $_('numbers.occupied');
       else searchFeedback = '';
     }
@@ -239,12 +252,15 @@
     // delay to the actual selection.
     await new Promise((resolve) => setTimeout(resolve, 220));
     try {
-      const n = Number(search);
-      if (!/^\d+$/.test(search.trim()) || !Number.isSafeInteger(n) || n < 1 || n > availability.ticketCap) {
+      const query = search.replace(/\D/g, '');
+      const row = query.length === DISPLAY_DIGIT_LENGTH
+        ? availability.numbers.find((item) => item.displayNumber === query)
+        : undefined;
+      if (!row) {
         searchFeedback = $_('numbers.notExist');
         return;
       }
-      selectFoundNumber(n);
+      selectFoundNumber(row.number);
     } finally {
       searching = false;
     }
@@ -260,7 +276,7 @@
   // stray letters from a hardware keyboard, etc. — so this field can only
   // ever hold a number, matching its numeric-only keyboard.
   function onSearchInput() {
-    const digitsOnly = search.replace(/\D/g, '').slice(0, digitLength);
+    const digitsOnly = search.replace(/\D/g, '').slice(0, DISPLAY_DIGIT_LENGTH);
     if (digitsOnly !== search) search = digitsOnly;
   }
 
@@ -338,7 +354,7 @@
         inputmode="numeric"
         pattern="[0-9]*"
         autocomplete="off"
-        maxlength={digitLength}
+        maxlength={DISPLAY_DIGIT_LENGTH}
         bind:value={search}
         on:input={onSearchInput}
         on:focus={() => (searchFocused = true)}

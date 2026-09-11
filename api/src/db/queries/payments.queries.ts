@@ -232,6 +232,7 @@ export async function findPaymentById(id: string): Promise<DbPayment | null> {
 export interface DbPaymentReceipt extends DbPayment {
   raffleTitle: string;
   raffleCode: string;
+  numberSeed: number | null;
   ticketNumbers: number[];
   phoneNumber: string;
 }
@@ -243,6 +244,7 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
       p.*,
       r.title AS raffle_title,
       r.public_code AS raffle_code,
+      r.number_seed AS number_seed,
       u.phone_number AS phone_number,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number)
@@ -303,6 +305,7 @@ export interface DbPaymentWithDetails {
   raffleId: string;
   raffleTitle: string;
   raffleCode: string;
+  numberSeed: number | null;
   amount: number;
   ticketCount: number;
   /** The actual ticket numbers issued for this payment — empty until the webhook lands. */
@@ -330,6 +333,7 @@ export async function listUserPayments(
       p.raffle_id,
       r.title AS raffle_title,
       r.public_code AS raffle_code,
+      r.number_seed AS number_seed,
       p.amount,
       p.ticket_count,
       p.status,

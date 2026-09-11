@@ -11,7 +11,7 @@
 
   type NumberState = 'available' | 'sold' | 'owned' | 'held' | 'held_by_you';
   export let slot: number;
-  export let rows: { number: number; state: NumberState }[] = [];
+  export let rows: { number: number; state: NumberState; displayNumber: string }[] = [];
   export let value: number | null = null;
   export let selectedNumbers: number[] = [];
   export let disabled = false;
@@ -29,7 +29,12 @@
   let appliedFocusNonce = -1;
   let syncingValue = false;
 
-  const label = (number: number) => String(number).padStart(5, '0');
+  // The server (see api/lib/ticket-display-number.ts) is the only source
+  // of what a ticket number looks like — this is a lookup into `rows`,
+  // never a local computation, so it can never drift from whatever
+  // scramble the server actually applied for this raffle.
+  $: labelByNumber = new Map(rows.map((row) => [row.number, row.displayNumber]));
+  $: label = (number: number) => labelByNumber.get(number) ?? String(number).padStart(5, '0');
   const isUnavailable = (row: { number: number; state: NumberState }) => row.state !== 'available' && row.number !== value;
   const isUsedElsewhere = (number: number) => selectedNumbers.includes(number) && number !== value;
   const canUse = (row: { number: number; state: NumberState }) => !isUnavailable(row) && !isUsedElsewhere(row.number);

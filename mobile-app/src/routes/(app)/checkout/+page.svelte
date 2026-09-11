@@ -48,6 +48,7 @@
   let ticketCount = 0;
   let raffleTitle = '';
   let selectedNumbers: number[] = [];
+  let selectedDisplayNumbers: string[] = [];
   let expiresAt = '';
   let checkoutStarted = false;
   let now = Date.now();
@@ -76,6 +77,7 @@
     txRef: string | null;
     status: string;
     selectedNumbers?: number[];
+    selectedDisplayNumbers?: string[];
     expiresAt?: string;
     checkoutStarted?: boolean;
     serverTime?: string;
@@ -252,6 +254,7 @@
         return;
       }
       selectedNumbers = payment.selectedNumbers ?? [];
+      selectedDisplayNumbers = payment.selectedDisplayNumbers ?? selectedNumbers.map((n) => String(n).padStart(5, '0'));
       expiresAt = payment.expiresAt ?? '';
       checkoutStarted = !!payment.checkoutStarted;
       serverOffset = payment.serverTime ? new Date(payment.serverTime).getTime() - Date.now() : 0;
@@ -353,7 +356,7 @@
         </div>
       </div>
       {#if selectedNumbers.length}
-        <div class="reserved-numbers"><p>{$_('checkout.yourTicketNumbers')}</p><div>{#each selectedNumbers as n}<span>{String(n).padStart(5, '0')}</span>{/each}</div><small>{checkoutStarted ? $_('checkout.heldWhileConfirmed') : secondsLeft > 0 ? $_('checkout.reservedFor', { values: { countdown } }) : $_('checkout.reservationExpired')}</small></div>
+        <div class="reserved-numbers"><p>{$_('checkout.yourTicketNumbers')}</p><div>{#each selectedDisplayNumbers as code}<span>{code}</span>{/each}</div><small>{checkoutStarted ? $_('checkout.heldWhileConfirmed') : secondsLeft > 0 ? $_('checkout.reservedFor', { values: { countdown } }) : $_('checkout.reservationExpired')}</small></div>
       {/if}
       <div class="flex items-center gap-2 border-t border-dot-inactive/60 bg-bg-start/60 px-4 py-2.5 text-xs font-semibold text-muted">
         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={13} strokeWidth={3} /></span>

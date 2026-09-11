@@ -9,6 +9,7 @@ import {
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
+import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
@@ -43,6 +44,7 @@ function notifyTicketPurchase(txRef: string): void {
         raffleName: receipt.raffleTitle,
         raffleCode: receipt.raffleCode,
         ticketNumbers: receipt.ticketNumbers,
+        numberSeed: receipt.numberSeed,
       });
       if (!result.success) {
         logger.error(`Ticket purchase SMS failed for tx_ref ${txRef}: ${result.error}`);
@@ -61,12 +63,16 @@ export async function getPaymentStatus(id: string, userId: string) {
     raffleId: payment.raffleId,
     raffleTitle: payment.raffleTitle,
     selectedNumbers: payment.selectedNumbers,
+    // Checkout shows this before any ticket is actually issued (tickets —
+    // and therefore ticketCodes above — only exist once payment succeeds),
+    // so the reserved numbers need their own display-number pass here too.
+    selectedDisplayNumbers: (payment.selectedNumbers ?? []).map((number) => ticketDisplayNumber(payment.numberSeed, number)),
     expiresAt: payment.reservationExpiresAt,
     checkoutStarted: !!payment.checkoutStartedAt,
     serverTime: new Date().toISOString(),
     ticketCount: payment.ticketCount,
     ticketNumbers: payment.ticketNumbers,
-    ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${String(number).padStart(5, '0')}`),
+    ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${ticketDisplayNumber(payment.numberSeed, number)}`),
     amount: payment.amount,
     gateway: payment.gateway,
     txRef: payment.gatewayRef,
@@ -101,7 +107,7 @@ export async function getMyPayments(userId: string, limit = 50, offset = 0) {
     amount: payment.amount,
     ticketCount: payment.ticketCount,
     ticketNumbers: payment.ticketNumbers,
-    ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${String(number).padStart(5, '0')}`),
+    ticketCodes: payment.ticketNumbers.map((number) => `${payment.raffleCode}-${ticketDisplayNumber(payment.numberSeed, number)}`),
     status: payment.reviewRequired ? 'review' : payment.status,
     gateway: payment.gateway,
     createdAt: payment.createdAt,
