@@ -24,22 +24,24 @@
   import { initLanguage, setLanguage } from '$lib/stores/language.store.js';
   import { authenticateTelegramMiniApp, prepareTelegramMiniApp } from '$lib/telegram.js';
 
-  // registerType: 'autoUpdate' means the *service worker* skips waiting and
-  // claims clients as soon as a new build is precached — but that alone
-  // does nothing for a tab that's already open: it keeps running the old
-  // JS chunks while the new SW is now the one serving fetches, so any chunk
-  // that isn't in the new precache manifest (e.g. a lazy route import)
-  // fails with workbox's "non-precached-url", and the stale in-memory JS
-  // can throw its own (already-fixed-upstream) bugs on top of that.
+  // registerType is 'prompt' (see vite.config.ts) specifically so this
+  // toast can exist at all: vite-plugin-pwa's client code for 'autoUpdate'
+  // never calls onNeedRefresh — it auto-activates a new service worker the
+  // instant it finishes installing (skipWaiting + clientsClaim) and reloads
+  // unconditionally on its own, which is what was actually causing "the
+  // page breaks a few seconds after a fresh deploy": a first-time visitor's
+  // own page load could get claimed by its own still-installing SW before
+  // hydration/i18n-init finished, and lose in-flight preloaded resources to
+  // it (the "cross-world service worker resource mismatch" warning). Under
+  // 'prompt', a new SW just sits in a waiting state — nothing takes over
+  // until updateServiceWorker() below explicitly tells it to — and
+  // onNeedRefresh/needRefresh actually fire, which is what this toast reads.
   //
-  // A new build lands on a live server at any moment, though — reloading
-  // the instant `needRefresh` flips meant an already-open session could get
-  // yanked mid-scroll or mid-tap into a full reload (which briefly re-shows
-  // the boot splash, since that's just what a fresh page load does). Instead,
-  // surface a small tappable prompt and let the person choose when — same
-  // "update available" pattern as every other PWA — rather than reloading
-  // out from under them.
-  const { needRefresh, updateServiceWorker } = useRegisterSW({ immediate: true });
+  // `immediate: false` (the Svelte build's own default is `true`, unlike
+  // vite-plugin-pwa's generic default of `false` — has to be set explicitly)
+  // additionally defers even *registering* the SW until the window `load`
+  // event, so it can never race this same page's own initial load at all.
+  const { needRefresh, updateServiceWorker } = useRegisterSW({ immediate: false });
   function applyUpdate() {
     hapticLight();
     void updateServiceWorker(true);

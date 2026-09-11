@@ -43,7 +43,23 @@ export default defineConfig({
     sveltekit(),
     serveManifestInDev(),
     SvelteKitPWA({
-      registerType: 'autoUpdate',
+      // 'autoUpdate' looks like the obvious choice for "just keep it fresh",
+      // but vite-plugin-pwa's client code for that mode never calls
+      // onNeedRefresh at all — it has its own hardcoded, unconditional
+      // window.location.reload() on the new SW's `activated` event, and
+      // that SW auto-activates (skipWaiting + clientsClaim) the instant
+      // it finishes installing, even mid-boot on the very page that just
+      // registered it. That's what was actually causing "the page breaks a
+      // few seconds after a fresh deploy": a brand-new visitor's own first
+      // load could get its own freshly-installing SW claim it before
+      // hydration/i18n-init finished, and start intercepting fetches for
+      // resources (the font/splash preloads in app.html) already in flight
+      // — the "cross-world service worker resource mismatch" warning.
+      // 'prompt' holds a new SW in a waiting state instead of activating it
+      // automatically, and is the mode whose client code actually wires up
+      // onNeedRefresh/needRefresh — the tap-to-update toast in the root
+      // layout only ever works under this mode, not 'autoUpdate'.
+      registerType: 'prompt',
       manifest: pwaManifest,
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2,ico,webmanifest}'],
