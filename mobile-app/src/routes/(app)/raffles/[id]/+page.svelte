@@ -18,8 +18,31 @@
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { CalendarClock, Check, ChevronLeft, Info, Minus, Phone, Plus, ShieldCheck, Ticket, X } from 'lucide-svelte';
+  import { shareYeneEtaContent, copyText } from '$lib/native/capabilities.js';
+  import { showBanner } from '$lib/stores/banner.store.js';
+  import { CalendarClock, Check, ChevronLeft, Info, Minus, Phone, Plus, Share2, ShieldCheck, Ticket, X } from 'lucide-svelte';
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
+
+  const RAFFLE_BOT_LINK = 'https://t.me/YeneEta_ETBOT/start';
+  let sharingRaffle = false;
+
+  async function shareRaffle() {
+    if (sharingRaffle || !raffle) return;
+    sharingRaffle = true;
+    hapticMedium();
+    try {
+      await shareYeneEtaContent({
+        title: raffle.title,
+        text: $_('raffle.shareText', { values: { title: raffle.title } }),
+        url: RAFFLE_BOT_LINK,
+      });
+    } catch {
+      await copyText(RAFFLE_BOT_LINK);
+      showBanner($_('raffle.linkCopiedBanner'));
+    } finally {
+      sharingRaffle = false;
+    }
+  }
 
   const pullRefresh = getPullRefreshContext();
   // Instant paint for the single most common navigation in the app —
@@ -238,7 +261,7 @@
       {#if rankedPrizes.length <= 1}<p class="mt-1 truncate text-[11px] text-muted">{raffle.prizeName}</p>{/if}
       {#if raffle.description}
         <div class="raffle-description mt-2">
-          <p bind:this={descEl} class="text-[13px] leading-[1.55] text-ink/75" class:line-clamp-5={!descExpanded}>{raffle.description}</p>
+          <p bind:this={descEl} class="text-[13px] leading-[1.55] text-ink/75" class:line-clamp-3={!descExpanded}>{raffle.description}</p>
           {#if descOverflowing}
             <button type="button" class="tappable mt-0.5 text-[11px] font-bold text-primary-dark" on:click={() => { hapticLight(); descExpanded = !descExpanded; }}>
               {descExpanded ? $_('raffle.readLess') : $_('raffle.readMore')}
@@ -290,8 +313,17 @@
       </div>
     {/if}
 
-    <section class="ticket-sheet overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(24,95,77,0.08)]">
-      <div class="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3.5">
+    <section class="ticket-sheet relative overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(24,95,77,0.08)]">
+      <button
+        type="button"
+        class="tappable pressable absolute right-2.5 top-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-bg-start text-primary-dark"
+        disabled={sharingRaffle}
+        aria-label={$_('raffle.shareAria')}
+        on:click={shareRaffle}
+      >
+        <Share2 size={14} />
+      </button>
+      <div class="grid grid-cols-[1fr_auto_1fr] items-center py-3.5 pl-4 pr-12">
         <div><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.price')}</p><p class="mt-1 text-sm font-extrabold text-ink">{formatEtb(raffle.ticketPrice)} <span class="text-[10px] text-muted">ETB</span></p></div>
         <div class="h-8 w-px bg-dot-inactive"></div>
         <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.yourChoice')}</p><p class="mt-1 text-sm font-extrabold text-ink">{$_('raffle.upToTickets', { values: { n: raffle.maxTicketsPerUser } })}</p></div>

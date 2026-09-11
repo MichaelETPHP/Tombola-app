@@ -184,6 +184,31 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
+// Without these, an error thrown outside Hono's own request pipeline —
+// an unhandled rejection from a fire-and-forget call, a background job's
+// escaped exception, an error event from some library with no listener —
+// crashes the process silently: Bun/Node's default handling for either
+// event prints a bare stack trace and exits, but only *after* whatever
+// clients were mid-request see the connection drop with no server-side
+// record beyond that trace, which is easy to miss in a log stream and
+// looks from the client exactly like the server vanished for no reason
+// (a browser reports it as ERR_CONNECTION_CLOSED). Logging explicitly
+// here — before still exiting, deliberately: Node's own guidance is that
+// process state after an uncaught exception can't be trusted enough to
+// keep serving requests on it — means the *next* occurrence shows up
+// clearly in whatever's reading these logs (Coolify's log viewer), with
+// enough detail to actually find the bug, instead of just another
+// unexplained restart.
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception — restarting', error instanceof Error ? { message: error.message, stack: error.stack } : error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection — restarting', reason instanceof Error ? { message: reason.message, stack: reason.stack } : reason);
+  process.exit(1);
+});
+
 // ─── Start Server ─────────────────────────────────────────────────
 
 logger.info(`🎰 YeneEta API starting on port ${env.PORT}`);
