@@ -13,7 +13,7 @@
   import { hapticLight } from '$lib/native/haptics.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import PaperReceipt from '$lib/components/PaperReceipt.svelte';
-  import { ArrowLeft, Check, Clock3, ReceiptText, RefreshCw, ShieldCheck, Ticket, X } from 'lucide-svelte';
+  import { ArrowLeft, Clock3, ReceiptText, RefreshCw, ShieldCheck, Ticket, X } from 'lucide-svelte';
 
   const pullRefresh = getPullRefreshContext();
 
@@ -139,9 +139,14 @@
   {:else if payment.status === 'completed'}
     <section class="flex flex-1 flex-col pt-4" transition:fly={{ y: 10, duration: 240, easing: cubicOut }}>
       <div class="text-center">
-        <span class="success-mark mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Check size={29} strokeWidth={2.5} /></span>
+        <span class="success-mark mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#0c9f7d]" aria-hidden="true">
+          <svg viewBox="0 0 52 52" width="32" height="32">
+            <path class="success-check-mark" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" d="M14 27l7 7 16-16" />
+          </svg>
+        </span>
         <p class="mt-4 text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">{$_('payments.confirmedLabel')}</p>
         <h1 class="mt-1 text-[22px] font-extrabold tracking-[-0.03em] text-ink">{$_('payments.inDrawTitle')}</h1>
+        <p class="success-good-luck mt-2 text-sm font-extrabold text-[#0c9f7d]">{$_('payments.goodLuckBilingual')}</p>
         <p class="mx-auto mt-1 max-w-[300px] text-xs leading-5 text-muted">{$_('payments.independentChanceBody')}</p>
       </div>
 
@@ -219,14 +224,21 @@
 
 <style>
   .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; overflow: hidden; }
-  .success-mark { animation: success-pop 420ms var(--ease-out) both; }
+  .success-mark { animation: success-pop 420ms var(--ease-out) both; box-shadow: 0 14px 28px -12px rgba(12,159,125,0.55); }
+  .success-check-mark { stroke-dasharray: 36; stroke-dashoffset: 36; animation: success-draw 360ms var(--ease-out) 280ms both; }
+  .success-good-luck { animation: success-good-luck-in 320ms var(--ease-out) 520ms both; }
   .ticket-number { animation: ticket-in 300ms var(--ease-out) both; }
   .processing-ring::before { content: ''; position: absolute; inset: -5px; border-radius: 999px; border: 2px solid transparent; border-top-color: var(--color-primary-dark); border-right-color: var(--color-primary-dark); animation: receipt-spin 1s linear infinite; }
   @keyframes success-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+  @keyframes success-draw { to { stroke-dashoffset: 0; } }
+  @keyframes success-good-luck-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes ticket-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes receipt-spin { to { transform: rotate(360deg); } }
   @media (max-height: 700px) {
     .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 108px); }
   }
-  @media (prefers-reduced-motion: reduce) { .success-mark, .ticket-number, .processing-ring::before { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .success-mark, .success-check-mark, .success-good-luck, .ticket-number, .processing-ring::before { animation: none; }
+    .success-check-mark { stroke-dashoffset: 0; }
+  }
 </style>
