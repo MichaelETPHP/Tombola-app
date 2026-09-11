@@ -10,19 +10,36 @@
   let hasLostConnection = false;
   let restoredTimer: ReturnType<typeof setTimeout> | undefined;
 
-  $: text = {
-    checking: $_('connectivity.checking'),
-    checkingBody: $_('connectivity.checkingBody'),
-    offlineLabel: $_('connectivity.offlineLabel'),
-    offlineTitle: $_('connectivity.offlineTitle'),
-    offlineBody: $_('connectivity.offlineBody'),
-    serviceTitle: $_('connectivity.serviceTitle'),
-    serviceBody: $_('connectivity.serviceBody'),
-    waiting: $_('connectivity.waiting'),
-    retry: $_('connectivity.retry'),
-    restored: $_('connectivity.restored'),
-    restoredBody: $_('connectivity.restoredBody'),
+  const emptyText = {
+    checking: '', checkingBody: '', offlineLabel: '', offlineTitle: '', offlineBody: '',
+    serviceTitle: '', serviceBody: '', waiting: '', retry: '', restored: '', restoredBody: '',
   };
+  // This gate is mounted once in the root layout and never unmounts across
+  // navigation, so it's the one component that can get caught by a dev-only
+  // Vite dependency re-optimization reload mid-session (svelte-i18n module
+  // swapped out from under an already-mounted subscriber). formatMessage
+  // throws in that split second rather than returning a fallback — falling
+  // back to blank strings here for that one tick beats an uncaught error,
+  // and the very next reactive run (once the store settles) fills them in.
+  $: text = (() => {
+    try {
+      return {
+        checking: $_('connectivity.checking'),
+        checkingBody: $_('connectivity.checkingBody'),
+        offlineLabel: $_('connectivity.offlineLabel'),
+        offlineTitle: $_('connectivity.offlineTitle'),
+        offlineBody: $_('connectivity.offlineBody'),
+        serviceTitle: $_('connectivity.serviceTitle'),
+        serviceBody: $_('connectivity.serviceBody'),
+        waiting: $_('connectivity.waiting'),
+        retry: $_('connectivity.retry'),
+        restored: $_('connectivity.restored'),
+        restoredBody: $_('connectivity.restoredBody'),
+      };
+    } catch {
+      return emptyText;
+    }
+  })();
   $: isInitialCheck = !$connectivity.initialized && $connectivity.checking;
   // Let online launches render immediately while the first health check is
   // in flight. A confirmed offline result still blocks the app at once.
