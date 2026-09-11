@@ -37,6 +37,7 @@ import {
   deleteAdminUser,
   getAuditLog,
 } from './admin.service.js';
+import { getSmsStats, getSmsLogsPage } from './sms-admin.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -237,6 +238,37 @@ adminRoutes.get('/integrations/logs', requireRole('owner'), async (c) => {
     limit,
     before,
   });
+  return c.json(page);
+});
+
+/**
+ * GET /admin/sms/stats
+ * Header-card counts for the dedicated SMS page: total sent, delivered,
+ * failed, and sent in the last 24h. Owner-only, same reasoning as
+ * /integrations above.
+ */
+adminRoutes.get('/sms/stats', requireRole('owner'), async (c) => {
+  return c.json(await getSmsStats());
+});
+
+/**
+ * GET /admin/sms/logs
+ * Every SMS send attempt (OTP, ticket confirmations, draw invitations,
+ * admin broadcasts), one row per recipient, with the message content,
+ * delivery status, and the receiver's registered name where known.
+ * Keyset-paginated via ?before=<ISO timestamp>; ?status= filters.
+ */
+adminRoutes.get('/sms/logs', requireRole('owner'), async (c) => {
+  const status = c.req.query('status');
+  const before = c.req.query('before');
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 50;
+
+  if (status && !['success', 'error'].includes(status)) {
+    throw new AppError(400, 'Invalid status filter');
+  }
+
+  const page = await getSmsLogsPage({ status: status as 'success' | 'error' | undefined, limit, before });
   return c.json(page);
 });
 

@@ -69,6 +69,8 @@ export const statusColors = {
   not_applicable: { fg: colors.textSecondary, bg: colors.border },
   success: { fg: colors.success, bg: colors.successBg },
   error: { fg: colors.danger, bg: colors.dangerBg },
+  delivered: { fg: colors.success, bg: colors.successBg },
+  failed: { fg: colors.danger, bg: colors.dangerBg },
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────

@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
+  import { ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -20,7 +20,10 @@
     { href: '/users', label: 'Registered users', icon: Users },
     { href: '/payouts', label: 'Payouts', icon: PackageCheck },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
-    ...($auth.admin?.role === 'owner' ? [{ href: '/integrations', label: 'Integrations', icon: Plug }] : []),
+    ...($auth.admin?.role === 'owner' ? [
+      { href: '/integrations', label: 'Integrations', icon: Plug },
+      { href: '/sms', label: 'SMS log', icon: MessageSquareText },
+    ] : []),
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
   $: raffleLinks = [

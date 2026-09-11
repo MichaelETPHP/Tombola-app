@@ -206,6 +206,21 @@ export async function findPhonesByIds(ids: string[]): Promise<{ id: string; phon
 }
 
 /**
+ * Reverse of the above — batch phone-to-name lookup for the admin SMS log,
+ * which only ever has the recipient's phone number to go on (that's what
+ * the gateway call actually used). Every phone passed through this app's
+ * auth boundary is already normalized to +251XXXXXXXXX (see
+ * auth.schema.ts's ethiopianPhone), so an exact match is reliable — no
+ * fuzzy normalization needed here.
+ */
+export async function findUsersByPhones(phones: string[]): Promise<{ phoneNumber: string; fullName: string | null }[]> {
+  if (phones.length === 0) return [];
+  return sql<{ phoneNumber: string; fullName: string | null }[]>`
+    SELECT phone_number, full_name FROM users WHERE phone_number = ANY(${phones}::text[])
+  `;
+}
+
+/**
  * Hard-delete multiple users in one statement.
  * Returns the IDs that were actually found and deleted.
  */

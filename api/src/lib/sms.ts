@@ -54,8 +54,23 @@ function toE164(phone: string): string {
  * self-hosted android-sms-gateway 3rdparty API (HTTP Basic Auth, relays
  * through a registered Android phone's own SIM).
  */
+/**
+ * What the admin SMS log is allowed to keep of a message body. Every event
+ * except 'otp' logs the real text verbatim — that's the whole point of the
+ * log viewer. 'otp' is the one deliberate exception: the six-digit code is
+ * a live credential for the next few minutes, and a log table an admin (or
+ * anyone who ever gains read access to it) can browse is not a safe place
+ * for it to sit — same reasoning as the log never storing full card
+ * numbers. The surrounding template text still logs, just with the code
+ * itself replaced.
+ */
+function messageForLog(event: string, message: string): string {
+  return event === 'otp' ? message.replace(/\d{4,8}/, '••••••') : message;
+}
+
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
   const { to, message, event = 'send' } = options;
+  const loggedMessage = messageForLog(event, message);
 
   if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
     // In development, log the OTP instead of sending
@@ -63,7 +78,7 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
       logger.warn(`[SMS DEV MODE] To: ${to}, Message: ${message}`);
       return { success: true, messageId: 'dev-mode' };
     }
-    logIntegrationEvent('sms', 'error', event, { to, error: 'SMS gateway not configured' });
+    logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, error: 'SMS gateway not configured' });
     throw new Error('SMS gateway not configured: SMS_API_URL/SMS_API_USERNAME/SMS_API_PASSWORD required');
   }
 
@@ -85,16 +100,16 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`SMS send failed (${response.status}): ${errorMessage}`);
-      logIntegrationEvent('sms', 'error', event, { to, httpStatus: response.status, error: errorMessage });
+      logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, httpStatus: response.status, error: errorMessage });
       return { success: false, error: errorMessage };
     }
 
-    logIntegrationEvent('sms', 'success', event, { to, messageId: data.id });
+    logIntegrationEvent('sms', 'success', event, { to, message: loggedMessage, messageId: data.id });
     return { success: true, messageId: data.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`SMS send exception: ${errorMessage}`);
-    logIntegrationEvent('sms', 'error', event, { to, error: errorMessage });
+    logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, error: errorMessage });
     return { success: false, error: errorMessage };
   }
 }
@@ -198,7 +213,14 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`Bulk SMS send failed (${response.status}): ${errorMessage}`);
-      logIntegrationEvent('sms', 'error', 'bulk_send', { recipientCount: valid.length, httpStatus: response.status, error: errorMessage });
+      // The whole batch request itself failed (not a per-recipient
+      // rejection) — every intended recipient gets its own log row anyway,
+      // same as the success path, so the log viewer's "who got this
+      // broadcast" view doesn't have a gap for the one failure mode that
+      // isn't per-recipient.
+      for (const p of valid) {
+        logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, httpStatus: response.status, error: errorMessage });
+      }
       return {
         success: false,
         error: errorMessage,
@@ -212,17 +234,21 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
       error: r.state === 'Failed' ? (r.error ?? 'Rejected by gateway') : undefined,
     }));
 
-    const failedCount = sentResults.filter((r) => !r.success).length;
-    logIntegrationEvent('sms', failedCount === sentResults.length ? 'error' : 'success', 'bulk_send', {
-      messageId: data.id,
-      recipientCount: sentResults.length,
-      failedCount,
-    });
+    // One log row per recipient — this is what lets the admin SMS log show
+    // "was THIS specific phone number delivered" rather than only a
+    // batch-level success/fail count.
+    for (const r of sentResults) {
+      logIntegrationEvent('sms', r.success ? 'success' : 'error', 'bulk_send', {
+        to: r.phoneNumber, message, messageId: data.id, error: r.error,
+      });
+    }
     return { success: true, messageId: data.id, recipients: [...sentResults, ...invalid] };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`Bulk SMS send exception: ${errorMessage}`);
-    logIntegrationEvent('sms', 'error', 'bulk_send', { recipientCount: valid.length, error: errorMessage });
+    for (const p of valid) {
+      logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, error: errorMessage });
+    }
     return {
       success: false,
       error: errorMessage,

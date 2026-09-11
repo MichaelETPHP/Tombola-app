@@ -70,13 +70,20 @@ export interface IntegrationLogFilter {
 /** Paginated log read for the admin log viewer — newest first, keyset-paged on createdAt. */
 export async function listIntegrationLogs(filter: IntegrationLogFilter): Promise<IntegrationLogEntry[]> {
   const { integration, status, limit, before } = filter;
+  // Typed with `createdAt`, not `created_at` — the postgres client
+  // auto-camelCases every returned column (see db/client.ts's
+  // transform.column.from), so the runtime object never actually has a
+  // `created_at` key even though the SQL below selects one. Typing this
+  // as `created_at` previously silenced the type-checker while every row
+  // silently carried `createdAt: undefined` — which JSON.stringify then
+  // drops entirely, so the client got no createdAt at all.
   const rows = await sql<{
     id: string;
     integration: IntegrationKey;
     status: IntegrationLogStatus;
     event: string;
     detail: Record<string, unknown>;
-    created_at: string;
+    createdAt: string;
   }[]>`
     SELECT id, integration, status, event, detail, created_at
     FROM "Tombola_DB".integration_logs
@@ -92,6 +99,6 @@ export async function listIntegrationLogs(filter: IntegrationLogFilter): Promise
     status: row.status,
     event: row.event,
     detail: row.detail,
-    createdAt: row.created_at,
+    createdAt: row.createdAt,
   }));
 }
