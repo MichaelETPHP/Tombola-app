@@ -19,9 +19,17 @@
   import { initLanguage, setLanguage } from '$lib/stores/language.store.js';
   import { authenticateTelegramMiniApp, prepareTelegramMiniApp } from '$lib/telegram.js';
 
-  // registerType: 'autoUpdate' — the service worker swaps itself in on the
-  // next load once a new version is precached, no user prompt needed.
-  useRegisterSW({ immediate: true });
+  // registerType: 'autoUpdate' means the *service worker* skips waiting and
+  // claims clients as soon as a new build is precached — but that alone
+  // does nothing for a tab that's already open: it keeps running the old
+  // JS chunks while the new SW is now the one serving fetches, so any chunk
+  // that isn't in the new precache manifest (e.g. a lazy route import)
+  // fails with workbox's "non-precached-url", and the stale in-memory JS
+  // can throw its own (already-fixed-upstream) bugs on top of that. Reload
+  // as soon as `needRefresh` flips so an open session always ends up on a
+  // JS build that matches the SW now actually serving it.
+  const { needRefresh, updateServiceWorker } = useRegisterSW({ immediate: true });
+  $: if ($needRefresh) void updateServiceWorker(true);
 
   type MeResponse = {
     user: { id: string; phone: string; fullName: string | null; preferredLanguage?: 'en' | 'am' };
