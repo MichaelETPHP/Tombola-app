@@ -83,6 +83,14 @@
 
   function handleTouchStart(e: TouchEvent) {
     if (refreshing || !$handler) return;
+    // Full-screen fixed overlays (the ticket-number wheel picker) mark
+    // themselves with this attribute. They run their own internal scroller
+    // on top of everything, so document.scrollTop is always 0 no matter
+    // where the user actually is inside them — this is a hard, page-level
+    // veto that doesn't depend on the page correctly leaving `$handler`
+    // unset, so a wheel swipe can never be misread as a pull-to-refresh
+    // gesture even if something else registers a handler while it's open.
+    if ((e.target as Element)?.closest?.('[data-no-pull-refresh]')) return;
     // Only start tracking once the page is already scrolled to the very
     // top — mirrors iOS, and keeps normal scrolling completely untouched.
     if (currentScrollTop() > 0) return;

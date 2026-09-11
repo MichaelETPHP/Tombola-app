@@ -312,7 +312,7 @@
 
 <svelte:head><title>{$_('numbers.pageTitle')}</title></svelte:head>
 
-<div class="number-picker">
+<div class="number-picker" data-no-pull-refresh>
  <div class="picker-scroll">
   <header class="picker-header">
     <button type="button" class="icon-button" on:click={goBack} aria-label={$_('numbers.backAria')}><ArrowLeft size={21} /></button>

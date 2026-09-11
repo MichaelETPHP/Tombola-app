@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { _ } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -76,10 +77,22 @@
   }
 
   async function restorePhoneSession(): Promise<void> {
-    const refreshed = await api.post<{ accessToken: string }>('/auth/refresh', undefined, { skipAuth: true });
+    // A fresh page load has no access token in memory yet, so this first
+    // attempt 401s by design — apiFetch's own refresh-and-retry (in
+    // api/client.ts) already handles exactly that using the httpOnly
+    // refresh cookie, transparently retrying with the new token. A
+    // separate explicit /auth/refresh call here used to run *before* this
+    // one and update nothing the store could see yet, so this request
+    // still went out tokenless and 401'd anyway — paying for two refresh
+    // round-trips (and a confusing 401 in the network tab) to do the work
+    // of one. If refreshing genuinely fails, this throws the same
+    // ApiError(401) the caller below already knows how to treat as
+    // "not signed in."
     const me = await api.get<MeResponse>('/users/me');
+    const accessToken = get(auth).accessToken;
+    if (!accessToken) throw new ApiError(401, 'Session restore succeeded without an access token');
     if (me.user.preferredLanguage) setLanguage(me.user.preferredLanguage);
-    setAuth(refreshed.accessToken, me.user);
+    setAuth(accessToken, me.user);
   }
 
   /**
