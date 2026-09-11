@@ -2,7 +2,8 @@
   "common": {
     "pressBackToExit": "Press back again to exit",
     "loadingFeaturedRaffles": "Loading featured raffles",
-    "loading": "Loading"
+    "loading": "Loading",
+    "updateAvailable": "Update available — tap to refresh"
   },
   "connectivity": {
     "checking": "Checking your connection",

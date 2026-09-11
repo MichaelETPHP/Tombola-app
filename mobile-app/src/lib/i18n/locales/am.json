@@ -2,7 +2,8 @@
   "common": {
     "pressBackToExit": "ለመውጣት ተመልሰው ይንኩ",
     "loadingFeaturedRaffles": "ተለይተው የቀረቡ ዕጣዎች በመጫን ላይ",
-    "loading": "በመጫን ላይ"
+    "loading": "በመጫን ላይ",
+    "updateAvailable": "ማዘመኛ አለ — ለማደስ ይንኩ"
   },
   "connectivity": {
     "checking": "የኢንተርኔት ግንኙነትዎን እያረጋገጥን ነው",

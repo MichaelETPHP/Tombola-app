@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { page } from '$app/stores';
   import { afterNavigate, goto } from '$app/navigation';
   import { markInAppNavigation } from '$lib/native/navigateBack.js';
@@ -12,6 +15,8 @@
   import { hideBootSplash } from '$lib/native/splash.js';
   import { initBackButtonHandling } from '$lib/native/backButton.js';
   import { disableZoom } from '$lib/native/disableZoom.js';
+  import { hapticLight } from '$lib/native/haptics.js';
+  import { RefreshCw } from 'lucide-svelte';
   import BackExitToast from '$lib/components/BackExitToast.svelte';
   import Banner from '$lib/components/Banner.svelte';
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
@@ -25,11 +30,20 @@
   // JS chunks while the new SW is now the one serving fetches, so any chunk
   // that isn't in the new precache manifest (e.g. a lazy route import)
   // fails with workbox's "non-precached-url", and the stale in-memory JS
-  // can throw its own (already-fixed-upstream) bugs on top of that. Reload
-  // as soon as `needRefresh` flips so an open session always ends up on a
-  // JS build that matches the SW now actually serving it.
+  // can throw its own (already-fixed-upstream) bugs on top of that.
+  //
+  // A new build lands on a live server at any moment, though — reloading
+  // the instant `needRefresh` flips meant an already-open session could get
+  // yanked mid-scroll or mid-tap into a full reload (which briefly re-shows
+  // the boot splash, since that's just what a fresh page load does). Instead,
+  // surface a small tappable prompt and let the person choose when — same
+  // "update available" pattern as every other PWA — rather than reloading
+  // out from under them.
   const { needRefresh, updateServiceWorker } = useRegisterSW({ immediate: true });
-  $: if ($needRefresh) void updateServiceWorker(true);
+  function applyUpdate() {
+    hapticLight();
+    void updateServiceWorker(true);
+  }
 
   type MeResponse = {
     user: { id: string; phone: string; fullName: string | null; preferredLanguage?: 'en' | 'am' };
@@ -156,4 +170,16 @@
   <BackExitToast />
   <Banner />
   <ConnectivityGate />
+  {#if $needRefresh}
+    <div class="update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
+      <button
+        type="button"
+        class="tappable pressable flex items-center gap-2.5 rounded-full bg-ink px-4 py-3 text-[13px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,0,0,0.5)]"
+        on:click={applyUpdate}
+      >
+        <RefreshCw size={16} />
+        {$_('common.updateAvailable')}
+      </button>
+    </div>
+  {/if}
 {/if}
