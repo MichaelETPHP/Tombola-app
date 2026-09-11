@@ -35,12 +35,6 @@
   // scramble the server actually applied for this raffle.
   $: labelByNumber = new Map(rows.map((row) => [row.number, row.displayNumber]));
   $: label = (number: number) => labelByNumber.get(number) ?? String(number).padStart(5, '0');
-  // A first-time visitor has no reason to assume this looks-like-a-list
-  // control is actually a scroll wheel — this nudge only shows for a slot
-  // that's still genuinely untouched (empty, never engaged) and disappears
-  // the instant either changes, so it never sits there nagging someone who
-  // already knows what to do.
-  $: showScrollHint = !engaged && value === null;
   const isUnavailable = (row: { number: number; state: NumberState }) => row.state !== 'available' && row.number !== value;
   const isUsedElsewhere = (number: number) => selectedNumbers.includes(number) && number !== value;
   const canUse = (row: { number: number; state: NumberState }) => !isUnavailable(row) && !isUsedElsewhere(row.number);
@@ -139,10 +133,8 @@
     <div class="selection-band" aria-hidden="true"></div>
     <div class="wheel-fade top" aria-hidden="true"></div>
     <div class="wheel-fade bottom" aria-hidden="true"></div>
-    {#if showScrollHint}
-      <span class="wheel-hint top" aria-hidden="true"><ChevronUp size={13} strokeWidth={2.6} /></span>
-      <span class="wheel-hint bottom" aria-hidden="true"><ChevronDown size={13} strokeWidth={2.6} /></span>
-    {/if}
+    <span class="wheel-hint top" aria-hidden="true"><ChevronUp size={13} strokeWidth={2.6} /></span>
+    <span class="wheel-hint bottom" aria-hidden="true"><ChevronDown size={13} strokeWidth={2.6} /></span>
     <div
       bind:this={scroller}
       class="wheel-scroll"
@@ -187,8 +179,8 @@
   .wheel-shell { position: relative; height: 210px; overflow: hidden; border-radius: 14px; background: rgba(255,255,255,.82); box-shadow: 0 13px 30px -24px rgba(25,60,51,.55); }
   .wheel-scroll { position: absolute; inset: 0; z-index: 2; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: 84px; outline: none; }
   .wheel-scroll::-webkit-scrollbar { display: none; }
-  .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #53635c; font-size: 10px; font-weight: 620; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
-  .wheel-scroll > button[aria-selected='true'] { color: #075d48; font-size: 11px; font-weight: 800; }
+  .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #0a0a0a; font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
+  .wheel-scroll > button[aria-selected='true'] { color: #c81e1e; font-size: 11px; font-weight: 800; }
   .wheel-scroll > button.unavailable { color: #9a817f; opacity: .38; text-decoration: line-through; }
   .wheel-scroll > button.held-elsewhere:not(.selected) { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-radius: 6px; }
   .wheel-scroll > button.used:not(.selected) { opacity: .28; }
@@ -197,9 +189,10 @@
   .wheel-fade { position: absolute; z-index: 3; pointer-events: none; left: 0; right: 0; height: 72px; }
   .wheel-fade.top { top: 0; background: linear-gradient(to bottom, #f8faf9 8%, rgba(248,250,249,0)); }
   .wheel-fade.bottom { bottom: 0; background: linear-gradient(to top, #f8faf9 8%, rgba(248,250,249,0)); }
-  /* "You can scroll this" nudge — only ever shown on an untouched, empty
-     slot (see showScrollHint), so it never lingers as noise once someone
-     already knows what to do with it. */
+  /* "You can scroll this" nudge — stays up permanently in every state
+     (empty, mid-scroll, a number already picked), by request: the wheel
+     itself doesn't otherwise look interactive, so the cue never stops
+     being useful. */
   .wheel-hint { position: absolute; z-index: 4; left: 50%; pointer-events: none; color: #08765a; opacity: .78; transform: translateX(-50%); }
   .wheel-hint.top { top: 10px; animation: wheel-hint-up 1.3s ease-in-out infinite; }
   .wheel-hint.bottom { bottom: 10px; animation: wheel-hint-down 1.3s ease-in-out infinite; }
