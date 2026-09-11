@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { createEventDispatcher, onDestroy, onMount, tick } from 'svelte';
+  import { scale } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { _ } from 'svelte-i18n';
   import { Check, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { playWheelTick } from '$lib/native/ticketWheelSound.js';
@@ -28,6 +30,8 @@
   let mounted = false;
   let appliedFocusNonce = -1;
   let syncingValue = false;
+  let flashMessage: string | null = null;
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
   // The server (see api/lib/ticket-display-number.ts) is the only source
   // of what a ticket number looks like — this is a lookup into `rows`,
@@ -38,6 +42,22 @@
   const isUnavailable = (row: { number: number; state: NumberState }) => row.state !== 'available' && row.number !== value;
   const isUsedElsewhere = (number: number) => selectedNumbers.includes(number) && number !== value;
   const canUse = (row: { number: number; state: NumberState }) => !isUnavailable(row) && !isUsedElsewhere(row.number);
+
+  // A short, self-dismissing note for the one moment the wheel overrides
+  // what the user actually did — settling past a number that turned out
+  // to be unavailable and quietly sliding to the nearest real one instead.
+  // Without this the wheel just looks like it "changed its mind" for no
+  // reason; two seconds is enough to read a two-word message without
+  // sitting there as leftover clutter once it's served its purpose.
+  function showFlash(message: string) {
+    flashMessage = message;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { flashMessage = null; }, 2000);
+  }
+
+  function flashReasonFor(row: { number: number; state: NumberState }): string {
+    return isUsedElsewhere(row.number) ? $_('ticketWheel.flashAlreadyPicked') : $_('ticketWheel.flashTaken');
+  }
 
   function nearestUsable(from: number) {
     for (let distance = 0; distance < rows.length; distance += 1) {
@@ -83,6 +103,8 @@
     const usableIndex = nearestUsable(lastIndex);
     if (usableIndex < 0) return;
     if (usableIndex !== lastIndex) {
+      const skippedRow = rows[lastIndex];
+      if (skippedRow) showFlash(flashReasonFor(skippedRow));
       void moveTo(rows[usableIndex].number, 'smooth');
       return;
     }
@@ -93,7 +115,11 @@
 
   function chooseRow(number: number) {
     const index = rows.findIndex((row) => row.number === number);
-    if (index < 0 || !canUse(rows[index]) || disabled) return;
+    if (index < 0 || disabled) return;
+    if (!canUse(rows[index])) {
+      showFlash(flashReasonFor(rows[index]));
+      return;
+    }
     engaged = false;
     void moveTo(number, 'smooth');
     playWheelTick();
@@ -116,6 +142,8 @@
     return () => clearTimeout(settleTimer);
   });
 
+  onDestroy(() => clearTimeout(flashTimer));
+
   $: if (mounted && value !== null && value !== candidate && !engaged && !syncingValue) {
     syncingValue = true;
     void moveTo(value).finally(() => { syncingValue = false; });
@@ -135,6 +163,9 @@
     <div class="wheel-fade bottom" aria-hidden="true"></div>
     <span class="wheel-hint top" aria-hidden="true"><ChevronUp size={13} strokeWidth={2.6} /></span>
     <span class="wheel-hint bottom" aria-hidden="true"><ChevronDown size={13} strokeWidth={2.6} /></span>
+    {#if flashMessage}
+      <span class="wheel-flash" role="status" transition:scale={{ duration: 160, start: 0.9, easing: cubicOut }}>{flashMessage}</span>
+    {/if}
     <div
       bind:this={scroller}
       class="wheel-scroll"
@@ -198,6 +229,11 @@
   .wheel-hint.bottom { bottom: 10px; animation: wheel-hint-down 1.3s ease-in-out infinite; }
   @keyframes wheel-hint-up { 0%, 100% { transform: translate(-50%, 0); opacity: .5; } 50% { transform: translate(-50%, -5px); opacity: .95; } }
   @keyframes wheel-hint-down { 0%, 100% { transform: translate(-50%, 0); opacity: .5; } 50% { transform: translate(-50%, 5px); opacity: .95; } }
+  /* The "settled on an unavailable number, moved you to the nearest real
+     one" note — self-dismissing (see showFlash), so it never needs a close
+     affordance of its own. Sits centered over the wheel, where the eye
+     already is right when this fires. */
+  .wheel-flash { position: absolute; z-index: 6; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap; padding: 6px 11px; border-radius: 999px; background: #1a1a1a; color: #fff; font-size: 9px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 8px 18px -8px rgba(0,0,0,.45); pointer-events: none; }
   .wheel-scroll:focus-visible { outline: 2px solid #08765a; outline-offset: -3px; border-radius: 14px; }
   @media (max-width: 359px) { .wheel-shell { height: 190px; } .wheel-scroll { padding-block: 74px; } .selection-band { top: 74px; } .wheel-scroll > button { font-size: 9px; } }
   @media (prefers-reduced-motion: reduce) { .wheel-scroll { scroll-behavior: auto; } .wheel-scroll > button { transition: none; } .wheel-hint.top, .wheel-hint.bottom { animation: none; opacity: .7; } }

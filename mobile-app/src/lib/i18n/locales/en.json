@@ -529,7 +529,9 @@
   "ticketWheel": {
     "clear": "Clear",
     "removeTicketAria": "Remove ticket {number}",
-    "ticketChoiceAria": "Ticket choice {n}"
+    "ticketChoiceAria": "Ticket choice {n}",
+    "flashTaken": "Taken — moved to nearest",
+    "flashAlreadyPicked": "Already in your list"
   },
   "otpInput": {
     "digitAria": "Verification code digit {n} of {length}"

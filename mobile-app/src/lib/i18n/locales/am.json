@@ -529,7 +529,9 @@
   "ticketWheel": {
     "clear": "አጽዳ",
     "removeTicketAria": "ትኬት {number} አስወግድ",
-    "ticketChoiceAria": "የትኬት ምርጫ {n}"
+    "ticketChoiceAria": "የትኬት ምርጫ {n}",
+    "flashTaken": "ተይዟል — ወደ ቅርቡ ተዛውሯል",
+    "flashAlreadyPicked": "አስቀድሞ ተመርጧል"
   },
   "otpInput": {
     "digitAria": "የማረጋገጫ ኮድ አሃዝ {n} ከ{length}"
