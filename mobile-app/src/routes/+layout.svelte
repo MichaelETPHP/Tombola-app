@@ -82,7 +82,19 @@
       } catch {
         // No sessionStorage — fall through and reload anyway.
       }
-      location.reload();
+      // Same reasoning as app.html's copy of this: a bare reload can be a
+      // no-op here, since the reload's own request is still intercepted by
+      // whichever service worker's cache is actually the problem.
+      // Unregistering first forces this navigation past it, onto the
+      // network for real.
+      if (navigator.serviceWorker?.getRegistrations) {
+        navigator.serviceWorker.getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+          .catch(() => undefined)
+          .then(() => location.reload());
+      } else {
+        location.reload();
+      }
     }
   }
 

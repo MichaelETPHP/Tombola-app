@@ -54,7 +54,22 @@
             // No sessionStorage (privacy mode, etc.) — fall through and
             // reload anyway; a loop here is still better than staying broken.
           }
-          location.reload();
+          // A plain reload alone can be a no-op against exactly this bug:
+          // the reload's own navigation request is still intercepted by
+          // the SAME service worker whose cache is the actual problem, so
+          // it can just re-serve the identical stale response and the page
+          // breaks again immediately. Unregistering first forces this
+          // navigation to skip the Service Worker entirely and hit the
+          // network for real — actually fresh, not just re-asking the
+          // thing that was already wrong.
+          if (window.navigator && navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            navigator.serviceWorker.getRegistrations()
+              .then(function (regs) { return Promise.all(regs.map(function (r) { return r.unregister(); })); })
+              .catch(function () {})
+              .then(function () { location.reload(); });
+          } else {
+            location.reload();
+          }
         }
         window.addEventListener('error', function (e) { handle(e.message); });
         window.addEventListener('unhandledrejection', function (e) {
