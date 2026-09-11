@@ -37,7 +37,12 @@
             message.indexOf('setting the initial locale') !== -1 ||
             message.indexOf('non-precached-url') !== -1 ||
             message.indexOf('Failed to fetch dynamically imported module') !== -1 ||
-            message.indexOf('Importing a module script failed') !== -1
+            message.indexOf('Importing a module script failed') !== -1 ||
+            // Chrome/Chromium WebViews: a stale service worker serving an
+            // old chunk URL that the server (or nginx's SPA fallback) no
+            // longer has gets answered with index.html instead of a 404 —
+            // the browser then rejects it for having the wrong MIME type.
+            message.indexOf('MIME type') !== -1
           );
         }
         function handle(message) {

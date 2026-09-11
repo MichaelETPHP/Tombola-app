@@ -100,6 +100,8 @@
     setPendingPurchase({ raffleId: $page.params.id, quantity: selected.length, selectedNumbers: selected, idempotencyKey: requestKey });
   }
 
+  let manualRefreshing = false;
+
   async function refresh() {
     if (!$auth.isAuthenticated) return;
     const version = ++requestVersion;
@@ -115,6 +117,22 @@
       if (version === requestVersion) error = $_('numbers.refreshError');
     } finally {
       if (version === requestVersion) { refreshing = false; loading = false; }
+    }
+  }
+
+  // Explicit tap on the "Your ticket wheels" refresh button — shows the
+  // skeleton (unlike the silent background refresh below) so the tap
+  // clearly did something. Never runs once tickets are picked: reloading
+  // `availability` mid-choice can re-render every wheel with a new `rows`
+  // array reference, which is exactly the kind of surprise reflow/scroll
+  // jump that shouldn't happen while someone is mid-decision.
+  async function manualRefresh() {
+    if (selected.length) return;
+    manualRefreshing = true;
+    try {
+      await refresh();
+    } finally {
+      manualRefreshing = false;
     }
   }
 
@@ -142,7 +160,9 @@
     // "user is swiping a wheel mid-list" — every downward wheel swipe was
     // being read as a pull-to-refresh gesture. The manual refresh button
     // next to "Your ticket wheels" below covers the same need safely.
-    const foreground = () => { if (!document.hidden && !purchasing) refresh(); };
+    // Never runs while a selection is in progress — same reasoning as
+    // manualRefresh() above, just for the automatic/background triggers.
+    const foreground = () => { if (!document.hidden && !purchasing && !selected.length) refresh(); };
     const timer = setInterval(foreground, 15000);
     document.addEventListener('visibilitychange', foreground);
     return () => { requestVersion++; clearInterval(timer); document.removeEventListener('visibilitychange', foreground); };
@@ -356,9 +376,9 @@
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<p class="picker-message">{$_('numbers.allowanceReached')} <a href="/tickets">{$_('numbers.viewMyTickets')}</a></p>{/if}
 
   <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
-    <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button" on:click={refresh} disabled={refreshing} aria-label={$_('numbers.refreshAria')}><RefreshCw size={17} class={refreshing ? 'spin' : ''} /></button></div>
+    <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
-    {#if loading}
+    {#if loading || manualRefreshing}
       <div class="wheel-grid wheels-{wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} loading-wheels" style:--wheel-count={wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} aria-label={$_('numbers.loadingWheelsAria')}>{#each Array(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) as _}<div><span></span><div></div></div>{/each}</div>
     {:else if availability}
       <div class="wheel-grid wheels-{wheelCount}" style:--wheel-count={wheelCount}>
@@ -402,7 +422,7 @@
      the whole page scroll again. Being fixed makes this page immune to the
      parent layout entirely: it always exactly fills the screen, so only
      .picker-scroll (never the page itself) can ever need to scroll. */
-  .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; background: #f6f9f7; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
+  .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; background: #f6f9f7; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
   :global(html.telegram-mini-app) .number-picker { padding-top: var(--telegram-content-start); }
   .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 210px; }
   :global(html:has(.number-picker)) { background: #f6f9f7; }
@@ -413,10 +433,11 @@
   .picker-header > div { flex: 1; min-width: 0; } .picker-header p { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; } .picker-header span { font-size: 11px; color: var(--picker-muted); }
   .icon-button { display: inline-flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; color: var(--picker-ink); }
   .picker-header .icon-button { background: white; border: 1px solid var(--picker-border); } .header-ticket { padding: 12px; }
+  .icon-button-labeled { width: auto; min-height: 36px; gap: 5px; padding: 0 12px; border-radius: 999px; background: white; border: 1px solid var(--picker-border); font-size: 11px; font-weight: 700; }
   h1 { font-size: clamp(19px, 5vw, 22px); line-height: 1.25; font-weight: 800; letter-spacing: -.03em; } .picker-intro > p { font-size: 13px; line-height: 1.6; margin-top: 12px; color: var(--picker-muted); max-width: 300px; }
   .number-search { display: flex; gap: 10px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid var(--picker-border); border-radius: 14px; background: white; } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: #08765a; } input::placeholder { color: var(--picker-muted); font-size: 14px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; }
   .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .grid-heading p { margin-top: 3px; color: var(--picker-muted); font-size: 10px; line-height: 1.45; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid #778f84; } .selected-dot { background: #08765a; color: white; } .taken-dot { background: #f9e5e6; color: #a84b57; }
-  .selection-tools { position: relative; margin-bottom: 24px; }
+  .selection-tools { position: relative; margin-top: 18px; margin-bottom: 24px; }
   .search-feedback { margin-top: 7px; font-size: 11px; font-weight: 650; color: #a84b57; }
   .search-suggestions { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(300px, 38vh); overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; background: #fff; border: 1px solid var(--picker-border); border-radius: 14px; box-shadow: 0 14px 34px -12px rgba(25,60,51,.28); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
   .search-suggestions button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; }
