@@ -39,6 +39,16 @@ function syncTelegramContentSafeArea(webApp: TelegramWebApp): void {
   if (Number.isFinite(top) && top !== undefined && top > 0) {
     document.documentElement.style.setProperty('--telegram-content-safe-top', `${Math.ceil(top)}px`);
   }
+  // Telegram's own bottom chrome (the swipe-to-minimize handle, and on
+  // clients that stay in non-fullscreen mode, its system bar) sits below
+  // the WebView's actual content area exactly like the top controls do —
+  // but only the top inset was ever mirrored into CSS, so every
+  // fixed-to-the-bottom element (this page's checkout footer, the bottom
+  // nav elsewhere) had no idea that strip existed and could sit under it.
+  const bottom = webApp.contentSafeAreaInset?.bottom;
+  if (Number.isFinite(bottom) && bottom !== undefined && bottom > 0) {
+    document.documentElement.style.setProperty('--telegram-content-safe-bottom', `${Math.ceil(bottom)}px`);
+  }
 }
 
 declare global {
