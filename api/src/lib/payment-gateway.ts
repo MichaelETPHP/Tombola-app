@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
+import { logIntegrationEvent } from './integration-log.js';
 
 // ─── Chapa Integration ───────────────────────────────────────────
 
@@ -118,9 +119,11 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
 
   if (!response.ok) {
     logger.error(`Chapa init failed: ${JSON.stringify(data)}`);
+    logIntegrationEvent('chapa', 'error', 'initialize', { txRef: payload.tx_ref, httpStatus: response.status, message: data.message });
     throw new Error(`Chapa payment initialization failed: ${data.message}`);
   }
 
+  logIntegrationEvent('chapa', 'success', 'initialize', { txRef: payload.tx_ref, amount: payload.amount });
   return data;
 }
 
@@ -143,10 +146,48 @@ export async function chapaVerify(txRef: string): Promise<ChapaVerifyResponse> {
 
   if (!response.ok) {
     logger.error(`Chapa verify failed for ${txRef}: ${JSON.stringify(data)}`);
+    logIntegrationEvent('chapa', 'error', 'verify', { txRef, httpStatus: response.status, message: data.message });
     throw new Error(`Chapa verification failed for tx_ref: ${txRef}`);
   }
 
+  logIntegrationEvent('chapa', 'success', 'verify', { txRef, status: data.data?.status });
   return data;
+}
+
+export interface LiveCheckResult {
+  reachable: boolean;
+  latencyMs: number;
+  message: string;
+}
+
+/**
+ * Reachability probe for the admin Integrations page. Verifying a
+ * deliberately bogus tx_ref costs nothing and touches no real transaction —
+ * Chapa answers with its own 400/404 "not found" for that, which still
+ * proves the API and this deployment's credentials both work. Only a
+ * network-level failure (refused, timed out, DNS failure) counts as
+ * "unreachable"; this never writes to integration_logs, since a synthetic
+ * check isn't a real payment event.
+ */
+export async function pingChapa(): Promise<LiveCheckResult> {
+  const start = Date.now();
+  try {
+    const response = await fetch('https://api.chapa.co/v1/transaction/verify/__yeneeta_live_check__', {
+      signal: AbortSignal.timeout(8_000),
+      headers: { 'Authorization': `Bearer ${env.CHAPA_SECRET_KEY}` },
+    });
+    const latencyMs = Date.now() - start;
+    if (response.status === 401 || response.status === 403) {
+      return { reachable: false, latencyMs, message: 'Chapa API reachable, but CHAPA_SECRET_KEY was rejected' };
+    }
+    return { reachable: true, latencyMs, message: `Chapa API responded (HTTP ${response.status})` };
+  } catch (error) {
+    return {
+      reachable: false,
+      latencyMs: Date.now() - start,
+      message: error instanceof Error ? error.message : 'Unreachable',
+    };
+  }
 }
 
 /**

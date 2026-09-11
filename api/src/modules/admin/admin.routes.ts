@@ -25,6 +25,7 @@ import {
   adminSuspendUser,
   adminLogin,
   getIntegrationsStatus,
+  getIntegrationLogsPage,
   adminDeleteUser,
   adminBulkDeleteUsers,
   adminBulkSendSms,
@@ -38,6 +39,7 @@ import {
 } from './admin.service.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
+import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 
@@ -200,12 +202,42 @@ adminRoutes.get('/profits', requireRole('owner'), async (c) => {
 /**
  * GET /admin/integrations
  * Status of external integrations (SMS/OTP, Chapa, Telebirr) — mock vs
- * live, and whether credentials look configured. Never returns secret
- * values. Owner-only: it's infrastructure/security-adjacent information
- * moderators don't need.
+ * live, whether credentials look configured, and a real-time reachability
+ * probe for otp/chapa. Never returns secret values. Owner-only: it's
+ * infrastructure/security-adjacent information moderators don't need.
  */
 adminRoutes.get('/integrations', requireRole('owner'), async (c) => {
-  return c.json({ integrations: getIntegrationsStatus() });
+  return c.json({ integrations: await getIntegrationsStatus() });
+});
+
+/**
+ * GET /admin/integrations/logs
+ * Recent SMS/Chapa send attempts, success and failure, with error detail —
+ * backs the log viewer under the same page. Keyset-paginated on
+ * createdAt via ?before=<ISO timestamp>; ?integration= and ?status=
+ * filter. Owner-only, same reasoning as /integrations above.
+ */
+adminRoutes.get('/integrations/logs', requireRole('owner'), async (c) => {
+  const integration = c.req.query('integration');
+  const status = c.req.query('status');
+  const before = c.req.query('before');
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 50;
+
+  if (integration && !['sms', 'chapa', 'telegram'].includes(integration)) {
+    throw new AppError(400, 'Invalid integration filter');
+  }
+  if (status && !['success', 'error'].includes(status)) {
+    throw new AppError(400, 'Invalid status filter');
+  }
+
+  const page = await getIntegrationLogsPage({
+    integration: integration as 'sms' | 'chapa' | 'telegram' | undefined,
+    status: status as 'success' | 'error' | undefined,
+    limit,
+    before,
+  });
+  return c.json(page);
 });
 
 /**

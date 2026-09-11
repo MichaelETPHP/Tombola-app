@@ -1,9 +1,12 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
+import { logIntegrationEvent } from './integration-log.js';
 
 export interface SendSmsOptions {
   to: string;
   message: string;
+  /** Labels the admin log entry (e.g. 'otp', 'ticket_confirmation') — never the message body itself, which can carry an OTP code or other one-time-sensitive text that has no business sitting in a queryable log table. */
+  event?: string;
 }
 
 export interface SmsGatewayResponse {
@@ -51,7 +54,7 @@ function toE164(phone: string): string {
  * through a registered Android phone's own SIM).
  */
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
-  const { to, message } = options;
+  const { to, message, event = 'send' } = options;
 
   if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
     // In development, log the OTP instead of sending
@@ -59,6 +62,7 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
       logger.warn(`[SMS DEV MODE] To: ${to}, Message: ${message}`);
       return { success: true, messageId: 'dev-mode' };
     }
+    logIntegrationEvent('sms', 'error', event, { to, error: 'SMS gateway not configured' });
     throw new Error('SMS gateway not configured: SMS_API_URL/SMS_API_USERNAME/SMS_API_PASSWORD required');
   }
 
@@ -80,14 +84,59 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`SMS send failed (${response.status}): ${errorMessage}`);
+      logIntegrationEvent('sms', 'error', event, { to, httpStatus: response.status, error: errorMessage });
       return { success: false, error: errorMessage };
     }
 
+    logIntegrationEvent('sms', 'success', event, { to, messageId: data.id });
     return { success: true, messageId: data.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`SMS send exception: ${errorMessage}`);
+    logIntegrationEvent('sms', 'error', event, { to, error: errorMessage });
     return { success: false, error: errorMessage };
+  }
+}
+
+export interface LiveCheckResult {
+  reachable: boolean;
+  latencyMs: number;
+  message: string;
+}
+
+/**
+ * Reachability probe for the admin Integrations page — deliberately never
+ * sends an actual message. A GET against the gateway's own base URL isn't
+ * a documented endpoint of this 3rdparty API, but that's fine: any HTTP
+ * response at all (even a 404) proves the host is up and answering, which
+ * is everything this needs to know. Only a network-level failure (refused,
+ * timed out, DNS failure) means "unreachable" — this never touches
+ * integration_logs, since a synthetic check isn't a real send attempt.
+ */
+export async function pingSmsGateway(): Promise<LiveCheckResult> {
+  const start = Date.now();
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
+    return { reachable: false, latencyMs: 0, message: 'SMS gateway not configured' };
+  }
+  try {
+    const response = await fetch(env.SMS_API_URL.replace(/\/$/, ''), {
+      method: 'GET',
+      signal: AbortSignal.timeout(5_000),
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
+      },
+    });
+    return {
+      reachable: true,
+      latencyMs: Date.now() - start,
+      message: `Gateway responded (HTTP ${response.status})`,
+    };
+  } catch (error) {
+    return {
+      reachable: false,
+      latencyMs: Date.now() - start,
+      message: error instanceof Error ? error.message : 'Unreachable',
+    };
   }
 }
 
@@ -148,6 +197,7 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`Bulk SMS send failed (${response.status}): ${errorMessage}`);
+      logIntegrationEvent('sms', 'error', 'bulk_send', { recipientCount: valid.length, httpStatus: response.status, error: errorMessage });
       return {
         success: false,
         error: errorMessage,
@@ -161,10 +211,17 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
       error: r.state === 'Failed' ? (r.error ?? 'Rejected by gateway') : undefined,
     }));
 
+    const failedCount = sentResults.filter((r) => !r.success).length;
+    logIntegrationEvent('sms', failedCount === sentResults.length ? 'error' : 'success', 'bulk_send', {
+      messageId: data.id,
+      recipientCount: sentResults.length,
+      failedCount,
+    });
     return { success: true, messageId: data.id, recipients: [...sentResults, ...invalid] };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`Bulk SMS send exception: ${errorMessage}`);
+    logIntegrationEvent('sms', 'error', 'bulk_send', { recipientCount: valid.length, error: errorMessage });
     return {
       success: false,
       error: errorMessage,
@@ -187,6 +244,7 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
 
   return sendSms({
     to: phone,
+    event: 'otp',
     message: locale === 'am'
       ? `የYeneEta ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
       : `Your YeneEta verification code is ${code}. It is valid for 5 minutes.`,
@@ -199,22 +257,36 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
 export async function sendTriggerLink(phone: string, link: string): Promise<SmsGatewayResponse> {
   return sendSms({
     to: phone,
+    event: 'trigger_link',
     message: `🎉 You've been selected to trigger the raffle draw! Tap here: ${link} — This link expires in 1 hour.`,
   });
 }
 
-/** Send a confirmation once a ticket purchase is paid for and tickets are issued. */
+const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
+
+/**
+ * Send a confirmation once a ticket purchase is paid for and tickets are
+ * issued. Every ticket number gets its own line rather than a comma-joined
+ * list — a buyer skimming this on a lock screen should be able to pick out
+ * "did my number get in" at a glance, not parse a run-on sentence. "Good
+ * luck" is bilingual unconditionally (not switched by locale) — same
+ * deliberate choice as the in-app payment-success screen's bilingual line.
+ */
 export async function sendTicketPurchaseConfirmation(
   phone: string,
   details: { raffleName: string; raffleCode: string; ticketNumbers: number[] }
 ): Promise<SmsGatewayResponse> {
   const codes = details.ticketNumbers.map((n) => `${details.raffleCode}-${String(n).padStart(5, '0')}`);
   const count = codes.length;
-  const list = count <= 3 ? codes.join(', ') : `${codes.slice(0, 3).join(', ')} +${count - 3} more`;
-  return sendSms({
-    to: phone,
-    message: `YeneEta: Payment received! You bought ${count} ticket${count === 1 ? '' : 's'} for "${details.raffleName}": ${list}. Good luck!`,
-  });
+  const message = [
+    `🎉 Thank you for your purchase!`,
+    `Raffle: ${details.raffleName}`,
+    `Your ticket${count === 1 ? '' : 's'}:`,
+    ...codes,
+    `Good luck! · መልካም እድል!`,
+    YENEETA_BOT_LINK,
+  ].join('\n');
+  return sendSms({ to: phone, message, event: 'ticket_confirmation' });
 }
 
 /** Send one prize tier's single-use draw invitation with its context. */
@@ -236,6 +308,7 @@ export async function sendDrawInvitation(
   });
   return sendSms({
     to: phone,
+    event: 'draw_invitation',
     message: `YeneEta draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}". Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw. Link expires ${format.format(details.expiresAt)}.`,
   });
 }

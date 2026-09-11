@@ -62,6 +62,13 @@ export const statusColors = {
   live: { fg: colors.success, bg: colors.successBg },
   unconfigured: { fg: colors.danger, bg: colors.dangerBg },
   not_implemented: { fg: colors.textSecondary, bg: colors.border },
+
+  // Integration live-reachability + log status (same page)
+  reachable: { fg: colors.success, bg: colors.successBg },
+  unreachable: { fg: colors.danger, bg: colors.dangerBg },
+  not_applicable: { fg: colors.textSecondary, bg: colors.border },
+  success: { fg: colors.success, bg: colors.successBg },
+  error: { fg: colors.danger, bg: colors.dangerBg },
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────

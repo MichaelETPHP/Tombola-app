@@ -15,16 +15,25 @@ import { requireAdminSessionVersion } from '../../lib/admin-session.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
-import { sendBulkSms } from '../../lib/sms.js';
+import { sendBulkSms, pingSmsGateway } from '../../lib/sms.js';
+import { pingChapa } from '../../lib/payment-gateway.js';
+import { listIntegrationLogs, type IntegrationKey, type IntegrationLogStatus } from '../../lib/integration-log.js';
 import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
+export type IntegrationLiveStatus = 'reachable' | 'unreachable' | 'not_applicable';
 
 export interface IntegrationStatus {
   key: string;
   name: string;
   mode: IntegrationMode;
   detail: string;
+  live: {
+    status: IntegrationLiveStatus;
+    message: string;
+    latencyMs?: number;
+    checkedAt: string;
+  };
 }
 
 /** A .env.example placeholder left untouched — not a real credential. */
@@ -155,21 +164,53 @@ export async function getProfitOverview() {
   return { raffles, totals, calculatedAt: new Date().toISOString() };
 }
 
+function notApplicable(message: string): IntegrationStatus['live'] {
+  return { status: 'not_applicable', message, checkedAt: new Date().toISOString() };
+}
+
+function fromLiveCheck(result: { reachable: boolean; latencyMs: number; message: string }): IntegrationStatus['live'] {
+  return {
+    status: result.reachable ? 'reachable' : 'unreachable',
+    message: result.message,
+    latencyMs: result.latencyMs,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Status of every external integration this platform depends on — never
- * exposes actual secret values, only whether each looks configured and
- * which mode (mock/live) is currently active. Read-only: real credentials
- * are set via deployment environment variables, not through this API.
+ * exposes actual secret values, only whether each looks configured, which
+ * mode (mock/live) is currently active, and (for otp/chapa) a real-time
+ * reachability probe run right now. Read-only: real credentials are set
+ * via deployment environment variables, not through this API. The two
+ * live pings run in parallel and are capped at a few seconds each (see
+ * pingSmsGateway/pingChapa), so this stays fast even when one is down.
  */
-export function getIntegrationsStatus(): IntegrationStatus[] {
+export async function getIntegrationsStatus(): Promise<IntegrationStatus[]> {
   const smsConfigured =
     !isPlaceholder(env.SMS_API_URL) && !isPlaceholder(env.SMS_API_USERNAME) && !isPlaceholder(env.SMS_API_PASSWORD);
+  const chapaConfigured = !isPlaceholder(env.CHAPA_SECRET_KEY) && !isPlaceholder(env.CHAPA_WEBHOOK_SECRET);
+
+  const [smsLive, chapaLive] = await Promise.all([
+    env.DEMO_OTP_ENABLED
+      ? Promise.resolve(notApplicable('Demo OTP mode is active — no gateway is being called.'))
+      : smsConfigured
+        ? pingSmsGateway().then(fromLiveCheck)
+        : Promise.resolve(notApplicable('Not configured.')),
+    env.MOCK_PAYMENTS
+      ? Promise.resolve(notApplicable('Mock payments mode is active — Chapa is not being called.'))
+      : chapaConfigured
+        ? pingChapa().then(fromLiveCheck)
+        : Promise.resolve(notApplicable('Not configured.')),
+  ]);
+
   const otp: IntegrationStatus = env.DEMO_OTP_ENABLED
     ? {
         key: 'otp',
         name: 'OTP delivery (SMS)',
         mode: 'mock',
         detail: '123456 is accepted as the code for any phone number. Set DEMO_OTP_ENABLED=false once a real gateway is live.',
+        live: smsLive,
       }
     : smsConfigured
       ? {
@@ -177,25 +218,27 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
           name: 'OTP delivery (SMS)',
           mode: 'live',
           detail: 'SMS_API_URL, SMS_API_USERNAME and SMS_API_PASSWORD are set — codes send for real.',
+          live: smsLive,
         }
       : {
           key: 'otp',
           name: 'OTP delivery (SMS)',
           mode: 'unconfigured',
           detail: 'No SMS gateway configured — codes are logged to the server console instead of sent.',
+          live: smsLive,
         };
 
-  const chapaConfigured = !isPlaceholder(env.CHAPA_SECRET_KEY) && !isPlaceholder(env.CHAPA_WEBHOOK_SECRET);
   const chapa: IntegrationStatus = env.MOCK_PAYMENTS
     ? {
         key: 'chapa',
         name: 'Chapa payments',
         mode: 'mock',
         detail: 'Checkout goes through the mobile app’s fake gateway page. Ticket issuance and the webhook still run for real. Set MOCK_PAYMENTS=false once CHAPA_SECRET_KEY is live.',
+        live: chapaLive,
       }
     : chapaConfigured
-      ? { key: 'chapa', name: 'Chapa payments', mode: 'live', detail: 'CHAPA_SECRET_KEY and CHAPA_WEBHOOK_SECRET are set — real checkout is active.' }
-      : { key: 'chapa', name: 'Chapa payments', mode: 'unconfigured', detail: 'No Chapa credentials set and MOCK_PAYMENTS is off — real purchases will fail.' };
+      ? { key: 'chapa', name: 'Chapa payments', mode: 'live', detail: 'CHAPA_SECRET_KEY and CHAPA_WEBHOOK_SECRET are set — real checkout is active.', live: chapaLive }
+      : { key: 'chapa', name: 'Chapa payments', mode: 'unconfigured', detail: 'No Chapa credentials set and MOCK_PAYMENTS is off — real purchases will fail.', live: chapaLive };
 
   const telebirrConfigured = !isPlaceholder(env.TELEBIRR_APP_ID) && !isPlaceholder(env.TELEBIRR_APP_KEY);
   const telebirr: IntegrationStatus = {
@@ -205,6 +248,7 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
     detail: telebirrConfigured
       ? 'App ID/key are set, but there is no Telebirr integration code yet — this is schema-level only for now.'
       : 'Not built yet — the payments schema reserves this gateway, but no integration code exists.',
+    live: notApplicable('No integration code exists yet.'),
   };
 
   const storage: IntegrationStatus = {
@@ -212,9 +256,37 @@ export function getIntegrationsStatus(): IntegrationStatus[] {
     name: 'Raffle image storage',
     mode: 'live',
     detail: 'Optimized WebP prize images are saved to the API’s local disk (persisted via the api_uploads Docker volume) — no external config needed.',
+    live: notApplicable('Local disk — not an external service to ping.'),
   };
 
   return [otp, chapa, storage, telebirr];
+}
+
+export interface IntegrationLogsPage {
+  logs: {
+    id: string;
+    integration: IntegrationKey;
+    status: IntegrationLogStatus;
+    event: string;
+    detail: Record<string, unknown>;
+    createdAt: string;
+  }[];
+  nextBefore: string | null;
+}
+
+/** Paginated read for the admin log viewer — see integration-log.ts. */
+export async function getIntegrationLogsPage(filter: {
+  integration?: IntegrationKey;
+  status?: IntegrationLogStatus;
+  limit: number;
+  before?: string;
+}): Promise<IntegrationLogsPage> {
+  const logs = await listIntegrationLogs(filter);
+  const last = logs[logs.length - 1];
+  return {
+    logs,
+    nextBefore: logs.length === filter.limit && last ? last.createdAt : null,
+  };
 }
 
 /**
