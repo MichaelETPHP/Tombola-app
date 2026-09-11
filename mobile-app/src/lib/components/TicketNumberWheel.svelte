@@ -172,8 +172,8 @@
   .wheel-shell { position: relative; height: 210px; overflow: hidden; border-radius: 14px; background: rgba(255,255,255,.82); box-shadow: 0 13px 30px -24px rgba(25,60,51,.55); }
   .wheel-scroll { position: absolute; inset: 0; z-index: 2; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: 84px; outline: none; }
   .wheel-scroll::-webkit-scrollbar { display: none; }
-  .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #53635c; font-size: 11px; font-weight: 620; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
-  .wheel-scroll > button[aria-selected='true'] { color: #075d48; font-size: 12px; font-weight: 800; }
+  .wheel-scroll > button { position: relative; width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 3px; scroll-snap-align: center; color: #53635c; font-size: 10px; font-weight: 620; font-variant-numeric: tabular-nums; transition: color 120ms ease, opacity 120ms ease, font-size 120ms ease; }
+  .wheel-scroll > button[aria-selected='true'] { color: #075d48; font-size: 11px; font-weight: 800; }
   .wheel-scroll > button.unavailable { color: #9a817f; opacity: .38; text-decoration: line-through; }
   .wheel-scroll > button.held-elsewhere:not(.selected) { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-radius: 6px; }
   .wheel-scroll > button.used:not(.selected) { opacity: .28; }
@@ -183,6 +183,6 @@
   .wheel-fade.top { top: 0; background: linear-gradient(to bottom, #f8faf9 8%, rgba(248,250,249,0)); }
   .wheel-fade.bottom { bottom: 0; background: linear-gradient(to top, #f8faf9 8%, rgba(248,250,249,0)); }
   .wheel-scroll:focus-visible { outline: 2px solid #08765a; outline-offset: -3px; border-radius: 14px; }
-  @media (max-width: 359px) { .wheel-shell { height: 190px; } .wheel-scroll { padding-block: 74px; } .selection-band { top: 74px; } .wheel-scroll > button { font-size: 10px; } }
+  @media (max-width: 359px) { .wheel-shell { height: 190px; } .wheel-scroll { padding-block: 74px; } .selection-band { top: 74px; } .wheel-scroll > button { font-size: 9px; } }
   @media (prefers-reduced-motion: reduce) { .wheel-scroll { scroll-behavior: auto; } .wheel-scroll > button { transition: none; } }
 </style>

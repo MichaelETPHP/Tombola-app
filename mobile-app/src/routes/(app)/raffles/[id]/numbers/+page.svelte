@@ -13,7 +13,6 @@
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
-  import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import TicketNumberWheel from '$lib/components/TicketNumberWheel.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { ArrowLeft, ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Search, Ticket, X } from 'lucide-svelte';
@@ -24,7 +23,6 @@
     start: number; end: number; ticketCap: number; allowance: number; owned: number;
     activePaymentId: string | null; paymentStarted: boolean; salesOpen: boolean;
   };
-  const pullRefresh = getPullRefreshContext();
   const pageSize = 5000;
   let raffle: Raffle | null = null;
   let availability: Availability | null = null;
@@ -135,11 +133,19 @@
       .then((data) => { raffle = data.raffle; })
       .catch(() => { error = $_('numbers.loadRaffleError'); });
     refresh();
-    pullRefresh.set(refresh);
+    // No pullRefresh.set() here, deliberately: this page is a fixed
+    // full-screen overlay (see .number-picker below) with its own internal
+    // scroller, so the *document* is always sitting at scrollTop 0 no
+    // matter where the wheels/content are scrolled to. PullToRefresh's
+    // "are we at the top" check reads exactly that document scrollTop, so
+    // it can never tell "user is at the top of the picker" apart from
+    // "user is swiping a wheel mid-list" — every downward wheel swipe was
+    // being read as a pull-to-refresh gesture. The manual refresh button
+    // next to "Your ticket wheels" below covers the same need safely.
     const foreground = () => { if (!document.hidden && !purchasing) refresh(); };
     const timer = setInterval(foreground, 15000);
     document.addEventListener('visibilitychange', foreground);
-    return () => { requestVersion++; clearInterval(timer); document.removeEventListener('visibilitychange', foreground); pullRefresh.set(null); };
+    return () => { requestVersion++; clearInterval(timer); document.removeEventListener('visibilitychange', foreground); };
   });
 
   function toggle(n: number) {
@@ -297,7 +303,6 @@
   <section class="picker-intro">
     <h1>{@html $_('numbers.heading')}</h1>
     <p>{$_('numbers.subheading')}</p>
-    {#if raffle}<div class="price-line"><strong>{formatEtb(raffle.ticketPrice)} <span>{$_('numbers.perTicket')}</span></strong><span>{$_('numbers.perPerson', { values: { n: raffle.maxTicketsPerUser } })}</span></div>{/if}
   </section>
 
   {#if resumePaymentId}
@@ -378,10 +383,13 @@
  </div>
 
   <footer class="selection-footer">
-    <div class="selection-caption"><strong>{$_('numbers.yourSelection')}</strong><span aria-live="polite">{availability ? $_('numbers.selectedSummary', { values: { n: selected.length, allowed: allowance } }) : $_('numbers.selectedCountOnly', { values: { n: selected.length } })}</span></div>
+    <div class="selection-caption">
+      <div class="selection-caption-row"><strong>{$_('numbers.yourSelection')}</strong><span aria-live="polite">{availability ? $_('numbers.selectedSummary', { values: { n: selected.length, allowed: allowance } }) : $_('numbers.selectedCountOnly', { values: { n: selected.length } })}</span></div>
+      {#if raffle}<p class="price-per-ticket">{formatEtb(raffle.ticketPrice)} {$_('numbers.perTicket')}</p>{/if}
+    </div>
     <div class="selected-chips">{#if !selected.length}<span class="selection-placeholder">{$_('numbers.chipsPlaceholder')}</span>{:else}{#each selected as n (n)}<button class:chip-conflict={conflicts.includes(n)} on:click={() => toggle(n)} disabled={purchasing} aria-label={$_('numbers.removeTicketAria', { values: { number: numberLabel(n) } })}>{numberLabel(n)}<X size={14} /></button>{/each}{/if}</div>
-    <div class="footer-action"><div><span>{$_('numbers.total')}</span><strong>{formatEtb(total)} <small>ETB</small></strong></div><button class="continue-button" class:is-purchasing={purchasing} on:click={continueToCheckout} disabled={!selected.length || selected.length > allowance || conflicts.length > 0 || purchasing || !availability?.salesOpen || !!resumePaymentId || !raffle}>{purchasing ? $_('numbers.reserving') : $_('numbers.continue')}{#if purchasing}<IosSpinner size={18} color="#ffffff" />{:else}<ArrowRight size={19} />{/if}</button></div>
-    <p><LockKeyhole size={12} /> {$_('numbers.changeMindNote')}</p>
+    <div class="footer-action"><div><span>{$_('numbers.total')}</span><strong>{formatEtb(total)} <small>ETB</small></strong></div><button class="continue-button" class:is-purchasing={purchasing} on:click={continueToCheckout} disabled={!selected.length || selected.length > allowance || conflicts.length > 0 || purchasing || !availability?.salesOpen || !!resumePaymentId || !raffle}>{purchasing ? $_('numbers.reserving') : $_('numbers.continue')}{#if purchasing}<IosSpinner size={16} color="#ffffff" />{:else}<ArrowRight size={16} />{/if}</button></div>
+    <p><LockKeyhole size={11} /> {$_('numbers.changeMindNote')}</p>
   </footer>
 </div>
 
@@ -396,7 +404,7 @@
      .picker-scroll (never the page itself) can ever need to scroll. */
   .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; background: #f6f9f7; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
   :global(html.telegram-mini-app) .number-picker { padding-top: var(--telegram-content-start); }
-  .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 250px; }
+  .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 210px; }
   :global(html:has(.number-picker)) { background: #f6f9f7; }
   :global(html:has(.number-picker) body) { background: #f6f9f7; }
   :global(html:has(.number-picker) .bottom-nav) { display: none; }
@@ -406,7 +414,6 @@
   .icon-button { display: inline-flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; color: var(--picker-ink); }
   .picker-header .icon-button { background: white; border: 1px solid var(--picker-border); } .header-ticket { padding: 12px; }
   h1 { font-size: clamp(19px, 5vw, 22px); line-height: 1.25; font-weight: 800; letter-spacing: -.03em; } .picker-intro > p { font-size: 13px; line-height: 1.6; margin-top: 12px; color: var(--picker-muted); max-width: 300px; }
-  .price-line { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 22px 0 24px; padding: 15px 0; border-block: 1px solid var(--picker-border); font-size: 11px; align-items: center; } .price-line strong { font-size: 17px; } .price-line strong span { font-size: 11px; font-weight: 500; } .price-line > span { color: var(--picker-muted); }
   .number-search { display: flex; gap: 10px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid var(--picker-border); border-radius: 14px; background: white; } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: #08765a; } input::placeholder { color: var(--picker-muted); font-size: 14px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; }
   .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .grid-heading p { margin-top: 3px; color: var(--picker-muted); font-size: 10px; line-height: 1.45; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid #778f84; } .selected-dot { background: #08765a; color: white; } .taken-dot { background: #f9e5e6; color: #a84b57; }
   .selection-tools { position: relative; margin-bottom: 24px; }
@@ -428,8 +435,11 @@
   .loading-wheels > div > div { height: 210px; border-radius: 14px; background: linear-gradient(100deg, #e8efeb 20%, #f6f9f7 45%, #e8efeb 70%); background-size: 220% 100%; animation: wheel-loading 1.15s linear infinite; }
   @keyframes wheel-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 16px 20px max(16px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); } .selection-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption > span { color: var(--picker-muted); } .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; min-height: 48px; align-items: center; margin: 6px 0 10px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 42px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
-  .footer-action { display: flex; align-items: center; gap: 22px; } .footer-action > div { min-width: 85px; display: flex; flex-direction: column; gap: 2px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 20px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 12px; align-items: center; justify-content: center; min-height: 54px; border-radius: 14px; background: #193c33; color: white; font-size: 14px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.6; margin-top: 12px; }
+  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 12px 16px max(12px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); }
+  .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
+  .price-per-ticket { margin-top: 1px; font-size: 10px; color: var(--picker-muted); }
+  .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 36px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
+  .footer-action { display: flex; align-items: center; gap: 14px; } .footer-action > div { min-width: 78px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #193c33; color: white; font-size: 13px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
   .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .continue-button.is-purchasing:disabled { background: #193c33; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 359px) { .wheel-grid { column-gap: 4px; } .selection-footer { padding-inline: 16px; } }
