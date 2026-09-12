@@ -11,7 +11,7 @@
   import { Browser } from '@capacitor/browser';
   import { Capacitor } from '@capacitor/core';
   import { useRegisterSW } from 'virtual:pwa-register/svelte';
-  import { api, ApiError } from '$lib/api/client.js';
+  import { api, ApiError, setTelegramReauth } from '$lib/api/client.js';
   import { auth, setAuth, setAuthLoading } from '$lib/stores/auth.store.js';
   import { hideBootSplash } from '$lib/native/splash.js';
   import { initBackButtonHandling } from '$lib/native/backButton.js';
@@ -184,6 +184,25 @@
     }
     try {
       if (telegram) {
+        // Registered once, up front: apiFetch's 401 handler (client.ts)
+        // falls back to this whenever the httpOnly refresh cookie is
+        // missing/invalid, which happens whenever Telegram's WebView
+        // survives a "close and reopen" without persisting it — this
+        // re-authenticates from Telegram's own signed initData instead,
+        // which needs no cookie/localStorage to have survived at all.
+        const telegramWebApp = telegram;
+        setTelegramReauth(async () => {
+          try {
+            const result = await authenticateTelegramMiniApp(telegramWebApp);
+            if (result.status !== 'authenticated') return false;
+            if (result.user.preferredLanguage) setLanguage(result.user.preferredLanguage);
+            setAuth(result.accessToken, result.user);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+
         try {
           const result = await authenticateTelegramMiniApp(telegram);
           // A returning, already-linked Telegram account signs in
@@ -235,6 +254,27 @@
       // reveals a flash of the wrong auth state.
       clearTimeout(splashSafetyTimer);
       hideBootSplash();
+    }
+
+    // Telegram keeps a Mini App's WebView alive across "close and reopen"
+    // far more often than it fully reloads it, so onMount above may simply
+    // never run again for a returning session. Without this, a token that
+    // quietly expired while backgrounded is only discovered the next time
+    // some request 401s mid-interaction. Re-validating the instant the Mini
+    // App comes back to the foreground means that never becomes visible to
+    // the user in the first place — the failed-refresh fallback in
+    // client.ts remains the safety net for everything this misses.
+    if (telegram) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && get(auth).accessToken) {
+          void authenticateTelegramMiniApp(telegram).then((result) => {
+            if (result.status === 'authenticated') {
+              if (result.user.preferredLanguage) setLanguage(result.user.preferredLanguage);
+              setAuth(result.accessToken, result.user);
+            }
+          }).catch(() => undefined);
+        }
+      });
     }
   });
 </script>

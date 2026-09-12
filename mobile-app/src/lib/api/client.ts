@@ -11,6 +11,24 @@ interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
+// Telegram Mini Apps don't need this at all under normal conditions — every
+// fresh boot re-authenticates from Telegram's own signed `initData`, never
+// the refresh cookie. But Telegram frequently keeps a Mini App's WebView
+// alive (not reloaded) across "close and reopen", especially after the app
+// sat backgrounded past the ~15-minute access-token lifetime: on resume,
+// this module still holds the old token in memory, the first request 401s,
+// and `attemptRefresh()` below depends on the httpOnly refresh cookie —
+// which some Telegram WebView implementations (iOS in particular) don't
+// reliably persist across that suspend/resume cycle. Without a fallback,
+// that 401 became an uncaught ApiError that could trip the root error
+// boundary ("Something went wrong") instead of just quietly re-signing in.
+// +layout.svelte registers this once it knows it's running inside Telegram;
+// it's a no-op everywhere else (native app, browser, plain PWA).
+let telegramReauth: (() => Promise<boolean>) | null = null;
+export function setTelegramReauth(fn: (() => Promise<boolean>) | null): void {
+  telegramReauth = fn;
+}
+
 /**
  * API client with automatic auth header injection and 401 → refresh flow.
  */
@@ -40,7 +58,11 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   // Handle 401 — attempt token refresh
   if (response.status === 401 && !skipAuth) {
-    const refreshResult = await attemptRefresh();
+    let refreshResult = await attemptRefresh();
+    if (!refreshResult.refreshed && telegramReauth) {
+      const reauthed = await telegramReauth().catch(() => false);
+      if (reauthed) refreshResult = { refreshed: true };
+    }
     if (refreshResult.refreshed) {
       // Retry the original request with new token
       const authState = get(auth);
