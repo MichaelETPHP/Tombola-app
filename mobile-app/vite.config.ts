@@ -80,6 +80,12 @@ export default defineConfig({
         // adapter-static is configured with a SPA fallback (see svelte.config.js)
         // — tell the plugin so the fallback page's revision is precached too.
         spa: true,
+        // Must match svelte.config.js's adapter `fallback: 'index.html'`.
+        // Without this, the plugin drops the fallback page from the precache
+        // manifest entirely while still pointing navigateFallback at it,
+        // which threw an uncaught "non-precached-url" for "/" on every
+        // navigation-fallback lookup (harmless in practice, but noisy).
+        adapterFallback: 'index.html',
       },
     }),
   ],
