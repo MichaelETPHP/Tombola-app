@@ -4,7 +4,7 @@
   import { _ } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { page } from '$app/stores';
+  import { page, updated } from '$app/stores';
   import { afterNavigate, goto } from '$app/navigation';
   import { markInAppNavigation } from '$lib/native/navigateBack.js';
   import { App } from '@capacitor/app';
@@ -313,7 +313,8 @@
     // client.ts remains the safety net for everything this misses.
     if (telegram) {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && get(auth).accessToken) {
+        if (document.visibilityState !== 'visible') return;
+        if (get(auth).accessToken) {
           void authenticateTelegramMiniApp(telegram).then((result) => {
             if (result.status === 'authenticated') {
               if (result.user.preferredLanguage) setLanguage(result.user.preferredLanguage);
@@ -321,6 +322,22 @@
             }
           }).catch(() => undefined);
         }
+        // A stale cached index.html was the actual root cause of a crash
+        // that kept reproducing even after every code-level fix shipped:
+        // Telegram's WebView cache can hold onto the entry page across a
+        // suspend/resume cycle far longer than a poll interval would catch
+        // in time, silently serving whatever JS chunks that old page
+        // references. updated.check() re-fetches _app/version.json
+        // (always no-cache — see nginx config) and compares it against
+        // this page's own build — a signal entirely independent of the
+        // service-worker layer, so it still catches drift even if that
+        // layer is ever fooled again. Reloading immediately and silently
+        // here (not a "tap to update" toast) is deliberate: a resume, before
+        // the user has done anything yet, is the one moment a reload costs
+        // nothing to interrupt.
+        void updated.check().then((isStale) => {
+          if (isStale) hardReload();
+        });
       });
     }
   });
