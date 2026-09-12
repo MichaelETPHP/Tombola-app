@@ -109,7 +109,7 @@
     <div class="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-card border border-border bg-card p-8 text-center">
       <CircleAlert size={24} class="text-danger" />
       <div><p class="text-sm font-bold text-ink">Payouts could not be loaded</p><p class="mt-1 text-xs text-muted">Check the API connection and try again.</p></div>
-      <button class="admin-press inline-flex h-10 items-center gap-2 rounded-button border border-border px-4 text-xs font-bold" on:click={() => load()}><RefreshCw size={14} /> Try again</button>
+      <button class="admin-press inline-flex h-10 items-center gap-2 rounded-button border border-border px-4 text-xs font-bold" on:click={() => load()}><RefreshCw size={14} class={loading ? 'animate-spin' : ''} /> Try again</button>
     </div>
   {:else}
     <DataTable columns={columns} rows={payouts} emptyMessage="No payouts in this queue.">

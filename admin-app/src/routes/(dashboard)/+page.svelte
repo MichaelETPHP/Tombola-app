@@ -83,7 +83,7 @@
         <p class="mt-1 text-sm text-muted">Check the API connection and try again.</p>
       </div>
       <button class="admin-press inline-flex h-10 items-center gap-2 rounded-button border border-border bg-card px-4 text-xs font-bold text-ink" on:click={load}>
-        <RefreshCw size={14} /> Try again
+        <RefreshCw size={14} class={loading ? 'animate-spin' : ''} /> Try again
       </button>
     </section>
   {:else}

@@ -4,6 +4,7 @@
   import { auth } from '$lib/stores/auth.store.js';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import FloatingRefreshButton from '$lib/components/FloatingRefreshButton.svelte';
 
   $: if (!$auth.isLoading && !$auth.isAuthenticated) {
     goto('/login', { replaceState: true });
@@ -35,4 +36,5 @@
       {/key}
     </main>
   </div>
+  <FloatingRefreshButton />
 {/if}

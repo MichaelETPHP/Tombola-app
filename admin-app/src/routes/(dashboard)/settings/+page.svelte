@@ -2,7 +2,7 @@
   import { api, ApiError } from '$lib/api/client.js';
   import { auth, updateOwnAdminInStore } from '$lib/stores/auth.store.js';
   import type { Admin } from '$lib/schemas/index.js';
-  import { Check, Eye, EyeOff, KeyRound, Shield, UserRound, Users } from 'lucide-svelte';
+  import { Check, Eye, EyeOff, KeyRound, Loader2, Shield, UserRound, Users } from 'lucide-svelte';
 
   let fullName = $auth.admin?.fullName ?? '';
   let currentPassword = '';
@@ -103,7 +103,7 @@
       {#if error}<p class="mt-4 rounded-button bg-danger-bg px-4 py-3 text-xs font-medium text-danger" role="alert">{error}</p>{/if}
       {#if success}<p class="mt-4 flex items-center gap-2 rounded-button bg-success-bg px-4 py-3 text-xs font-medium text-success"><Check size={15} /> {success}</p>{/if}
 
-      <button type="submit" disabled={saving} class="admin-press mt-6 h-11 rounded-button bg-primary px-6 text-xs font-bold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>
+      <button type="submit" disabled={saving} class="admin-press mt-6 flex h-11 items-center justify-center gap-2 rounded-button bg-primary px-6 text-xs font-bold text-white disabled:opacity-50">{#if saving}<Loader2 size={14} class="animate-spin" />{/if} {saving ? 'Saving…' : 'Save changes'}</button>
     </form>
 
     <aside class="space-y-5">

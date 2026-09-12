@@ -37,7 +37,18 @@
     if (href === '/raffles') return current === href || (current.startsWith('/raffles/') && !['/raffles/new', '/raffles/profit'].includes(current));
     return current === href || current.startsWith(href + '/');
   }
-  const navClass = (active: boolean) => `admin-nav-item flex min-h-11 items-center gap-3 rounded-button px-3 text-sm font-medium no-underline ${active ? 'bg-sidebar-active text-white' : 'text-sidebar-text hover:bg-sidebar-active/60 hover:text-white'}`;
+  // Active gets its own signature — a primary-colored left bar plus a
+  // tinted background — instead of just a darker/lighter version of the
+  // hover color. Sharing one palette between "where you are" and "what
+  // you're pointing at" made them read as the same state at a glance;
+  // giving active a distinct accent color (not just opacity) fixes that
+  // regardless of which nav section it's in.
+  const navClass = (active: boolean) =>
+    `admin-nav-item relative flex min-h-11 items-center gap-3 rounded-button pl-3.5 pr-3 text-sm font-medium no-underline ${
+      active
+        ? 'admin-nav-active bg-primary/15 text-white'
+        : 'text-sidebar-text hover:bg-white/[0.06] hover:text-white'
+    }`;
 
   function openMenu() {
     previousOverflow = document.body.style.overflow;
@@ -88,13 +99,13 @@
 {#snippet navigation(id: string)}
   <nav aria-label="Admin navigation" class="space-y-1">
     <a href="/" aria-current={current === '/' ? 'page' : undefined} class={navClass(current === '/')}><ChartNoAxesCombined size={18} /> Control center</a>
-    <div class="flex items-center rounded-button {current.startsWith('/raffles') ? 'bg-sidebar-active' : ''}">
-      <a href="/raffles" class="flex min-h-11 flex-1 items-center gap-3 rounded-button px-3 text-sm font-medium text-sidebar-text no-underline hover:text-white"><Ticket size={18} /> Raffles</a>
-      <button type="button" aria-label={rafflesExpanded ? 'Collapse raffle menu' : 'Expand raffle menu'} aria-expanded={rafflesExpanded} aria-controls={id} on:click={() => rafflesExpanded = !rafflesExpanded} class="flex h-11 w-11 items-center justify-center rounded-button text-sidebar-text hover:text-white"><ChevronDown size={17} class={rafflesExpanded ? 'rotate-180' : ''} /></button>
+    <div class="admin-nav-item relative flex items-center rounded-button {current.startsWith('/raffles') ? 'admin-nav-active bg-primary/15' : ''}">
+      <a href="/raffles" class="flex min-h-11 flex-1 items-center gap-3 rounded-button pl-3.5 pr-3 text-sm font-medium no-underline {current.startsWith('/raffles') ? 'text-white' : 'text-sidebar-text hover:text-white'}"><Ticket size={18} /> Raffles</a>
+      <button type="button" aria-label={rafflesExpanded ? 'Collapse raffle menu' : 'Expand raffle menu'} aria-expanded={rafflesExpanded} aria-controls={id} on:click={() => rafflesExpanded = !rafflesExpanded} class="flex h-11 w-11 items-center justify-center rounded-button text-sidebar-text transition-colors hover:text-white"><ChevronDown size={17} class="transition-transform duration-200 {rafflesExpanded ? 'rotate-180' : ''}" /></button>
     </div>
     <div {id} hidden={!rafflesExpanded} class="ml-5 border-l border-white/15 pl-3">
       {#each raffleLinks as link}
-        <a href={link.href} aria-current={isActive(link.href) ? 'page' : undefined} class="flex min-h-11 items-center rounded-button px-3 text-sm no-underline {isActive(link.href) ? 'bg-primary-bg font-bold text-primary-dark' : 'text-sidebar-text hover:bg-sidebar-active hover:text-white'}">{link.label}</a>
+        <a href={link.href} aria-current={isActive(link.href) ? 'page' : undefined} class={navClass(isActive(link.href))}>{link.label}</a>
       {/each}
     </div>
     {#each links as link}

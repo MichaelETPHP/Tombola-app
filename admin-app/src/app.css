@@ -124,6 +124,18 @@
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The current page's own signature — a primary-colored bar riding the
+   left edge — so "where you are" reads instantly and never gets confused
+   with the hover tint, which uses a completely different (neutral)
+   color. An inset shadow rather than an absolutely-positioned element:
+   it draws inside the item's own box regardless of nesting/indentation
+   (the raffle sub-menu is indented further than the main nav), and it's
+   already one of .admin-nav-item's transitioned properties, so it eases
+   in with everything else instead of needing its own transition rule. */
+.admin-nav-active {
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
 .admin-press {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),

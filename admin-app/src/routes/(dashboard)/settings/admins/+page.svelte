@@ -127,7 +127,7 @@
           </select>
         </label>
       </div>
-      <button type="submit" disabled={creating} class="admin-press mt-5 flex h-11 items-center gap-2 rounded-button bg-primary px-6 text-xs font-bold text-white disabled:opacity-50"><Plus size={15} /> {creating ? 'Creating…' : 'Create admin'}</button>
+      <button type="submit" disabled={creating} class="admin-press mt-5 flex h-11 items-center gap-2 rounded-button bg-primary px-6 text-xs font-bold text-white disabled:opacity-50"><Plus size={15} class={creating ? 'animate-spin' : ''} /> {creating ? 'Creating…' : 'Create admin'}</button>
     </form>
   {/if}
 
@@ -150,7 +150,7 @@
               aria-label="Remove admin"
               on:click={() => removeAdmin(admin)}
             >
-              <Trash2 size={15} />
+              <Trash2 size={15} class={deletingId === admin.id ? 'animate-spin' : ''} />
             </button>
           {/if}
         </div>

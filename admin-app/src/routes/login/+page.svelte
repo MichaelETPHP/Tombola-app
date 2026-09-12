@@ -3,7 +3,7 @@
   import { loginAdmin, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { adminLoginSchema } from '$lib/schemas/index.js';
-  import { ArrowRight, CheckCircle2, Dices, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-svelte';
+  import { ArrowRight, CheckCircle2, Dices, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck } from 'lucide-svelte';
 
   let phone = '';
   let password = '';
@@ -127,7 +127,7 @@
 
       <button type="submit" disabled={loading} class="admin-press mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(21,154,127,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
         {loading ? 'Signing in…' : 'Enter control center'}
-        {#if !loading}<ArrowRight size={17} />{/if}
+        {#if loading}<Loader2 size={17} class="animate-spin" />{:else}<ArrowRight size={17} />{/if}
       </button>
       <p class="mt-5 text-center text-[11px] leading-5 text-faint">Protected administrative area. Activity may be recorded for platform security.</p>
     </form>

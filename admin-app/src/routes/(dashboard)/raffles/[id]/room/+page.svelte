@@ -290,7 +290,7 @@
         class="admin-press flex h-11 w-11 shrink-0 items-center justify-center rounded-button bg-primary text-white disabled:opacity-50"
         aria-label="Send"
       >
-        <Send size={16} />
+        <Send size={16} class={sending ? 'animate-spin' : ''} />
       </button>
     </form>
   </div>

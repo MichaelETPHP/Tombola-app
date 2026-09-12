@@ -11,7 +11,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RaffleEngine from '$lib/components/RaffleEngine.svelte';
   import type { Raffle } from '$lib/schemas/index.js';
-  import { ArrowLeft, CalendarClock, Check, ExternalLink, LockKeyhole, MessageCircle, Plus, Save, Send, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
+  import { ArrowLeft, CalendarClock, Check, ExternalLink, Loader2, LockKeyhole, MessageCircle, Plus, Save, Send, ShieldAlert, Trash2, UploadCloud } from 'lucide-svelte';
   import PrizeImage from '$lib/components/PrizeImage.svelte';
 
   let raffle: Raffle | null = null;
@@ -411,7 +411,7 @@
           <label class={labelClass}>Maximum ticket quota<input required type="number" min="10" step="1" disabled={raffle.ticketsSold > 0} bind:value={ticketCap} class="{inputClass} {ticketCapTooLow ? 'border-danger' : ''}" />{#if minTicketCap !== null}<span class="font-normal {ticketCapTooLow ? 'font-semibold text-danger' : 'text-faint'}">{ticketCapTooLow ? `Below minimum — needs at least ${minTicketCap.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.` : `Sales stop at sellout, or at deadline once the minimum ${minTicketCap.toLocaleString()} (covers ${totalPrizeValue.toLocaleString()} ETB) has sold.`}</span>{:else}<span class="font-normal text-faint">Total tickets available.</span>{/if}</label>
           <label class={labelClass}>Maximum per participant<input required type="number" min="1" max="4" step="1" disabled={raffle.ticketsSold > 0} bind:value={maxTicketsPerUser} class={inputClass} /><span class="font-normal text-faint">Choose 1–4. The mobile picker shows exactly this many wheels.</span></label>
         </div>
-        <button type="submit" disabled={saving} class="admin-press mt-6 flex h-11 items-center gap-2 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"><Save size={15} /> {saving ? 'Saving…' : 'Save changes'}</button>
+        <button type="submit" disabled={saving} class="admin-press mt-6 flex h-11 items-center gap-2 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"><Save size={15} class={saving ? 'animate-spin' : ''} /> {saving ? 'Saving…' : 'Save changes'}</button>
       </form>
 
       <aside class="space-y-5">
@@ -419,9 +419,9 @@
           <h2 class="text-sm font-bold text-ink">Lifecycle controls</h2>
           <p class="mt-1 text-xs leading-5 text-faint">Owner-only actions follow the server’s allowed status transitions.</p>
           <div class="mt-5 space-y-2.5">
-            {#if raffle.status === 'draft'}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('open')}>{action === 'open' ? 'Publishing…' : 'Publish raffle'}</button>{/if}
-            {#if canManualLock}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('locked')}>{action === 'locked' ? 'Locking…' : `Lock now (min ${raffle.minTicketCap} reached)`}</button>{/if}
-            {#if ['draft', 'open', 'locked', 'awaiting_trigger', 'drawing'].includes(raffle.status) && $auth.admin?.role === 'owner'}<button type="button" disabled={Boolean(action)} class="admin-press h-11 w-full rounded-button border border-danger/20 bg-danger-bg text-xs font-bold text-danger disabled:opacity-50" on:click={() => changeStatus('cancelled')}>{action === 'cancelled' ? 'Cancelling…' : 'Cancel raffle'}</button>{/if}
+            {#if raffle.status === 'draft'}<button type="button" disabled={Boolean(action)} class="admin-press flex h-11 w-full items-center justify-center gap-2 rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('open')}>{#if action === 'open'}<Loader2 size={14} class="animate-spin" />{/if} {action === 'open' ? 'Publishing…' : 'Publish raffle'}</button>{/if}
+            {#if canManualLock}<button type="button" disabled={Boolean(action)} class="admin-press flex h-11 w-full items-center justify-center gap-2 rounded-button bg-primary text-xs font-bold text-white disabled:opacity-50" on:click={() => changeStatus('locked')}>{#if action === 'locked'}<Loader2 size={14} class="animate-spin" />{/if} {action === 'locked' ? 'Locking…' : `Lock now (min ${raffle.minTicketCap} reached)`}</button>{/if}
+            {#if ['draft', 'open', 'locked', 'awaiting_trigger', 'drawing'].includes(raffle.status) && $auth.admin?.role === 'owner'}<button type="button" disabled={Boolean(action)} class="admin-press flex h-11 w-full items-center justify-center gap-2 rounded-button border border-danger/20 bg-danger-bg text-xs font-bold text-danger disabled:opacity-50" on:click={() => changeStatus('cancelled')}>{#if action === 'cancelled'}<Loader2 size={14} class="animate-spin" />{/if} {action === 'cancelled' ? 'Cancelling…' : 'Cancel raffle'}</button>{/if}
             {#if raffle.status === 'open' && $auth.admin?.role === 'owner' && !canManualLock && new Date(raffle.currentDeadline) <= new Date() && raffle.minTicketCap !== undefined}<p class="text-[11px] leading-4 text-faint">Deadline has passed, but only {raffle.ticketsSold} of the required minimum {raffle.minTicketCap} tickets sold — extend the deadline or wait for more sales.</p>{/if}
           </div>
         </section>
@@ -430,7 +430,7 @@
           <section class="rounded-card border border-border bg-card p-5">
             <div class="mb-4 flex items-center gap-2"><CalendarClock size={17} class="text-primary" /><h2 class="text-sm font-bold text-ink">Extend deadline</h2></div>
             <div class="space-y-4"><label class={labelClass}>New deadline<input type="datetime-local" bind:value={deadlineAt} class={inputClass} /></label><label class={labelClass}>Reason<textarea rows="3" bind:value={deadlineReason} class="rounded-button border border-border bg-bg/55 px-3 py-2 text-xs leading-5 text-ink focus:border-primary focus:outline-none"></textarea></label></div>
-            <button type="button" disabled={Boolean(action)} class="admin-press mt-4 h-11 w-full rounded-button bg-sidebar text-xs font-bold text-white disabled:opacity-50" on:click={extendDeadline}>{action === 'deadline' ? 'Recording…' : 'Extend deadline'}</button>
+            <button type="button" disabled={Boolean(action)} class="admin-press mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-button bg-sidebar text-xs font-bold text-white disabled:opacity-50" on:click={extendDeadline}>{#if action === 'deadline'}<Loader2 size={14} class="animate-spin" />{/if} {action === 'deadline' ? 'Recording…' : 'Extend deadline'}</button>
           </section>
         {/if}
 
