@@ -134,6 +134,9 @@
     "demoNotice": "ይህ ለማሳያ ብቻ የቀረበ ናሙና ዕጣ ነው — ትኬት መግዛት አይቻልም።",
     "pausedNotice": "ለዚህ ዕጣ የትኬት ሽያጭ ለጊዜው ቆሟል። ቆይተው ይመልከቱ።",
     "closedNotice": "ይህ ዕጣ {status} ነው። የትኬት ሽያጭ ተዘግቷል።",
+    "witnessedByHeading": "የዕጣ ተወካዮች",
+    "witnessedBy": "{ordinal} ደረጃ ሽልማት በ{name} ተመስክሯል",
+    "witnessAnonymous": "የተረጋገጠ ትኬት ያዥ",
     "status": {
       "draft": "ረቂቅ",
       "open": "ክፍት",
@@ -497,6 +500,22 @@
     "invalidInvitation": "ይህ የዕጣ ግብዣ ልክ ያልሆነ ነው።",
     "usedOrExpired": "ይህ የአንድ ጊዜ የዕጣ ግብዣ አስቀድሞ ጥቅም ላይ ውሏል፣ ተተክቷል ወይም ጊዜው አልፎበታል።",
     "connectionError": "ዕጣውን ማጠናቀቅ አልተቻለም። እባክዎ ግንኙነትዎን ያረጋግጡ።"
+  },
+  "representative": {
+    "pageTitle": "የዕጣ ምስክር ማረጋገጫ · YeneEta",
+    "eyebrow": "የYeneEta ዕጣ ምስክር",
+    "loadingRaffle": "ዕጣ በመጫን ላይ",
+    "loading": "በመጫን ላይ…",
+    "unavailable": "አገናኙ አይገኝም",
+    "explainer": "ይህን የሽልማት ዕጣ እንዲመሰክሩ ተመርጠዋል። ማረጋገጥዎ ዕጣው እንዲቀጥል ዝግጁ መሆንዎን ያረጋግጣል — ሌላ ምንም ማድረግ አያስፈልግዎትም።",
+    "approveButton": "እንደ ምስክር ማረጋገጥ",
+    "approving": "በማረጋገጥ ላይ…",
+    "approvedTitle": "እናመሰግናለን!",
+    "approvedBody": "ይህን ዕጣ እንደ ምስክሩ አረጋግጠዋል። አዘጋጁ አሁን መቀጠል ይችላል።",
+    "expiresAt": "ጊዜው የሚያልቀው {time}",
+    "notFound": "ይህ አገናኝ ልክ ያልሆነ ወይም ከአሁን በኋላ ንቁ አይደለም።",
+    "usedOrExpired": "ይህ የማረጋገጫ አገናኝ አስቀድሞ ጥቅም ላይ ውሏል፣ ተተክቷል ወይም ጊዜው አልፎበታል።",
+    "connectionError": "ይህን መጫን አልተቻለም። እባክዎ ግንኙነትዎን ያረጋግጡ።"
   },
   "mockCheckout": {
     "pageTitle": "ደህንነቱ የተጠበቀ የሙከራ ክፍያ · YeneEta",

@@ -1,10 +1,11 @@
 import { nanoid } from 'nanoid';
 import { sql } from '../../db/client.js';
-import { findDrawTriggerByToken } from '../../db/queries/draws.queries.js';
+import { findDrawTriggerByToken, findDrawRepresentativeByToken } from '../../db/queries/draws.queries.js';
 import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
+import { countUserTicketsInRaffle } from '../../db/queries/tickets.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
-import { sendDrawInvitation } from '../../lib/sms.js';
+import { sendDrawInvitation, sendRepresentativeInvitation } from '../../lib/sms.js';
 import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
@@ -118,6 +119,22 @@ async function assertTierUnlocked(raffleId: string, tier: number): Promise<void>
   }
 }
 
+// A tier's random trigger link can't even be generated until its
+// admin-assigned representative has approved — this is the actual gate the
+// whole representative feature exists for. Distinct from assertTierUnlocked
+// (which governs ordering between tiers): this governs whether THIS tier's
+// witness has signed off at all.
+async function assertRepresentativeApproved(raffleId: string, tier: number): Promise<void> {
+  const [row] = await sql<{ status: string }[]>`
+    SELECT status FROM draw_representatives
+    WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status = 'approved'
+    LIMIT 1
+  `;
+  if (!row) {
+    throw new AppError(409, `Assign a representative for the ${ordinal(tier)} prize and wait for their approval before generating this tier's draw link.`);
+  }
+}
+
 /**
  * Picks the one participant a tier's link will go to. Excludes anyone who
  * has already won an earlier tier in this same raffle — a previous winner
@@ -175,6 +192,7 @@ export async function generateSecureLink(
   const prize = (await listPrizeTiers(raffleId)).find((p) => p.tier === tier);
   if (!prize) throw new AppError(404, `This raffle has no tier ${tier} prize configured`);
   await assertTierUnlocked(raffleId, tier);
+  await assertRepresentativeApproved(raffleId, tier);
 
   if (!opts.skipActiveCheck) {
     const [existingActive] = await sql<{ id: string }[]>`
@@ -356,6 +374,155 @@ export async function reassignDrawTrigger(raffleId: string, tier: number, adminI
   return { ...sent, prizeName: generated.prizeName, attemptNumber: generated.attemptNumber };
 }
 
+const REPRESENTATIVE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — no live-event time pressure, unlike the 1h trigger window
+
+/**
+ * Assigns (or reassigns) tier N's admin-picked witness in one step — unlike
+ * the trigger flow's separate generate/send, there's no reason to prepare a
+ * representative link without immediately sending it. Expires whatever
+ * active row that tier already has first, so at most one is ever live.
+ * `userId` must already hold a ticket in this raffle — the representative
+ * is picked from the raffle's own participants, never an arbitrary user.
+ */
+export async function assignDrawRepresentative(
+  raffleId: string,
+  tier: number,
+  userId: string,
+  adminId: string | null,
+  reason: string,
+  auditAction: 'draw.representative_assigned' | 'draw.representative_reassigned' = 'draw.representative_assigned'
+) {
+  const raffle = await findRaffleById(raffleId);
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+  const prize = (await listPrizeTiers(raffleId)).find((p) => p.tier === tier);
+  if (!prize) throw new AppError(404, `This raffle has no tier ${tier} prize configured`);
+
+  const ticketCount = await countUserTicketsInRaffle(raffleId, userId);
+  if (ticketCount === 0) throw new AppError(409, 'The representative must hold at least one ticket in this raffle.');
+
+  const user = await findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+
+  const rawToken = nanoid(32);
+  const tokenHash = await sha256(rawToken);
+  const sentAt = new Date();
+  const expiresAt = new Date(Date.now() + REPRESENTATIVE_TTL_MS);
+
+  const created = await sql.begin(async (tx) => {
+    await tx`
+      UPDATE draw_representatives SET status = 'expired'
+      WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status IN ('assigned', 'approved')
+    `;
+    const [attempt] = await tx<{ next: number }[]>`
+      SELECT COALESCE(MAX(attempt_number), 0)::int + 1 AS next FROM draw_representatives WHERE raffle_id = ${raffleId} AND tier = ${tier}
+    `;
+    const [row] = await tx<{ id: string }[]>`
+      INSERT INTO draw_representatives (
+        raffle_id, tier, prize_id, user_id, attempt_number, status, link_token,
+        assigned_by, assigned_reason, sent_at, expires_at
+      ) VALUES (
+        ${raffleId}, ${tier}, ${prize.id}, ${userId}, ${attempt.next}, 'assigned', ${tokenHash},
+        ${adminId}, ${reason}, ${sentAt}, ${expiresAt}
+      ) RETURNING id
+    `;
+    await tx`
+      INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, ${auditAction}, 'raffle', ${raffleId},
+        ${tx.json({ representativeId: row.id, tier, userId, reason })})
+    `;
+    return { id: row.id, attemptNumber: attempt.next };
+  });
+
+  const link = `${env.MOBILE_APP_URL}/represent/${rawToken}`;
+  let delivery: 'sent' | 'demo' | 'failed' = env.DEMO_OTP_ENABLED ? 'demo' : 'failed';
+  if (!env.DEMO_OTP_ENABLED) {
+    try {
+      const result = await sendRepresentativeInvitation(user.phoneNumber, {
+        link,
+        raffleName: raffle.title,
+        prizeLabel: `${ordinal(tier)} Prize`,
+        prizeName: prize.name,
+        expiresAt,
+      });
+      delivery = result.success ? 'sent' : 'failed';
+    } catch (error) {
+      logger.error('Could not deliver representative invitation SMS', error);
+    }
+  }
+  if (delivery === 'failed') {
+    await sql`UPDATE draw_representatives SET status = 'expired' WHERE id = ${created.id} AND status = 'assigned'`;
+    throw new AppError(502, 'SMS delivery failed. Try assigning the representative again.');
+  }
+
+  return {
+    representativeId: created.id,
+    tier,
+    prizeName: prize.name,
+    attemptNumber: created.attemptNumber,
+    status: 'assigned' as const,
+    representative: { id: user.id, fullName: user.fullName, phone: maskPhone(user.phoneNumber) },
+    delivery,
+    link,
+    expiresAt,
+  };
+}
+
+/** Same operation as assignDrawRepresentative — separate name only so the
+ * audit trail and admin UI copy can distinguish "first pick" from "changed
+ * my mind." */
+export async function reassignDrawRepresentative(raffleId: string, tier: number, userId: string, adminId: string | null, reason: string) {
+  return assignDrawRepresentative(raffleId, tier, userId, adminId, reason, 'draw.representative_reassigned');
+}
+
+/** Public token lookup for the /represent/:token approval page. */
+export async function getRepresentativeContext(token: string) {
+  const row = await findDrawRepresentativeByToken(token);
+  if (!row) throw new AppError(404, 'Invalid representative link');
+  const raffle = await findRaffleById(row.raffleId);
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+  const prize = (await listPrizeTiers(raffle.id)).find((p) => p.tier === row.tier);
+  // Expiry only matters pre-approval — once approved, the row stays
+  // approved regardless of what its (now-irrelevant) expiresAt says.
+  const expired = row.status === 'assigned' && !!row.expiresAt && row.expiresAt <= new Date();
+  return {
+    raffleName: raffle.title,
+    tier: row.tier,
+    prizeName: prize?.name ?? raffle.prizeName,
+    prizeImageUrl: prize?.imageUrl ?? raffle.prizeImageUrl,
+    status: expired ? ('expired' as const) : row.status,
+    expiresAt: row.expiresAt,
+    approvedAt: row.approvedAt,
+    canApprove: row.status === 'assigned' && !expired,
+  };
+}
+
+/** Public mutation: the representative taps Approve. No spin, no nonce —
+ * this is a witness signature, not a source of randomness. */
+export async function approveRepresentative(token: string) {
+  const tokenHash = await sha256(token);
+  const result = await sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string; raffleId: string; tier: number; userId: string; status: string; expiresAt: Date | null }[]>`
+      SELECT id, raffle_id, tier, user_id, status, expires_at FROM draw_representatives
+      WHERE link_token = ${tokenHash} FOR UPDATE
+    `;
+    if (!row) throw new AppError(404, 'Invalid representative link');
+    if (row.status === 'approved') throw new AppError(409, 'This has already been approved.');
+    if (row.status !== 'assigned') throw new AppError(409, 'This link is no longer active.');
+    if (row.expiresAt && row.expiresAt <= new Date()) {
+      await tx`UPDATE draw_representatives SET status = 'expired' WHERE id = ${row.id}`;
+      throw new AppError(410, 'This approval link has expired.');
+    }
+    await tx`UPDATE draw_representatives SET status = 'approved', approved_at = NOW() WHERE id = ${row.id}`;
+    await tx`
+      INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES ('user', ${row.userId}, 'draw.representative_approved', 'raffle', ${row.raffleId},
+        ${tx.json({ representativeId: row.id, tier: row.tier })})
+    `;
+    return { tier: row.tier };
+  });
+  return { status: 'approved' as const, tier: result.tier };
+}
+
 export async function executeDraw(token: string, spinNonce: string, clickedIp: string | null = null) {
   // clicked_ip is a Postgres INET column — clientIp()'s 'unknown' fallback
   // (no x-forwarded-for/x-real-ip, e.g. a direct local-dev connection with
@@ -532,7 +699,7 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
 export async function getRaffleEngine(raffleId: string) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
-  const [participants, prizes, triggers, extensions, draw] = await Promise.all([
+  const [participants, prizes, triggers, representatives, extensions, draw] = await Promise.all([
     sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[]; lastPurchasedAt: Date }[]>`
       SELECT u.id, u.full_name, u.phone_number AS phone, COUNT(t.id)::int AS ticket_count,
              MIN(t.ticket_number)::int AS first_ticket, MAX(t.ticket_number)::int AS last_ticket,
@@ -546,6 +713,12 @@ export async function getRaffleEngine(raffleId: string) {
       SELECT dt.id, dt.tier, dt.attempt_number, dt.status, dt.sent_at, dt.expires_at, dt.clicked_at, u.phone_number AS phone
       FROM draw_triggers dt LEFT JOIN users u ON u.id = dt.selected_user_id
       WHERE dt.raffle_id = ${raffleId} ORDER BY dt.tier ASC, dt.attempt_number DESC
+    `,
+    sql<{ id: string; tier: number; attemptNumber: number; status: string; sentAt: Date | null; expiresAt: Date | null; approvedAt: Date | null; userId: string; fullName: string | null; phone: string }[]>`
+      SELECT dr.id, dr.tier, dr.attempt_number, dr.status, dr.sent_at, dr.expires_at, dr.approved_at,
+             u.id AS user_id, u.full_name, u.phone_number AS phone
+      FROM draw_representatives dr JOIN users u ON u.id = dr.user_id
+      WHERE dr.raffle_id = ${raffleId} ORDER BY dr.tier ASC, dr.attempt_number DESC
     `,
     sql<{ id: string; previousDeadline: Date; newDeadline: Date; reason: string; extendedAt: Date; ticketsSoldAtExtension: number }[]>`
       SELECT id, previous_deadline, new_deadline, reason, extended_at, tickets_sold_at_extension
@@ -590,6 +763,17 @@ export async function getRaffleEngine(raffleId: string) {
         phone: trigger.phone,
         maskedPhone: trigger.phone ? maskPhone(trigger.phone) : null,
       })),
+    // Only the latest attempt per tier, same reasoning as triggers above.
+    representatives: Object.values(
+      representatives.reduce<Record<number, (typeof representatives)[number]>>((byTier, rep) => {
+        if (!byTier[rep.tier] || rep.attemptNumber > byTier[rep.tier].attemptNumber) {
+          byTier[rep.tier] = rep;
+        }
+        return byTier;
+      }, {})
+    )
+      .sort((a, b) => a.tier - b.tier)
+      .map((rep) => ({ ...rep, maskedPhone: maskPhone(rep.phone) })),
     extensions,
     draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${ticketDisplayNumber(raffle.numberSeed, d.winningTicketNumber)}` })),
   };

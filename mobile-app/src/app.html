@@ -82,7 +82,7 @@
       // Public SMS draw links are deliberately instant: suppress the web
       // boot artwork and its preload before the first paint. Other routes
       // retain the high-priority splash preload.
-      const directDrawEntry = /^\/draw\/[A-Za-z0-9_-]+\/?$/.test(location.pathname);
+      const directDrawEntry = /^\/(draw|represent)\/[A-Za-z0-9_-]+\/?$/.test(location.pathname);
       if (directDrawEntry) {
         document.documentElement.classList.add('direct-draw-entry');
       } else {

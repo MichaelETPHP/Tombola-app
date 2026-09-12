@@ -134,6 +134,9 @@
     "demoNotice": "This is a sample raffle for preview only — ticket purchases are not available.",
     "pausedNotice": "Ticket sales are temporarily paused for this raffle. Check back soon.",
     "closedNotice": "This raffle is {status}. Ticket sales are closed.",
+    "witnessedByHeading": "Draw representatives",
+    "witnessedBy": "{ordinal} Prize witnessed by {name}",
+    "witnessAnonymous": "a verified ticket holder",
     "status": {
       "draft": "in draft",
       "open": "open",
@@ -497,6 +500,22 @@
     "invalidInvitation": "This draw invitation is invalid.",
     "usedOrExpired": "This one-time draw invitation has already been used, replaced, or expired.",
     "connectionError": "The draw could not be completed. Please check your connection."
+  },
+  "representative": {
+    "pageTitle": "Draw witness approval · YeneEta",
+    "eyebrow": "YeneEta draw witness",
+    "loadingRaffle": "Loading raffle",
+    "loading": "Loading…",
+    "unavailable": "Link unavailable",
+    "explainer": "You've been chosen to witness this prize draw. Approving confirms you're ready for it to proceed — you won't need to do anything else.",
+    "approveButton": "Approve as witness",
+    "approving": "Approving…",
+    "approvedTitle": "Thank you!",
+    "approvedBody": "You've approved this draw as its witness. The raffle organizer can now proceed.",
+    "expiresAt": "Expires {time}",
+    "notFound": "This link is invalid or no longer active.",
+    "usedOrExpired": "This approval link has already been used, replaced, or has expired.",
+    "connectionError": "This could not be loaded. Please check your connection."
   },
   "mockCheckout": {
     "pageTitle": "Secure test checkout · YeneEta",

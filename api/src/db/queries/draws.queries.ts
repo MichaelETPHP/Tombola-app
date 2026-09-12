@@ -164,3 +164,60 @@ export async function findDrawResultByRaffleId(raffleId: string): Promise<DbDraw
   `;
   return rows[0] ?? null;
 }
+
+export type DrawRepresentativeStatus = 'assigned' | 'approved' | 'expired';
+
+/**
+ * The admin-picked witness for one prize tier — distinct from a
+ * draw_trigger's randomly-selected recipient. Must approve before that
+ * tier's trigger can be generated (see draws.service.ts's
+ * assertRepresentativeApproved).
+ */
+export interface DbDrawRepresentative {
+  id: string;
+  raffleId: string;
+  tier: number;
+  prizeId: string | null;
+  userId: string;
+  attemptNumber: number;
+  status: DrawRepresentativeStatus;
+  linkToken: string;
+  assignedBy: string | null;
+  assignedReason: string | null;
+  sentAt: Date | null;
+  expiresAt: Date | null;
+  approvedAt: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * Find a representative row by its link token (the approval landing page).
+ * Tokens are always stored hashed for this table (unlike draw_triggers,
+ * there's no brief "generated but not yet sent" window with a plaintext
+ * token — assign+send happens in one step).
+ */
+export async function findDrawRepresentativeByToken(token: string): Promise<DbDrawRepresentative | null> {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(token));
+  const tokenHash = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const rows = await sql<DbDrawRepresentative[]>`
+    SELECT * FROM draw_representatives WHERE link_token = ${tokenHash} LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * Approved representatives' names per tier, for the public raffle detail
+ * page's "Witnessed by" line — name only, never phone/contact info, and
+ * only once actually approved (an assigned-but-not-yet-approved pick is
+ * not shown publicly at all).
+ */
+export async function listApprovedRepresentatives(raffleId: string): Promise<{ tier: number; fullName: string | null }[]> {
+  return sql<{ tier: number; fullName: string | null }[]>`
+    SELECT dr.tier, u.full_name
+    FROM draw_representatives dr
+    JOIN users u ON u.id = dr.user_id
+    WHERE dr.raffle_id = ${raffleId} AND dr.status = 'approved'
+    ORDER BY dr.tier ASC
+  `;
+}

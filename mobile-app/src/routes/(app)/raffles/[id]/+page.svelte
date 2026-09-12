@@ -356,6 +356,21 @@
       {:else}
         <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted"><CalendarClock size={17} class="shrink-0 text-primary-dark" /><span>{$_('raffle.closedNotice', { values: { status: $_(`raffle.status.${raffle.status}`) } })}</span></div>
       {/if}
+
+      {#if raffle.representatives && raffle.representatives.length > 0}
+        <div class="ticket-perforation"></div>
+        <div class="px-4 py-3.5">
+          <p class="mb-1.5 text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.witnessedByHeading')}</p>
+          <div class="flex flex-col gap-1.5">
+            {#each raffle.representatives as rep (rep.tier)}
+              <div class="flex items-center gap-2 text-xs text-ink">
+                <ShieldCheck size={13} class="shrink-0 text-primary-dark" />
+                <span>{$_('raffle.witnessedBy', { values: { ordinal: $_('raffle.ordinal', { values: { tier: rep.tier } }), name: rep.fullName ?? $_('raffle.witnessAnonymous') } })}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </section>
   </article>
 {/if}

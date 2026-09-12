@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { executeDraw, getDrawContext } from './draws.service.js';
+import { executeDraw, getDrawContext, getRepresentativeContext, approveRepresentative } from './draws.service.js';
 import { clientIp } from '../../middleware/rate-limit.middleware.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 import { env } from '../../config/env.js';
@@ -23,6 +23,30 @@ drawsRoutes.use('*', async (c, next) => {
   c.header('Pragma', 'no-cache');
   c.header('Referrer-Policy', 'no-referrer');
   await next();
+});
+
+/**
+ * GET /draws/represent/:token
+ * Representative approval landing — read-only context for the /represent
+ * page. Public (no auth), reached via the representative's SMS link.
+ */
+drawsRoutes.get('/represent/:token', rateLimit({ max: 20, windowSeconds: 60 }), async (c) => {
+  const token = c.req.param('token');
+  if (!TOKEN_PATTERN.test(token)) throw new AppError(404, 'Invalid representative link');
+  const representative = await getRepresentativeContext(token);
+  return c.json({ representative });
+});
+
+/**
+ * POST /draws/represent/:token/approve
+ * The representative taps Approve — no spin, no nonce, just a witness
+ * signature. Public (no auth), rate limited to blunt brute-forcing a token.
+ */
+drawsRoutes.post('/represent/:token/approve', rateLimit({ max: 10, windowSeconds: 60 }), async (c) => {
+  const token = c.req.param('token');
+  if (!TOKEN_PATTERN.test(token)) throw new AppError(404, 'Invalid representative link');
+  const result = await approveRepresentative(token);
+  return c.json(result);
 });
 
 drawsRoutes.get('/:token', rateLimit({ max: 20, windowSeconds: 60 }), async (c) => {

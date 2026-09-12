@@ -149,7 +149,7 @@
     user: { id: string; phone: string; fullName: string | null; preferredLanguage?: 'en' | 'am' };
   };
 
-  $: directDrawRoute = $page.url.pathname.startsWith('/draw/');
+  $: directDrawRoute = $page.url.pathname.startsWith('/draw/') || $page.url.pathname.startsWith('/represent/');
 
   afterNavigate((navigation) => {
     if (navigation.from) markInAppNavigation();

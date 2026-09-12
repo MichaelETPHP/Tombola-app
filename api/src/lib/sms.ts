@@ -316,6 +316,28 @@ export async function sendTicketPurchaseConfirmation(
   return sendSms({ to: phone, message, event: 'ticket_confirmation' });
 }
 
+/**
+ * Send one prize tier's single-use representative-approval link. Distinct
+ * from sendDrawInvitation: the recipient here is an admin-picked witness who
+ * only needs to tap Approve, not run the actual spin — the copy reflects
+ * that lighter, non-time-critical ask (24h window vs the trigger's 1h).
+ */
+export async function sendRepresentativeInvitation(
+  phone: string,
+  details: { link: string; raffleName: string; prizeLabel: string; prizeName: string; expiresAt: Date }
+): Promise<SmsGatewayResponse> {
+  const format = new Intl.DateTimeFormat('en-ET', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Addis_Ababa',
+  });
+  return sendSms({
+    to: phone,
+    event: 'representative_invitation',
+    message: `YeneEta: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link} — Expires ${format.format(details.expiresAt)}.`,
+  });
+}
+
 /** Send one prize tier's single-use draw invitation with its context. */
 export async function sendDrawInvitation(
   phone: string,

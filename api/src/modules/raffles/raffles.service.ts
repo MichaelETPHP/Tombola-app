@@ -12,6 +12,7 @@ import {
   findRaffleIdsWithFulfilledPayouts,
   type DbRaffle,
 } from '../../db/queries/raffles.queries.js';
+import { listApprovedRepresentatives } from '../../db/queries/draws.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { commitServerSeed, generateServerSeed } from '../../lib/provably-fair.js';
 import { generateNumberSeed } from '../../lib/ticket-display-number.js';
@@ -60,9 +61,12 @@ function computeMinTicketCap(prizeValue: number, ticketPrice: number, additional
 }
 
 async function withPrizes(raffle: DbRaffle) {
-  const prizes = await listRafflePrizes(raffle.id);
+  const [prizes, representatives] = await Promise.all([
+    listRafflePrizes(raffle.id),
+    listApprovedRepresentatives(raffle.id),
+  ]);
   const minTicketCap = computeMinTicketCap(raffle.prizeValue, raffle.ticketPrice, prizes.filter((p) => p.tier > 1));
-  return { ...toApiRaffle(raffle), prizes, minTicketCap };
+  return { ...toApiRaffle(raffle), prizes, minTicketCap, representatives };
 }
 
 /**

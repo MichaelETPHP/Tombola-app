@@ -19,6 +19,10 @@ export interface Raffle {
    *  prize — tier 1 always mirrors prizeName/prizeValue/prizeImageUrl
    *  above. Absent or single-entry means an ordinary one-prize raffle. */
   prizes?: RafflePrize[];
+  /** Approved draw representatives (per tier), name only — populated once
+   *  an admin-assigned witness has approved that tier. Absent/empty tiers
+   *  simply have no approved representative yet. */
+  representatives?: { tier: number; fullName: string | null }[];
   ticketPrice: number;
   ticketCap: number;
   ticketsSold: number;

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { createRaffleSchema, generateDrawTriggerSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema, bulkDeleteRafflesSchema } from './raffles.schema.js';
+import { createRaffleSchema, generateDrawTriggerSchema, assignDrawRepresentativeSchema, listRafflesSchema, updateRaffleSchema, updateRaffleStatusSchema, updateRaffleDeadlineSchema, bulkDeleteRafflesSchema } from './raffles.schema.js';
 import { createRaffle, getRaffle, listRaffles, updateRaffle, changeRaffleStatus, changeRaffleDeadline, adminDeleteRaffle, adminBulkDeleteRaffles } from './raffles.service.js';
 import { findRafflePrize, updateRafflePrizeImage } from '../../db/queries/raffles.queries.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
@@ -9,7 +9,7 @@ import { processPrizeImage } from '../../lib/image.js';
 import { deleteUploadedImage, saveUploadedImage, uploadedImagePathFromPublicUrl } from '../../lib/uploads.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
-import { generateSecureLink, sendDrawTrigger, reassignDrawTrigger, getRaffleEngine } from '../draws/draws.service.js';
+import { generateSecureLink, sendDrawTrigger, reassignDrawTrigger, getRaffleEngine, assignDrawRepresentative, reassignDrawRepresentative } from '../draws/draws.service.js';
 
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
@@ -87,6 +87,23 @@ adminRafflesRoutes.post('/:id/draw-trigger/reassign', requireRole('owner'), asyn
   const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
   const trigger = await reassignDrawTrigger(c.req.param('id'), data.tier, c.get('admin').id, data.reason);
   return c.json({ trigger });
+});
+
+// Admin-picked witness for a tier — must approve before that tier's
+// draw-trigger link can be generated (see assertRepresentativeApproved in
+// draws.service.ts). Assign and reassign are the same operation; separate
+// routes only so the audit trail/UI copy can tell "first pick" from
+// "changed my mind" apart.
+adminRafflesRoutes.post('/:id/draw-representative', requireRole('owner'), async (c) => {
+  const data = assignDrawRepresentativeSchema.parse(await c.req.json().catch(() => ({})));
+  const representative = await assignDrawRepresentative(c.req.param('id'), data.tier, data.userId, c.get('admin').id, data.reason);
+  return c.json({ representative }, 201);
+});
+
+adminRafflesRoutes.post('/:id/draw-representative/reassign', requireRole('owner'), async (c) => {
+  const data = assignDrawRepresentativeSchema.parse(await c.req.json().catch(() => ({})));
+  const representative = await reassignDrawRepresentative(c.req.param('id'), data.tier, data.userId, c.get('admin').id, data.reason);
+  return c.json({ representative });
 });
 
 adminRafflesRoutes.post('/', async (c) => {
