@@ -13,6 +13,7 @@ import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.rou
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/rooms.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
+import { diagnosticsRoutes } from './modules/diagnostics/diagnostics.routes.js';
 import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { startStalePaymentCheck } from './jobs/stale-payment-check.job.js';
@@ -139,6 +140,7 @@ app.get('/', (c) => c.json({
 
 app.route('/auth', authRoutes);
 app.route('/uploads', uploadsRoutes);
+app.route('/diagnostics', diagnosticsRoutes);
 app.route('/raffles', rafflesRoutes);
 app.route('/draws', drawsRoutes);
 app.route('/payments', paymentsRoutes);

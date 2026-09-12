@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
+  import { Bug, ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -23,6 +23,7 @@
     ...($auth.admin?.role === 'owner' ? [
       { href: '/integrations', label: 'Integrations', icon: Plug },
       { href: '/sms', label: 'SMS log', icon: MessageSquareText },
+      { href: '/crashes', label: 'Crash reports', icon: Bug },
     ] : []),
     { href: '/settings', label: 'Settings', icon: Settings },
   ];

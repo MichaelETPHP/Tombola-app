@@ -38,6 +38,7 @@ import {
   getAuditLog,
 } from './admin.service.js';
 import { getSmsStats, getSmsLogsPage } from './sms-admin.service.js';
+import { listClientCrashLogs, getClientCrashStats, type ClientCrashPlatform } from '../../lib/client-crash-log.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -269,6 +270,36 @@ adminRoutes.get('/sms/logs', requireRole('owner'), async (c) => {
   }
 
   const page = await getSmsLogsPage({ status: status as 'success' | 'error' | undefined, limit, before });
+  return c.json(page);
+});
+
+/**
+ * GET /admin/crashes/stats
+ * Header-card counts for the crash-reports page. Owner-only, same
+ * reasoning as /integrations and /sms/stats above.
+ */
+adminRoutes.get('/crashes/stats', requireRole('owner'), async (c) => {
+  return c.json(await getClientCrashStats());
+});
+
+/**
+ * GET /admin/crashes
+ * Every crash the mobile app's root error boundary has caught — message,
+ * stack trace, URL, platform (Telegram/native/browser), and whether the
+ * one-shot self-heal already fired for it. Keyset-paginated via
+ * ?before=<ISO timestamp>; ?platform= filters.
+ */
+adminRoutes.get('/crashes', requireRole('owner'), async (c) => {
+  const platform = c.req.query('platform');
+  const before = c.req.query('before');
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 50;
+
+  if (platform && !['telegram', 'native', 'browser'].includes(platform)) {
+    throw new AppError(400, 'Invalid platform filter');
+  }
+
+  const page = await listClientCrashLogs({ platform: platform as ClientCrashPlatform | undefined, limit, before });
   return c.json(page);
 });
 

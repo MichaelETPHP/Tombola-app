@@ -11,7 +11,7 @@
   import { Browser } from '@capacitor/browser';
   import { Capacitor } from '@capacitor/core';
   import { useRegisterSW } from 'virtual:pwa-register/svelte';
-  import { api, ApiError, setTelegramReauth } from '$lib/api/client.js';
+  import { api, ApiError, API_BASE, setTelegramReauth } from '$lib/api/client.js';
   import { auth, setAuth, setAuthLoading } from '$lib/stores/auth.store.js';
   import { hideBootSplash } from '$lib/native/splash.js';
   import { initBackButtonHandling } from '$lib/native/backButton.js';
@@ -84,6 +84,41 @@
     }
   }
 
+  // Best-effort only: this is what turns "something went wrong, we don't
+  // know what" into an actual message/stack an admin can read on the new
+  // crash-reports page, instead of guessing at causes from a user's vague
+  // description. Raw fetch, not the `api` client — the client's own 401
+  // handling, i18n error strings, and auth store are exactly the kind of
+  // machinery that might be part of what just crashed, so this must not
+  // depend on any of it. Never awaited by the caller and every failure is
+  // swallowed: reporting a crash must never itself throw or delay recovery.
+  function reportCrash(error: unknown, selfHealed: boolean): void {
+    try {
+      const platform = document.documentElement.classList.contains('telegram-mini-app')
+        ? 'telegram'
+        : Capacitor.isNativePlatform()
+          ? 'native'
+          : 'browser';
+      const body = {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        url: location.href,
+        platform,
+        userAgent: navigator.userAgent,
+        userId: get(auth).user?.id,
+        selfHealed,
+      };
+      void fetch(`${API_BASE}/diagnostics/client-crash`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        keepalive: true,
+      }).catch(() => undefined);
+    } catch {
+      // Never let crash reporting itself become a second crash.
+    }
+  }
+
   function handleBoundaryError(error: unknown): void {
     console.error('Caught by root error boundary', error);
     // Every uncaught error this boundary ever sees is, by construction, one
@@ -98,11 +133,15 @@
     // once: a genuinely persistent bug still falls through to the manual
     // "Reload" screen on the second failure, exactly as before.
     try {
-      if (sessionStorage.getItem(STALE_BUILD_RELOAD_FLAG)) return;
+      if (sessionStorage.getItem(STALE_BUILD_RELOAD_FLAG)) {
+        reportCrash(error, false);
+        return;
+      }
       sessionStorage.setItem(STALE_BUILD_RELOAD_FLAG, '1');
     } catch {
       // No sessionStorage — fall through and reload anyway.
     }
+    reportCrash(error, true);
     hardReload();
   }
 
