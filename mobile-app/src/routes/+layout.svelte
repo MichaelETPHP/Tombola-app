@@ -62,40 +62,48 @@
   // script already watches for; anything else shows a real "something
   // broke, tap to reload" screen instead of nothing at all.
   const STALE_BUILD_RELOAD_FLAG = 'yeneeta:stale-chunk-reload';
-  function looksLikeStaleBuild(message: string | undefined): boolean {
-    if (!message) return false;
-    return (
-      message.includes('setting the initial locale') ||
-      message.includes('non-precached-url') ||
-      message.includes('Failed to fetch dynamically imported module') ||
-      message.includes('Importing a module script failed') ||
-      message.includes('MIME type')
-    );
-  }
-  function handleBoundaryError(error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('Caught by root error boundary', error);
-    if (looksLikeStaleBuild(message)) {
-      try {
-        if (sessionStorage.getItem(STALE_BUILD_RELOAD_FLAG)) return;
-        sessionStorage.setItem(STALE_BUILD_RELOAD_FLAG, '1');
-      } catch {
-        // No sessionStorage — fall through and reload anyway.
-      }
-      // Same reasoning as app.html's copy of this: a bare reload can be a
-      // no-op here, since the reload's own request is still intercepted by
-      // whichever service worker's cache is actually the problem.
-      // Unregistering first forces this navigation past it, onto the
-      // network for real.
-      if (navigator.serviceWorker?.getRegistrations) {
-        navigator.serviceWorker.getRegistrations()
-          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-          .catch(() => undefined)
-          .then(() => location.reload());
-      } else {
-        location.reload();
-      }
+
+  // Same reasoning everywhere this appears (app.html's inline copy included):
+  // a bare location.reload() can be a no-op, since the reload's own request
+  // is still intercepted by whichever service worker's cache is actually the
+  // problem. Unregistering first forces this navigation past it, onto the
+  // network for real. Used both by the auto-heal path below and by the
+  // fallback screen's own manual "Reload" button — that button used to call
+  // location.reload() directly, which meant tapping it while stuck behind a
+  // broken cached service worker could re-serve the exact same broken page,
+  // making the only recovery option a Telegram user has look like it does
+  // nothing at all.
+  function hardReload(): void {
+    if (navigator.serviceWorker?.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+        .catch(() => undefined)
+        .then(() => location.reload());
+    } else {
+      location.reload();
     }
+  }
+
+  function handleBoundaryError(error: unknown): void {
+    console.error('Caught by root error boundary', error);
+    // Every uncaught error this boundary ever sees is, by construction, one
+    // this app has no other recovery path for — and inside Telegram
+    // specifically there's no devtools and no pull-to-refresh-the-URL-bar
+    // trick to fall back on, just this screen. Rather than trying to
+    // enumerate every message a stale service worker/cached build could ever
+    // throw (the old check here matched five known strings and missed
+    // anything not on that list, leaving those stuck on a dead-end screen),
+    // treat any first boundary error of the session as worth one automatic
+    // clean-reload attempt. The sessionStorage flag makes this fire at most
+    // once: a genuinely persistent bug still falls through to the manual
+    // "Reload" screen on the second failure, exactly as before.
+    try {
+      if (sessionStorage.getItem(STALE_BUILD_RELOAD_FLAG)) return;
+      sessionStorage.setItem(STALE_BUILD_RELOAD_FLAG, '1');
+    } catch {
+      // No sessionStorage — fall through and reload anyway.
+    }
+    hardReload();
   }
 
   type MeResponse = {
@@ -316,7 +324,7 @@
       <button
         type="button"
         class="tappable pressable flex h-12 min-w-44 items-center justify-center gap-2 rounded-2xl bg-ink px-6 text-sm font-bold text-white"
-        on:click={() => location.reload()}
+        on:click={hardReload}
       >
         <RefreshCw size={16} /> Reload
       </button>
