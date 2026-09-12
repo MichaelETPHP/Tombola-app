@@ -355,9 +355,11 @@ export async function sendDrawInvitation(
     timeStyle: 'short',
     timeZone: 'Africa/Addis_Ababa',
   });
-  return sendSms({
-    to: phone,
-    event: 'draw_invitation',
-    message: `YeneEta draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}". Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw. Link expires ${format.format(details.expiresAt)}.`,
-  });
+  const message = [
+    `YeneEta draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}".`,
+    `Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw.`,
+    `Link expires ${format.format(details.expiresAt)}.`,
+    `Good luck! · መልካም እድል!`,
+  ].join('\n');
+  return sendSms({ to: phone, message, event: 'draw_invitation' });
 }
