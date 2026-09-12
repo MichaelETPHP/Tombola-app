@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { _ } from 'svelte-i18n';
+  import { _, locale } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { page, updated } from '$app/stores';
@@ -344,6 +344,25 @@
 </script>
 
 <svelte:boundary onerror={handleBoundaryError}>
+  <!-- Gating on $locale (not just onMount timing) is what actually closes
+       this race: SvelteKit fetches the root layout's and the leaf page's
+       JS modules CONCURRENTLY (Promise.all across the whole branch, not
+       parent-then-child), so a +layout.ts side-effect import — which looks
+       like it should run first — has no real guarantee of winning against
+       a sibling page's own module evaluation. A production crash traced
+       straight to the root page's <SplashScreen/> calling $_() in its own
+       first-render reactive block, before this locale was set, confirmed
+       it wasn't. This {#if} is a hard Svelte rendering gate instead: slot
+       content (and everything else in this boundary) simply cannot be
+       instantiated while $locale is still unset, regardless of which
+       module finished loading first — correct no matter the timing,
+       because it checks the one fact that actually matters, in the one
+       component guaranteed to already have it right (this file's own
+       <script> already imported the initializer, a same-module static
+       import with a real ordering guarantee). $locale flips true within a
+       tick of module evaluation in the overwhelming majority of loads, so
+       this adds no visible delay. -->
+  {#if $locale}
   <slot />
   {#if !directDrawRoute}
     <BackExitToast />
@@ -361,6 +380,7 @@
         </button>
       </div>
     {/if}
+  {/if}
   {/if}
 
   {#snippet failed(error, reset)}
