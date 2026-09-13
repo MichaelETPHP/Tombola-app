@@ -399,7 +399,7 @@
 
   {#if error}<div class="picker-message error" role="alert"><CircleAlert size={18} /><div>{error}<button on:click={refresh} disabled={refreshing}>{$_('numbers.refreshButton')}</button></div></div>{/if}
   {#if notice}<p class="picker-notice" role="status">{notice}</p>{/if}
-  {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<p class="picker-message">{$_('numbers.allowanceReached')} <a href="/tickets">{$_('numbers.viewMyTickets')}</a></p>{/if}
+  {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<div class="picker-message allowance-limit" role="alert"><CircleAlert size={18} /><div><p class="allowance-limit-text">{$_('numbers.allowanceReached')}</p><a href="/tickets" class="allowance-limit-cta"><Ticket size={14} />{$_('numbers.viewMyTickets')}<ArrowRight size={14} /></a></div></div>{/if}
 
   <section class="numbers-section" bind:this={wheelsSectionEl} aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
     <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
@@ -488,6 +488,30 @@
   .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 36px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
   .footer-action { display: flex; align-items: center; gap: 14px; } .footer-action > div { min-width: 78px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #193c33; color: white; font-size: 13px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
   .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
+
+  /* Reached-allowance notice — deliberately the loudest state this picker
+     can show (bold red, not the neutral green info tint every other
+     message here uses): it's the one message that means "you cannot
+     proceed here at all," not just an FYI, so it needs to read as a stop
+     sign at a glance rather than blend in with routine notices. */
+  .allowance-limit { background: #fff0f1; color: #b3122b; align-items: flex-start; }
+  .allowance-limit-text { margin: 0; font-weight: 800; color: #b3122b; }
+  .allowance-limit-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #b3122b;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+    transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .allowance-limit-cta:active { transform: scale(0.96); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .continue-button.is-purchasing:disabled { background: #193c33; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 359px) { .wheel-grid { column-gap: 4px; } .selection-footer { padding-inline: 16px; } }
   @media (prefers-reduced-motion: reduce) { .loading-wheels > div > div { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
