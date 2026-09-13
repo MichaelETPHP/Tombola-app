@@ -5,7 +5,7 @@
   import { toast } from '$lib/stores/toast.store.js';
   import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
-    Check, Clock3, Fingerprint, Link2, RefreshCw,
+    Check, Clipboard, Clock3, Fingerprint, Link2, RefreshCw,
     ShieldCheck, Ticket, Users, Search, Copy, Phone, ExternalLink,
     X, Sparkles, AlertCircle, CalendarDays, Trophy
   } from 'lucide-svelte';
@@ -85,6 +85,14 @@
   let participantSearch = '';
   let repSearch: Record<number, string> = {};
   let repPickerOpenTier: number | null = null;
+  // Demo-mode fallback: DEMO_OTP_ENABLED skips every real SMS platform-wide
+  // (OTP, draw triggers, and this) — the API still generates a real,
+  // usable approval link, it just has no way to deliver it, so it comes
+  // back in the response for the admin to copy/test with manually. The
+  // old trigger-link panel showed exactly this same fallback; it was lost
+  // when that panel got simplified to read-only, which is why assigning a
+  // representative looked like nothing happened while demo mode is on.
+  let generatedRepresentativeLinks: Record<number, string> = {};
   let assigningTier: number | null = null;
 
   function apiErrorMessage(err: unknown, fallback: string): string {
@@ -159,8 +167,16 @@
     try {
       const isReassign = engine.representatives.some((r) => r.tier === tier);
       const path = isReassign ? 'draw-representative/reassign' : 'draw-representative';
-      await api.post(`/admin/raffles/${raffleId}/${path}`, { tier, userId, reason });
-      toast.success(`${ordinal(tier)} prize representative assigned — SMS sent for approval.`, 'Representative Assigned');
+      const response = await api.post<{ representative: { delivery: 'sent' | 'demo' | 'failed'; link: string } }>(
+        `/admin/raffles/${raffleId}/${path}`,
+        { tier, userId, reason }
+      );
+      if (response.representative.delivery === 'sent') {
+        toast.success(`${ordinal(tier)} prize representative assigned — SMS sent for approval.`, 'Representative Assigned');
+      } else {
+        generatedRepresentativeLinks = { ...generatedRepresentativeLinks, [tier]: response.representative.link };
+        toast.info(`${ordinal(tier)} prize representative assigned — demo mode, copy the link below to test.`, 'Link Ready');
+      }
       repPickerOpenTier = null;
       await load();
     } catch (cause) {
@@ -640,6 +656,23 @@
                       <span class="text-warning font-semibold">{new Date(rep.expiresAt).toLocaleString()}</span>
                     </div>
                   {/if}
+                </div>
+              {/if}
+
+              <!-- Demo-mode fallback: no real SMS goes out (DEMO_OTP_ENABLED),
+                   so this is the only way to actually reach the approval page. -->
+              {#if generatedRepresentativeLinks[prize.tier]}
+                <div class="mt-3 flex items-center gap-2 rounded-button border border-primary/30 bg-primary-bg/70 p-2 pl-3">
+                  <p class="min-w-0 flex-1 truncate font-mono text-[11px] font-bold text-primary-dark">
+                    {generatedRepresentativeLinks[prize.tier]}
+                  </p>
+                  <button
+                    type="button"
+                    on:click={() => copyToClipboard(generatedRepresentativeLinks[prize.tier], 'Approval link')}
+                    class="admin-press flex h-7 shrink-0 items-center gap-1.5 rounded-button bg-primary px-2.5 text-[11px] font-bold text-white shadow-xs"
+                  >
+                    <Clipboard size={11} /> Copy
+                  </button>
                 </div>
               {/if}
 
