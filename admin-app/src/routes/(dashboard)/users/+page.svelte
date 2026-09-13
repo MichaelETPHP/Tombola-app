@@ -5,7 +5,7 @@
   import { toast } from '$lib/stores/toast.store.js';
   import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
-    CircleAlert, MessageSquareText, RefreshCw, Search, Send,
+    CircleAlert, Eye, MessageSquareText, RefreshCw, Search, Send,
     ShieldAlert, Trash2, Users, X, CheckSquare, Square, SquareMinus,
     CheckCircle, ChevronLeft, ChevronRight, Copy,
   } from 'lucide-svelte';
@@ -420,6 +420,10 @@
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
+                      <a href="/users/{user.id}"
+                        class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-border bg-card px-2.5 text-[11px] font-bold text-ink no-underline hover:border-primary/40 hover:text-primary-dark">
+                        <Eye size={12} /> View
+                      </a>
                       <button type="button"
                         class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border px-2.5 text-[11px] font-bold {user.isSuspended ? 'border-success/20 bg-success-bg text-success' : 'border-warning/20 bg-warning-bg text-warning'}"
                         on:click={() => (confirmingUser = user)}>

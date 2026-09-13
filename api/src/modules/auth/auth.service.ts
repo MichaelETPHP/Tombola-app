@@ -25,6 +25,7 @@ import {
   type SharedContact,
 } from '../../lib/telegram.js';
 import { sendOtp } from '../../lib/sms.js';
+import { recordLoginEvent, type LoginMethod } from '../../lib/login-events.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
@@ -83,11 +84,17 @@ function publicUser(user: DbUser, isNewUser = false) {
   };
 }
 
-async function createSession(user: DbUser, isNewUser = false) {
+export interface LoginMeta {
+  ip: string | null;
+  userAgent: string | null;
+}
+
+async function createSession(user: DbUser, isNewUser = false, method: LoginMethod = 'phone_otp', meta?: LoginMeta) {
   if (user.status !== 'active') throw new AppError(403, 'auth.accountSuspended');
   // One active session per account: this login supersedes any other device
   // already signed in on this phone number.
   const sessionVersion = await bumpSessionVersion(user.id);
+  recordLoginEvent(user.id, method, meta?.ip ?? null, meta?.userAgent ?? null);
   return {
     accessToken: await signAccessToken({ sub: user.id, phone: user.phoneNumber, role: 'user', sessionVersion }),
     refreshToken: await signRefreshToken({ sub: user.id, role: 'user', sessionVersion }),
@@ -105,7 +112,7 @@ async function attachTelegram(user: DbUser, identity: TelegramIdentity): Promise
   return linked;
 }
 
-export async function verifyOtp(phone: string, code: string, telegramLinkToken?: string) {
+export async function verifyOtp(phone: string, code: string, telegramLinkToken?: string, meta?: LoginMeta) {
   // DEMO_OTP_ENABLED is an explicit opt-in used by deployed test stacks as
   // well as local development. /health keeps production deployments visibly
   // degraded until this flag is disabled and a real SMS gateway is wired.
@@ -142,13 +149,13 @@ export async function verifyOtp(phone: string, code: string, telegramLinkToken?:
       fullName: telegram.fullName,
     });
   }
-  return createSession(user, isNewUser);
+  return createSession(user, isNewUser, 'phone_otp', meta);
 }
 
-export async function authenticateTelegramMiniApp(initData: string) {
+export async function authenticateTelegramMiniApp(initData: string, meta?: LoginMeta) {
   const identity = validateMiniAppInitData(initData);
   const user = await findUserByTelegramId(identity.userId);
-  if (user) return { status: 'authenticated' as const, ...(await createSession(user)) };
+  if (user) return { status: 'authenticated' as const, ...(await createSession(user, false, 'telegram', meta)) };
 
   // First time this Telegram account has opened the Mini App. Inside the
   // bot there's no OTP fallback at all — the frontend calls
@@ -180,7 +187,7 @@ export async function authenticateTelegramMiniApp(initData: string) {
  * while that's still in flight (webhook delivery is asynchronous and
  * outside this request's control).
  */
-export async function completeTelegramMiniAppLogin(telegramLinkToken: string) {
+export async function completeTelegramMiniAppLogin(telegramLinkToken: string, meta?: LoginMeta) {
   const pending = await verifyTelegramLinkToken(telegramLinkToken);
   let user = await findUserByTelegramId(pending.telegramUserId);
   if (!user) return { status: 'pending' as const };
@@ -199,7 +206,7 @@ export async function completeTelegramMiniAppLogin(telegramLinkToken: string) {
       })) ?? user;
   }
 
-  return { status: 'authenticated' as const, ...(await createSession(user)) };
+  return { status: 'authenticated' as const, ...(await createSession(user, false, 'telegram', meta)) };
 }
 
 /**
@@ -233,11 +240,11 @@ export async function linkTelegramContact(contact: SharedContact): Promise<void>
   });
 }
 
-export async function authenticateTelegramOidc(idToken: string, nonceToken: string) {
+export async function authenticateTelegramOidc(idToken: string, nonceToken: string, meta?: LoginMeta) {
   const nonce = await verifyTelegramNonceToken(nonceToken);
   const identity = await validateTelegramIdToken(idToken, nonce.nonce);
   let user = await findUserByTelegramId(identity.userId);
-  if (user) return { status: 'authenticated' as const, ...(await createSession(user)) };
+  if (user) return { status: 'authenticated' as const, ...(await createSession(user, false, 'telegram', meta)) };
 
   // YeneEta currently operates with Ethiopian E.164 numbers. A Telegram
   // account with no shared phone (or a non-Ethiopian number) can still link
@@ -261,7 +268,7 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
     isNewUser = true;
   }
   user = await attachTelegram(user, identity);
-  return { status: 'authenticated' as const, ...(await createSession(user, isNewUser)) };
+  return { status: 'authenticated' as const, ...(await createSession(user, isNewUser, 'telegram', meta)) };
 }
 
 /**

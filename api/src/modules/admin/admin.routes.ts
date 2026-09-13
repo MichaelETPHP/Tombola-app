@@ -12,6 +12,7 @@ import {
   listUsersSchema,
   suspendUserSchema,
   bulkSmsSchema,
+  sendUserSmsSchema,
   adminLoginSchema,
   updateOwnProfileSchema,
   createAdminSchema,
@@ -22,6 +23,7 @@ import {
   getDashboardStats,
   getProfitOverview,
   adminListUsers,
+  adminGetUser,
   adminSuspendUser,
   adminLogin,
   getIntegrationsStatus,
@@ -29,6 +31,11 @@ import {
   adminDeleteUser,
   adminBulkDeleteUsers,
   adminBulkSendSms,
+  getUserTickets,
+  getUserPayouts,
+  getUserSmsLogs,
+  getUserLogins,
+  adminSendSmsToUser,
   getAdminProfile,
   updateOwnAdminProfile,
   listAdminUsers,
@@ -369,5 +376,75 @@ adminRoutes.post('/users/sms', async (c) => {
   const body = await c.req.json();
   const input = bulkSmsSchema.parse(body);
   const result = await adminBulkSendSms(input);
+  return c.json(result);
+});
+
+/**
+ * GET /admin/users/:id
+ * Full "Customer Profile" for one user — profile fields plus at-a-glance
+ * stats (tickets bought, total spent, SMS sent, prizes won, last login).
+ */
+adminRoutes.get('/users/:id', async (c) => {
+  const user = await adminGetUser(z.string().uuid().parse(c.req.param('id')));
+  return c.json({ user });
+});
+
+/**
+ * GET /admin/users/:id/tickets
+ * This user's tickets across every raffle they've bought into.
+ */
+adminRoutes.get('/users/:id/tickets', async (c) => {
+  const tickets = await getUserTickets(z.string().uuid().parse(c.req.param('id')));
+  return c.json({ tickets });
+});
+
+/**
+ * GET /admin/users/:id/payouts
+ * This user's win/payout record, raffle and prize context included.
+ */
+adminRoutes.get('/users/:id/payouts', async (c) => {
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const offsetParam = Number(c.req.query('offset'));
+  const offset = Number.isFinite(offsetParam) ? Math.max(0, offsetParam) : 0;
+  const payouts = await getUserPayouts(z.string().uuid().parse(c.req.param('id')), limit, offset);
+  return c.json({ payouts });
+});
+
+/**
+ * GET /admin/users/:id/sms
+ * Every SMS this user has ever received — the same shape as the general
+ * SMS log, scoped to their phone. Keyset-paginated via ?before=.
+ */
+adminRoutes.get('/users/:id/sms', async (c) => {
+  const before = c.req.query('before');
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const page = await getUserSmsLogs(z.string().uuid().parse(c.req.param('id')), { limit, before });
+  return c.json(page);
+});
+
+/**
+ * GET /admin/users/:id/logins
+ * Every recorded login for this user — empty for logins before this
+ * feature shipped, see lib/login-events.ts. Keyset-paginated via ?before=.
+ */
+adminRoutes.get('/users/:id/logins', async (c) => {
+  const before = c.req.query('before');
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const page = await getUserLogins(z.string().uuid().parse(c.req.param('id')), limit, before);
+  return c.json(page);
+});
+
+/**
+ * POST /admin/users/:id/sms
+ * Send one message straight to this user — distinct from the bulk-SMS
+ * endpoint above, tagged with its own event so it's visually distinguishable
+ * in the SMS log viewer as a targeted send rather than a broadcast.
+ */
+adminRoutes.post('/users/:id/sms', async (c) => {
+  const input = sendUserSmsSchema.parse(await c.req.json());
+  const result = await adminSendSmsToUser(z.string().uuid().parse(c.req.param('id')), input);
   return c.json(result);
 });

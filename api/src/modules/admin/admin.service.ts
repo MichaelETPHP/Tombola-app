@@ -1,4 +1,8 @@
-import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds } from '../../db/queries/users.queries.js';
+import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds, findUserById } from '../../db/queries/users.queries.js';
+import { listUserTickets } from '../../db/queries/tickets.queries.js';
+import { findPayoutsByUserIdDetailed } from '../../db/queries/payouts.queries.js';
+import { listLoginEvents, findLastLoginAt } from '../../lib/login-events.js';
+import { getSmsLogsPage } from './sms-admin.service.js';
 import { listAuditLog as dbListAuditLog } from '../../db/queries/audit.queries.js';
 import {
   findAdminByPhone,
@@ -15,10 +19,10 @@ import { requireAdminSessionVersion } from '../../lib/admin-session.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
-import { sendBulkSms, pingSmsGateway } from '../../lib/sms.js';
+import { sendBulkSms, sendSms, pingSmsGateway } from '../../lib/sms.js';
 import { pingChapa } from '../../lib/payment-gateway.js';
 import { listIntegrationLogs, type IntegrationKey, type IntegrationLogStatus } from '../../lib/integration-log.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput } from './admin.schema.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput, SendUserSmsInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 export type IntegrationLiveStatus = 'reachable' | 'unreachable' | 'not_applicable';
@@ -542,6 +546,74 @@ export async function adminBulkSendSms(input: BulkSmsInput) {
     failedCount,
     recipients: result.recipients,
   };
+}
+
+/**
+ * Full "Customer Profile" view for one user — the profile fields already
+ * shown on the list page, plus at-a-glance stat pills (tickets bought,
+ * total spent, SMS sent, prizes won, last login) computed in one query so
+ * the detail page's header never waits on four separate round-trips.
+ */
+export async function adminGetUser(userId: string) {
+  const user = await findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+
+  const [[stats], lastLoginAt] = await Promise.all([
+    sql<{ ticketCount: number; totalSpent: number; smsCount: number; winsCount: number }[]>`
+      SELECT
+        (SELECT COUNT(*)::int FROM tickets WHERE user_id = ${userId}) AS ticket_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE user_id = ${userId} AND status = 'completed') AS total_spent,
+        (SELECT COUNT(*)::int FROM "Tombola_DB".integration_logs WHERE integration = 'sms' AND detail->>'to' = ${user.phoneNumber}) AS sms_count,
+        (SELECT COUNT(*)::int FROM payouts WHERE winner_user_id = ${userId}) AS wins_count
+    `,
+    findLastLoginAt(userId),
+  ]);
+
+  return {
+    ...toAdminUser(user),
+    ticketCount: stats.ticketCount,
+    totalSpent: Number(stats.totalSpent),
+    smsCount: stats.smsCount,
+    winsCount: stats.winsCount,
+    lastLoginAt,
+  };
+}
+
+/** This user's tickets across every raffle they've ever bought into. */
+export async function getUserTickets(userId: string) {
+  return listUserTickets(userId);
+}
+
+/** This user's win/payout record, raffle and prize context joined in. */
+export async function getUserPayouts(userId: string, limit: number, offset: number) {
+  return findPayoutsByUserIdDetailed(userId, limit, offset);
+}
+
+/** Every SMS ever sent to this specific user — same shape as the general SMS log, scoped by phone. */
+export async function getUserSmsLogs(userId: string, filter: { limit: number; before?: string }) {
+  const user = await findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+  return getSmsLogsPage({ phone: user.phoneNumber, limit: filter.limit, before: filter.before });
+}
+
+/** Every recorded login for this user — see lib/login-events.ts for why this only starts from when it shipped. */
+export async function getUserLogins(userId: string, limit: number, before?: string) {
+  return listLoginEvents(userId, limit, before);
+}
+
+/**
+ * Sends one SMS straight to this user's own phone — distinct from
+ * adminBulkSendSms (which batch-resolves phones for many recipients): the
+ * detail page already knows the phone, so this skips that lookup and tags
+ * the log with its own event name so "sent from this person's profile" is
+ * visually distinguishable from a broadcast in the SMS log viewer.
+ */
+export async function adminSendSmsToUser(userId: string, input: SendUserSmsInput) {
+  const user = await findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+  const result = await sendSms({ to: user.phoneNumber, message: input.message, event: 'admin_direct_send' });
+  if (!result.success) throw new AppError(502, result.error ?? 'SMS delivery failed');
+  return { sent: true as const };
 }
 
 /**

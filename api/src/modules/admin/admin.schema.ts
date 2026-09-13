@@ -26,6 +26,12 @@ export const bulkSmsSchema = z.object({
   message: z.string().trim().min(1).max(1000),
 });
 
+// Sent from the user-detail page directly to one already-known phone number
+// — same length cap as bulk SMS, no recipient list to validate.
+export const sendUserSmsSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+});
+
 const adminPhone = z.string().trim().transform((value) => {
   if (value.startsWith('+251')) return value;
   if (value.startsWith('0')) return `+251${value.slice(1)}`;
@@ -69,6 +75,7 @@ export type ListUsersInput = z.infer<typeof listUsersSchema>;
 export type ListAuditLogInput = z.infer<typeof listAuditLogSchema>;
 export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
 export type BulkSmsInput = z.infer<typeof bulkSmsSchema>;
+export type SendUserSmsInput = z.infer<typeof sendUserSmsSchema>;
 export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileSchema>;
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;
 export type UpdateAdminInput = z.infer<typeof updateAdminSchema>;

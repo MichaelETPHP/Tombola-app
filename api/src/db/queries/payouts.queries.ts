@@ -212,6 +212,24 @@ export async function findPayoutsByUserId(
   `;
 }
 
+/** Same as findPayoutsByUserId, with raffle/prize context joined in — for
+ * the admin user-detail page, which already has the winner's own name/phone
+ * so DETAILED_PAYOUT_SELECT's redundant winner columns are harmless noise,
+ * not worth a separate select just to drop two columns. */
+export async function findPayoutsByUserIdDetailed(
+  userId: string,
+  limit: number,
+  offset: number
+): Promise<DbPayoutDetailed[]> {
+  return sql<DbPayoutDetailed[]>`
+    SELECT ${DETAILED_PAYOUT_SELECT}
+    ${DETAILED_PAYOUT_JOINS}
+    WHERE p.winner_user_id = ${userId}
+    ORDER BY p.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+}
+
 /**
  * Find payouts approaching or past their claim deadline.
  */

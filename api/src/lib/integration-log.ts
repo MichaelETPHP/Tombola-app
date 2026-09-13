@@ -63,13 +63,19 @@ export function logIntegrationEvent(
 export interface IntegrationLogFilter {
   integration?: IntegrationKey;
   status?: IntegrationLogStatus;
+  /** Exact match against detail->>'to' — the SMS recipient. Powers the
+   * admin user-detail page's "Message history" section. Every phone
+   * entering this app is already normalized to +251XXXXXXXXX at the auth
+   * boundary, so an exact match is reliable, same reasoning as
+   * findUsersByPhones. */
+  phone?: string;
   limit: number;
   before?: string;
 }
 
 /** Paginated log read for the admin log viewer — newest first, keyset-paged on createdAt. */
 export async function listIntegrationLogs(filter: IntegrationLogFilter): Promise<IntegrationLogEntry[]> {
-  const { integration, status, limit, before } = filter;
+  const { integration, status, phone, limit, before } = filter;
   // Typed with `createdAt`, not `created_at` — the postgres client
   // auto-camelCases every returned column (see db/client.ts's
   // transform.column.from), so the runtime object never actually has a
@@ -89,6 +95,7 @@ export async function listIntegrationLogs(filter: IntegrationLogFilter): Promise
     FROM "Tombola_DB".integration_logs
     WHERE (${integration ?? null}::text IS NULL OR integration = ${integration ?? null})
       AND (${status ?? null}::text IS NULL OR status = ${status ?? null})
+      AND (${phone ?? null}::text IS NULL OR detail->>'to' = ${phone ?? null})
       AND (${before ?? null}::timestamptz IS NULL OR created_at < ${before ?? null})
     ORDER BY created_at DESC
     LIMIT ${limit}

@@ -18,14 +18,27 @@ import {
   logout,
 } from './auth.service.js';
 import { getRefreshTokenFromCookie } from '../../middleware/auth.middleware.js';
-import { rateLimit } from '../../middleware/rate-limit.middleware.js';
+import { rateLimit, clientIp } from '../../middleware/rate-limit.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 import { env } from '../../config/env.js';
 import { createTelegramNonce } from '../../lib/jwt.js';
 import { extractSharedContact } from '../../lib/telegram.js';
 import { logger } from '../../lib/logger.js';
+import type { LoginMeta } from './auth.service.js';
 
 export const authRoutes = new Hono<AppEnv>();
+
+// clientIp()'s 'unknown' fallback (no reverse proxy in front, e.g. local
+// dev) isn't a valid Postgres INET literal — same guard executeDraw already
+// needed for clicked_ip. userAgent capped defensively; browsers/WebViews
+// don't send absurdly long ones, but nothing enforces that.
+function loginMeta(c: Parameters<typeof clientIp>[0]): LoginMeta {
+  const ip = clientIp(c);
+  return {
+    ip: ip === 'unknown' ? null : ip,
+    userAgent: c.req.header('user-agent')?.slice(0, 500) ?? null,
+  };
+}
 
 function setRefreshCookie(c: Parameters<typeof setCookie>[0], refreshToken: string) {
   setCookie(c, 'refresh_token', refreshToken, {
@@ -70,7 +83,7 @@ authRoutes.post('/otp/verify', rateLimit({ max: 10, windowSeconds: 300 }), async
   const body = await c.req.json();
   const { phone, code, telegramLinkToken } = verifyOtpSchema.parse(body);
 
-  const result = await verifyOtp(phone, code, telegramLinkToken);
+  const result = await verifyOtp(phone, code, telegramLinkToken, loginMeta(c));
 
   // Set refresh token as httpOnly secure cookie
   setRefreshCookie(c, result.refreshToken);
@@ -86,7 +99,7 @@ authRoutes.post('/otp/verify', rateLimit({ max: 10, windowSeconds: 300 }), async
 
 authRoutes.post('/telegram/mini-app', rateLimit({ max: 20, windowSeconds: 300 }), async (c) => {
   const { initData } = telegramMiniAppSchema.parse(await c.req.json());
-  const result = await authenticateTelegramMiniApp(initData);
+  const result = await authenticateTelegramMiniApp(initData, loginMeta(c));
   if (result.status === 'authenticated') setRefreshCookie(c, result.refreshToken);
   const { refreshToken: _refreshToken, ...response } = result.status === 'authenticated'
     ? result
@@ -111,7 +124,7 @@ authRoutes.post('/telegram/nonce', rateLimit({ max: 20, windowSeconds: 300 }), a
  */
 authRoutes.post('/telegram/mini-app/complete', rateLimit({ max: 40, windowSeconds: 300 }), async (c) => {
   const { telegramLinkToken } = telegramMiniAppCompleteSchema.parse(await c.req.json());
-  const result = await completeTelegramMiniAppLogin(telegramLinkToken);
+  const result = await completeTelegramMiniAppLogin(telegramLinkToken, loginMeta(c));
   if (result.status !== 'authenticated') return c.json(result, 200);
   setRefreshCookie(c, result.refreshToken);
   const { refreshToken: _refreshToken, ...response } = result;
@@ -154,7 +167,7 @@ authRoutes.post('/telegram/webhook', async (c) => {
 
 authRoutes.post('/telegram/oidc', rateLimit({ max: 20, windowSeconds: 300 }), async (c) => {
   const { idToken, nonceToken } = telegramOidcSchema.parse(await c.req.json());
-  const result = await authenticateTelegramOidc(idToken, nonceToken);
+  const result = await authenticateTelegramOidc(idToken, nonceToken, loginMeta(c));
   if ('refreshToken' in result) {
     setRefreshCookie(c, result.refreshToken);
     const { refreshToken: _refreshToken, ...response } = result;

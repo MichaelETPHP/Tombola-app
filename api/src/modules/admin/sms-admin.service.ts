@@ -31,10 +31,12 @@ const SENDER_LABEL_FALLBACK = 'YeneEta SMS Gateway';
  */
 export async function getSmsLogsPage(filter: {
   status?: IntegrationLogStatus;
+  /** Scopes to one recipient — the admin user-detail page's message history. */
+  phone?: string;
   limit: number;
   before?: string;
 }): Promise<SmsLogsPage> {
-  const rows = await listIntegrationLogs({ integration: 'sms', status: filter.status, limit: filter.limit, before: filter.before });
+  const rows = await listIntegrationLogs({ integration: 'sms', status: filter.status, phone: filter.phone, limit: filter.limit, before: filter.before });
 
   const phones = [...new Set(rows.map((row) => row.detail.to).filter((v): v is string => typeof v === 'string'))];
   const users = await findUsersByPhones(phones);

@@ -11,6 +11,7 @@ export interface DbTicket {
   purchasedAt: Date;
   ticketCode?: string;
   raffleTitle?: string;
+  raffleStatus?: string;
   raffleDeadlineAt?: Date;
   ticketPrice?: number;
 }
@@ -67,7 +68,7 @@ export async function countUserTicketsInRaffle(
 export async function listUserTickets(userId: string): Promise<DbTicket[]> {
   const rows = await sql<(DbTicket & { publicCode: string; numberSeed: number | null })[]>`
     SELECT t.*, r.public_code, r.number_seed,
-           r.title AS raffle_title, r.deadline_at AS raffle_deadline_at, r.ticket_price
+           r.title AS raffle_title, r.status AS raffle_status, r.deadline_at AS raffle_deadline_at, r.ticket_price
     FROM tickets t
     JOIN raffles r ON t.raffle_id = r.id
     WHERE t.user_id = ${userId}
