@@ -292,6 +292,25 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
 const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
 
 /**
+ * Sent once, the moment a brand-new account is created via Telegram
+ * (contact-share completing the webhook link, or the OIDC flow) — never
+ * for a returning Telegram user signing back in, and never for phone-OTP
+ * registration, which has no equivalent welcome message today. Every
+ * phone reaching this point has already passed the +251 Ethiopian-number
+ * check in the caller, so there's nothing left to validate here.
+ * Fire-and-forget by design at the call site: a failed welcome text must
+ * never block or fail the registration/login it's celebrating.
+ */
+export async function sendWelcomeSms(phone: string): Promise<SmsGatewayResponse> {
+  const message = [
+    `🎉 Welcome to YeneEta!`,
+    `Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.`,
+    `እንኳን ደህና መጡ · Welcome aboard!`,
+  ].join('\n');
+  return sendSms({ to: phone, message, event: 'welcome' });
+}
+
+/**
  * Send a confirmation once a ticket purchase is paid for and tickets are
  * issued. Every ticket number gets its own line rather than a comma-joined
  * list — a buyer skimming this on a lock screen should be able to pick out

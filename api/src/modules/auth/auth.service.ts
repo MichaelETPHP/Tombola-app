@@ -24,7 +24,7 @@ import {
   type TelegramIdentity,
   type SharedContact,
 } from '../../lib/telegram.js';
-import { sendOtp } from '../../lib/sms.js';
+import { sendOtp, sendWelcomeSms } from '../../lib/sms.js';
 import { recordLoginEvent, type LoginMethod } from '../../lib/login-events.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -229,6 +229,7 @@ export async function linkTelegramContact(contact: SharedContact): Promise<void>
   }
 
   let user = await findUserByPhone(contact.phone);
+  const isNewUser = !user;
   if (!user) {
     user = await createUser(contact.phone);
     logger.info(`New user registered via Telegram contact share: ${contact.phone}`);
@@ -238,6 +239,9 @@ export async function linkTelegramContact(contact: SharedContact): Promise<void>
     username: contact.username,
     fullName: contact.fullName,
   });
+  if (isNewUser) {
+    void sendWelcomeSms(contact.phone).catch((error) => logger.error('Failed to send welcome SMS', error));
+  }
 }
 
 export async function authenticateTelegramOidc(idToken: string, nonceToken: string, meta?: LoginMeta) {
@@ -268,6 +272,9 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
     isNewUser = true;
   }
   user = await attachTelegram(user, identity);
+  if (isNewUser) {
+    void sendWelcomeSms(identity.phone).catch((error) => logger.error('Failed to send welcome SMS', error));
+  }
   return { status: 'authenticated' as const, ...(await createSession(user, isNewUser, 'telegram', meta)) };
 }
 
