@@ -209,6 +209,16 @@ export async function generateSecureLink(
   // load-bearing on its own.
 
   const trigger = await sql.begin(async (tx) => {
+    // The existingActive check above runs before this transaction opens,
+    // so two concurrent calls for the same tier (a legitimate scenario now
+    // that generation is automatic — see auto-draw-trigger.job.ts racing
+    // trigger-expiry-check.job.ts around the moment a trigger flips from
+    // 'expired' to a fresh replacement) can both pass it before either has
+    // inserted. idx_draw_triggers_active_per_tier's partial unique index
+    // is the actual guarantee against two active rows ever coexisting;
+    // this just turns the loser's raw unique-violation into the same clean
+    // AppError the pre-check already gives everyone else, instead of a
+    // Postgres error code leaking out of this function.
     const [current] = await tx<{ drawServerSeedHash: string | null }[]>`
       SELECT draw_server_seed_hash FROM raffles WHERE id = ${raffleId} FOR UPDATE
     `;
@@ -245,6 +255,11 @@ export async function generateSecureLink(
       )
     `;
     return { id: created.id, attemptNumber: attempt.next };
+  }).catch((error) => {
+    if ((error as { code?: string }).code === '23505') {
+      throw new AppError(409, 'This tier already has an active link — send it, or reassign to replace it.');
+    }
+    throw error;
   });
 
   return {
