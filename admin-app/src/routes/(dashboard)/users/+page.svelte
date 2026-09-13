@@ -42,7 +42,6 @@
   $: selectedCount = selectedIds.size;
 
   // Delete
-  let deletingId = '';
 
   // Bulk SMS
   const MAX_SMS_RECIPIENTS = 200; // mirrors the server-side cap in POST /admin/users/sms
@@ -142,22 +141,52 @@
   }
 
   // ── Delete ────────────────────────────────────────────────────
-  async function deleteSingleUser(user: AppUser) {
-    if (!confirm(`Permanently delete ${user.phone} and all their data? This cannot be undone.`)) return;
-    deletingId = user.id;
+  let confirmingDelete: AppUser | null = null;
+  let deleting = false;
+  let deleteProgress = 0;
+
+  function apiErrorMessage(err: unknown, fallback: string): string {
+    if (!(err instanceof ApiError)) return 'Network error.';
+    try {
+      const body = JSON.parse(err.body) as { error?: string };
+      return body.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function closeDeleteConfirm() {
+    if (deleting) return;
+    confirmingDelete = null;
+    deleteProgress = 0;
+  }
+
+  // A single DELETE with cascading foreign keys resolves almost instantly
+  // server-side, but nothing about this action should ever feel instant —
+  // it's permanent and irreversible. Ramping to 88% immediately (rather
+  // than waiting on the real request) and only snapping to 100% once the
+  // server actually confirms gives this the weight the action deserves
+  // without inventing fake multi-step progress that doesn't exist.
+  async function confirmDelete() {
+    if (!confirmingDelete || deleting) return;
+    const user = confirmingDelete;
+    deleting = true;
+    deleteProgress = 0;
+    requestAnimationFrame(() => { deleteProgress = 88; });
     try {
       await api.delete(`/admin/users/${user.id}`);
+      deleteProgress = 100;
+      await new Promise((resolve) => setTimeout(resolve, 320));
       users = users.filter((u) => u.id !== user.id);
       selectedIds.delete(user.id);
       selectedIds = new Set(selectedIds);
-      toast.success(`${user.phone} and associated data deleted.`, 'User Deleted');
+      toast.success(`${user.phone} and all related data deleted.`, 'User Deleted');
+      confirmingDelete = null;
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? 'Delete failed — ensure cascade deletes are enabled.' : 'Network error.',
-        'Delete Failed'
-      );
+      toast.error(apiErrorMessage(err, 'Delete failed.'), 'Delete Failed');
     } finally {
-      deletingId = '';
+      deleting = false;
+      deleteProgress = 0;
     }
   }
 
@@ -431,13 +460,9 @@
                       </button>
                       <button type="button" aria-label="Delete"
                         class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
-                        disabled={deletingId === user.id}
-                        on:click={() => deleteSingleUser(user)}>
-                        {#if deletingId === user.id}
-                          <span class="h-3 w-3 animate-spin rounded-full border-2 border-danger border-t-transparent"></span>
-                        {:else}
-                          <Trash2 size={13} />
-                        {/if}
+                        disabled={deleting}
+                        on:click={() => (confirmingDelete = user)}>
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>
@@ -556,6 +581,35 @@
           {updatingId ? 'Updating…' : 'Yes'}
         </button>
       </div>
+    </div>
+  </div>
+{/if}
+
+{#if confirmingDelete}
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4">
+    <div class="admin-reveal w-full max-w-[400px] rounded-card border border-border bg-card p-6 shadow-2xl">
+      {#if !deleting}
+        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-danger-bg text-danger"><Trash2 size={19} /></span>
+        <h2 class="mt-3 text-base font-bold text-ink">Permanently delete this account?</h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-muted">
+          <span class="font-mono font-semibold text-ink">{confirmingDelete.phone}</span> and everything tied to it —
+          tickets, raffle wins, payouts, chat messages, SMS history, login activity — will be permanently erased.
+          This cannot be undone.
+        </p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" class="admin-press h-10 rounded-button border border-border px-5 text-xs font-bold text-ink" on:click={closeDeleteConfirm}>Cancel</button>
+          <button type="button" class="admin-press inline-flex h-10 items-center gap-1.5 rounded-button bg-danger px-5 text-xs font-bold text-white" on:click={confirmDelete}>
+            <Trash2 size={13} /> Delete permanently
+          </button>
+        </div>
+      {:else}
+        <h2 class="text-base font-bold text-ink">Deleting {confirmingDelete.phone}…</h2>
+        <p class="mt-1.5 text-sm text-muted">Removing this account and every record tied to it.</p>
+        <div class="mt-5 h-2 w-full overflow-hidden rounded-full bg-danger-bg">
+          <div class="h-full rounded-full bg-danger transition-[width] duration-[420ms] ease-out" style="width: {deleteProgress}%"></div>
+        </div>
+        <p class="mt-2 text-right text-[11px] font-bold text-danger">{deleteProgress}%</p>
+      {/if}
     </div>
   </div>
 {/if}
