@@ -107,7 +107,8 @@ adminRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
 adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
   const start = z.coerce.number().int().min(1).max(2147483547).default(1).parse(c.req.query('start'));
-  return c.json(await ticketInventory(id, start));
+  const find = z.string().trim().regex(/^\d{6}$/).optional().parse(c.req.query('find'));
+  return c.json(await ticketInventory(id, start, find));
 });
 adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const payment = await findPaymentById(z.string().uuid().parse(c.req.param('id')));

@@ -4,7 +4,7 @@
   import { auth } from '$lib/stores/auth.store.js';
   import { ChevronLeft, ChevronRight, RefreshCw, Ticket } from 'lucide-svelte';
   export let raffleId: string;
-  type Inventory = { publicCode: string; ticketCap: number; start: number; end: number; numbers: { number: number; state: string }[]; payments: { id: string; selectedNumbers: number[]; amount: number; reviewRequired: boolean; checkoutStartedAt: string | null; createdAt: string }[] };
+  type Inventory = { publicCode: string; ticketCap: number; start: number; end: number; numbers: { number: number; state: string; displayNumber: string }[]; payments: { id: string; selectedDisplayNumbers: string[]; amount: number; reviewRequired: boolean; checkoutStartedAt: string | null; createdAt: string }[] };
   let inventory: Inventory | null = null;
   let start = 1;
   let error = '';
@@ -14,27 +14,38 @@
   let refundReference = '';
   let refundCompleted = false;
   let search = '';
-  const numberLabel = (n: number) => String(n).padStart(5, '0');
   function message(cause: unknown) { if (cause instanceof ApiError) { try { return JSON.parse(cause.body).error; } catch {} } return 'Could not complete this action. Please retry.'; }
   async function load() { loading = true; error = ''; try { inventory = await api.get<Inventory>(`/admin/raffles/${raffleId}/ticket-inventory?start=${start}`); } catch (cause) { error = message(cause); } finally { loading = false; } }
   onMount(load);
   async function reconcile(id: string) { busy = id; error = ''; try { await api.post(`/admin/payments/${id}/reconcile`); await load(); } catch (cause) { error = message(cause); } finally { busy = ''; } }
   async function recordRefund() { busy = refundId; try { await api.post(`/admin/payments/${refundId}/record-refund`, { reference: refundReference, refundCompleted }); refundId = ''; refundReference = ''; refundCompleted = false; await load(); } catch (cause) { error = message(cause); } finally { busy = ''; } }
-  function find() { const n = Number(search); if (!Number.isInteger(n) || n < 1 || !inventory || n > inventory.ticketCap) { error = 'Enter a number within this raffle’s ticket range.'; return; } start = Math.floor((n - 1) / 60) * 60 + 1; load(); }
+  // Search takes the same 6-digit scrambled ticket code shown everywhere
+  // else (customer wheel, receipts, SMS) — not the internal 1..ticketCap
+  // index, which is never shown to anyone. The server resolves it (see
+  // ticket-admin.ts::findTicketNumberForDisplay) since there's no
+  // closed-form inverse for the cipher.
+  async function find() {
+    const query = search.replace(/\D/g, '');
+    if (query.length !== 6) { error = 'Enter the full 6-digit ticket number.'; return; }
+    loading = true; error = '';
+    try { inventory = await api.get<Inventory>(`/admin/raffles/${raffleId}/ticket-inventory?find=${query}`); start = inventory.start; }
+    catch (cause) { error = message(cause); }
+    finally { loading = false; }
+  }
 </script>
 
 <section class="inventory">
   <header><div><h2><Ticket size={19} /> Ticket numbers</h2><p>Participants choose their numbers. Each number is unique within this raffle.</p></div><button class="icon-control" on:click={load} disabled={loading} aria-label="Refresh ticket inventory"><RefreshCw size={17} /></button></header>
   {#if error}<p class="inventory-error" role="alert">{error}</p>{/if}
   {#if inventory}
-    <div class="inventory-toolbar"><form on:submit|preventDefault={find}><input aria-label="Find ticket number" inputmode="numeric" placeholder="Find number" bind:value={search} /><button>Find</button></form><span>{inventory.publicCode} · 00001–{numberLabel(inventory.ticketCap)}</span></div>
+    <div class="inventory-toolbar"><form on:submit|preventDefault={find}><input aria-label="Find ticket number" inputmode="numeric" maxlength="6" placeholder="Find 6-digit number" bind:value={search} /><button>Find</button></form><span>{inventory.publicCode} · {inventory.ticketCap} tickets</span></div>
     <div class="inventory-legend"><span>Available</span><span class="held-label">Held</span><span class="sold-label">Sold</span></div>
-    <nav aria-label="Ticket inventory pages"><button class="icon-control" disabled={start === 1 || loading} aria-label="Previous ticket numbers" on:click={() => { start = Math.max(1, start - 60); load(); }}><ChevronLeft size={18} /></button><span>{numberLabel(inventory.start)}–{numberLabel(inventory.end)}</span><button class="icon-control" disabled={inventory.end >= inventory.ticketCap || loading} aria-label="Next ticket numbers" on:click={() => { start += 60; load(); }}><ChevronRight size={18} /></button></nav>
-    <div class="inventory-grid">{#each inventory.numbers as item}<span class:held={item.state === 'held'} class:sold={item.state === 'sold'} title="{inventory.publicCode}-{numberLabel(item.number)} · {item.state}">{numberLabel(item.number)}<small>{item.state}</small></span>{/each}</div>
+    <nav aria-label="Ticket inventory pages"><button class="icon-control" disabled={start === 1 || loading} aria-label="Previous ticket numbers" on:click={() => { start = Math.max(1, start - 60); load(); }}><ChevronLeft size={18} /></button><span>Tickets {inventory.start}–{inventory.end} of {inventory.ticketCap}</span><button class="icon-control" disabled={inventory.end >= inventory.ticketCap || loading} aria-label="Next ticket numbers" on:click={() => { start += 60; load(); }}><ChevronRight size={18} /></button></nav>
+    <div class="inventory-grid">{#each inventory.numbers as item}<span class:held={item.state === 'held'} class:sold={item.state === 'sold'} title="{inventory.publicCode}-{item.displayNumber} · {item.state}">{item.displayNumber}<small>{item.state}</small></span>{/each}</div>
     <div class="pending-orders"><h3>Checkouts to reconcile</h3><p>Held numbers cannot be sold again. Resolve pending payments before closing the raffle or drawing.</p>
       {#if !inventory.payments.length}<p class="empty-inventory">No pending checkouts or payment reviews.</p>{/if}
       {#each inventory.payments as payment}
-        <article><div><strong>{payment.reviewRequired ? 'Verified charge · refund review' : payment.checkoutStartedAt ? 'Awaiting gateway confirmation' : 'Reserved · payment not started'}</strong><p class="order-numbers">{(payment.selectedNumbers ?? []).map(numberLabel).join(' · ')}</p><p>{Number(payment.amount).toLocaleString()} ETB · {new Date(payment.createdAt).toLocaleString()}</p><small class="payment-reference">{payment.id}</small></div>
+        <article><div><strong>{payment.reviewRequired ? 'Verified charge · refund review' : payment.checkoutStartedAt ? 'Awaiting gateway confirmation' : 'Reserved · payment not started'}</strong><p class="order-numbers">{(payment.selectedDisplayNumbers ?? []).join(' · ')}</p><p>{Number(payment.amount).toLocaleString()} ETB · {new Date(payment.createdAt).toLocaleString()}</p><small class="payment-reference">{payment.id}</small></div>
           {#if $auth.admin?.role === 'owner'}<div class="order-actions"><button disabled={!!busy} on:click={() => reconcile(payment.id)}>{busy === payment.id ? 'Checking…' : 'Check gateway'}</button>{#if payment.reviewRequired}<button disabled={!!busy} on:click={() => { refundId = payment.id; refundReference = ''; refundCompleted = false; }}>Record external refund</button>{/if}</div>{/if}
         </article>
         {#if refundId === payment.id}<form class="refund-form" on:submit|preventDefault={recordRefund}><p>This records a refund already completed with the provider. It does not send money.</p><label>Provider refund reference<input required minlength="5" maxlength="200" bind:value={refundReference} /></label><label class="refund-confirm"><input type="checkbox" required bind:checked={refundCompleted} /> I verified that the refund was completed.</label><div><button disabled={!!busy || !refundCompleted || refundReference.trim().length < 5}>Save refund record</button><button type="button" on:click={() => { refundId = ''; }}>Cancel</button></div></form>{/if}
