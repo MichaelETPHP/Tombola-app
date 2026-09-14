@@ -15,9 +15,9 @@
  * outside every existing block), just no longer front-loaded.
  */
 
-const DISPLAY_NUMBER_SPACE = 1_000_000;
+import { AppError } from '../middleware/error-handler.middleware.js';
 
-export class TicketCapacityError extends Error {}
+const DISPLAY_NUMBER_SPACE = 1_000_000;
 
 export function allocateRandomBlock(
   occupiedBlocks: { blockStart: number; ticketCap: number }[],
@@ -37,8 +37,9 @@ export function allocateRandomBlock(
     .filter((gap) => gap.positions > 0);
   const totalPositions = eligible.reduce((sum, gap) => sum + gap.positions, 0);
   if (totalPositions <= 0) {
-    throw new TicketCapacityError(
-      'Platform has reached its lifetime ticket-code capacity (1,000,000 tickets across every raffle ever run) — cannot create another raffle.'
+    throw new AppError(
+      409,
+      'Platform has reached its lifetime ticket-code capacity (1,000,000 tickets across every raffle ever run) — cannot create or resize this raffle.'
     );
   }
 

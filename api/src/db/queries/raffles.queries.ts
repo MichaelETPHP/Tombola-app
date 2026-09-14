@@ -212,12 +212,41 @@ export async function updateRaffle(
 ): Promise<DbRaffle | null> {
   const keys = Object.keys(updates) as (keyof typeof updates)[];
   if (keys.length === 0) return findRaffleById(id);
-  const rows = await sql<DbRaffle[]>`
-    UPDATE raffles
-    SET ${sql(updates, ...keys)}, updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *, ${TICKETS_SOLD_EXPR}
-  `;
+
+  const rows = await sql.begin(async (tx) => {
+    let blockUpdate: { numberBlockStart: number } | Record<string, never> = {};
+    if (updates.ticketCap !== undefined) {
+      // The caller (raffles.service.ts) only allows this while
+      // ticketsSold === 0, but a raffle's reserved block was sized to its
+      // ORIGINAL cap — leaving it as-is and just widening ticketCap would
+      // let this raffle's higher ticket numbers spill into whatever free
+      // space another raffle claimed in between, producing real duplicate
+      // display numbers. Re-allocates a fresh block sized to the new cap
+      // instead of trying to extend the old one in place (which would need
+      // its own free-space check anyway). Same global lock as raffle
+      // creation, so a concurrent create/resize can't pick an overlapping
+      // position.
+      await tx`SELECT id FROM ticket_number_allocator WHERE id = 1 FOR UPDATE`;
+      const [current] = await tx<{ numberBlockStart: number | null }[]>`
+        SELECT number_block_start FROM raffles WHERE id = ${id}
+      `;
+      if (current?.numberBlockStart !== null && current?.numberBlockStart !== undefined) {
+        const occupiedBlocks = await tx<{ blockStart: number; ticketCap: number }[]>`
+          SELECT number_block_start AS block_start, ticket_cap
+          FROM raffles WHERE number_block_start IS NOT NULL AND id <> ${id}
+        `;
+        blockUpdate = { numberBlockStart: allocateRandomBlock(occupiedBlocks, updates.ticketCap) };
+      }
+    }
+    const merged = { ...updates, ...blockUpdate };
+    const mergedKeys = Object.keys(merged) as (keyof typeof merged)[];
+    return tx<DbRaffle[]>`
+      UPDATE raffles
+      SET ${sql(merged, ...mergedKeys)}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *, ${TICKETS_SOLD_EXPR}
+    `;
+  });
   const updated = rows[0];
   // Keep the tier-1 raffle_prizes row's name/value in sync with the
   // single-prize fields the admin form still edits — but NOT image_url.
