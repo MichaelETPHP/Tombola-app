@@ -38,7 +38,7 @@
   // never a local computation, so it can never drift from whatever
   // scramble the server actually applied for this raffle.
   $: labelByNumber = new Map(rows.map((row) => [row.number, row.displayNumber]));
-  $: label = (number: number) => labelByNumber.get(number) ?? String(number).padStart(5, '0');
+  $: label = (number: number) => labelByNumber.get(number) ?? String(number).padStart(6, '0');
   const isUnavailable = (row: { number: number; state: NumberState }) => row.state !== 'available' && row.number !== value;
   const isUsedElsewhere = (number: number) => selectedNumbers.includes(number) && number !== value;
   const canUse = (row: { number: number; state: NumberState }) => !isUnavailable(row) && !isUsedElsewhere(row.number);

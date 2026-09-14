@@ -254,7 +254,7 @@
         return;
       }
       selectedNumbers = payment.selectedNumbers ?? [];
-      selectedDisplayNumbers = payment.selectedDisplayNumbers ?? selectedNumbers.map((n) => String(n).padStart(5, '0'));
+      selectedDisplayNumbers = payment.selectedDisplayNumbers ?? selectedNumbers.map((n) => String(n).padStart(6, '0'));
       expiresAt = payment.expiresAt ?? '';
       checkoutStarted = !!payment.checkoutStarted;
       serverOffset = payment.serverTime ? new Date(payment.serverTime).getTime() - Date.now() : 0;

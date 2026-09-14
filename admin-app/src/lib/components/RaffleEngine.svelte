@@ -33,6 +33,9 @@
       firstTicket: number;
       lastTicket: number;
       ticketNumbers: number[];
+      /** Same order as ticketNumbers — the real, stored display code for
+       *  each ticket (identical to what the mobile app/SMS show). */
+      ticketCodes: string[];
       lastPurchasedAt: string;
     }[];
     triggers: {
@@ -117,8 +120,6 @@
     }
   }
 
-  const ticketCode = (number: number) => `${engine?.raffle.code}-${String(number).padStart(5, '0')}`;
-
   const prizeLabel = (tier: number) => `${ordinal(tier)} prize`;
 
   // Which prize tier(s), if any, each participant won — drives the green
@@ -192,9 +193,7 @@
     const q = participantSearch.trim().toLowerCase();
     const nameMatch = (p.fullName ?? '').toLowerCase().includes(q);
     const phoneMatch = p.phone.toLowerCase().includes(q);
-    const ticketMatch = (p.ticketNumbers ?? [p.firstTicket]).some((num) =>
-      ticketCode(num).toLowerCase().includes(q) || String(num).includes(q)
-    );
+    const ticketMatch = (p.ticketCodes ?? []).some((code) => code.toLowerCase().includes(q));
     return nameMatch || phoneMatch || ticketMatch;
   });
 
@@ -417,7 +416,6 @@
           {:else}
             <div class="divide-y divide-border">
               {#each filteredParticipants as participant (participant.id)}
-                {@const ticketList = participant.ticketNumbers ?? [participant.firstTicket]}
                 {@const wonTiers = winningTiersByUserId[participant.id]}
                 <div class="flex flex-col gap-3 p-4 transition-colors sm:flex-row sm:items-start sm:justify-between {wonTiers ? 'bg-success-bg/60 hover:bg-success-bg/80' : 'hover:bg-bg/40'}">
                   <!-- User Info Strip -->
@@ -462,8 +460,7 @@
                         Exact Ticket Numbers:
                       </p>
                       <div class="flex flex-wrap gap-1.5">
-                        {#each ticketList as tNum}
-                          {@const code = ticketCode(tNum)}
+                        {#each participant.ticketCodes ?? [] as code}
                           <button
                             type="button"
                             class="group inline-flex items-center gap-1 rounded-[6px] border border-border bg-bg/80 px-2 py-0.5 font-mono text-[10px] font-bold text-ink transition-all hover:border-primary/50 hover:bg-primary-bg hover:text-primary-dark"

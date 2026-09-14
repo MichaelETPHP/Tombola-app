@@ -18,6 +18,9 @@ export interface DbRaffle {
   raffleNumber: number;
   publicCode: string;
   numberSeed: number | null;
+  /** This raffle's reserved, non-overlapping slice of the shared 6-digit
+   *  display-number space — see ticket-cipher.ts/ticket-display-number.ts. */
+  numberBlockStart: number | null;
   drawServerSeed: string | null;
   drawServerSeedHash: string | null;
   scheduledDrawAt: Date | null;
@@ -89,20 +92,37 @@ export async function createRaffle(data: {
     `;
     if (sequence.raffleNumber > 999) throw new Error(`Raffle sequence exhausted for ${data.categoryCode}`);
     const publicCode = `${data.categoryCode}-${String(sequence.raffleNumber).padStart(3, '0')}`;
+
+    // Reserves exactly ticketCap slots of the shared 6-digit display-number
+    // space for this raffle alone — see ticket-cipher.ts. Advancing this
+    // counter and creating the raffle happen in the same transaction, so a
+    // raffle that fails to insert (or a capacity check below that throws)
+    // rolls the allocation back too; nothing is ever permanently reserved
+    // without a raffle to show for it.
+    const [allocation] = await tx<{ blockStart: number }[]>`
+      UPDATE ticket_number_allocator
+      SET next_block_start = next_block_start + ${data.ticketCap}
+      WHERE id = 1
+      RETURNING next_block_start - ${data.ticketCap} AS block_start
+    `;
+    if (allocation.blockStart + data.ticketCap > 1_000_000) {
+      throw new Error('Platform has reached its lifetime ticket-code capacity (1,000,000 tickets across every raffle ever run) — cannot create another raffle.');
+    }
+
     const rows = await tx<DbRaffle[]>`
     INSERT INTO raffles (
       id, title, description, prize_name, prize_value, prize_image_url,
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
       status, opens_at, deadline_at, created_by, telegram_group_link,
       category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash,
-      number_seed, sales_enabled, is_demo ${data.isFeatured !== undefined ? sql`, is_featured` : sql``}
+      number_seed, number_block_start, sales_enabled, is_demo ${data.isFeatured !== undefined ? sql`, is_featured` : sql``}
     ) VALUES (
       COALESCE(${data.id ?? null}::uuid, gen_random_uuid()), ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
       ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
       ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
-      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${data.numberSeed},
+      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${data.numberSeed}, ${allocation.blockStart},
       ${data.salesEnabled ?? true}, ${data.isDemo ?? false}
       ${data.isFeatured !== undefined ? sql`, ${data.isFeatured}` : sql``}
     )

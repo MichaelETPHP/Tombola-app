@@ -1,6 +1,7 @@
 import { sql } from '../client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { sameSelection } from '../../modules/tickets/selection.js';
+import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
 import type { DbRaffle } from './raffles.queries.js';
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
@@ -147,7 +148,9 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE gateway_ref = ${gatewayRef}`;
     if (!snapshot) return 'not_found' as const;
     await tx`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${snapshot.userId}`}))`;
-    const [raffle] = await tx<{ status: string }[]>`SELECT status FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE`;
+    const [raffle] = await tx<{ status: string; numberBlockStart: number | null; numberSeed: number | null; ticketCap: number }[]>`
+      SELECT status, number_block_start, number_seed, ticket_cap FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE
+    `;
     const [payment] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${snapshot.id} FOR UPDATE`;
     if (payment.status === 'completed' || payment.status === 'refunded') return 'already_processed' as const;
     if (payment.reviewRequired) return 'review' as const;
@@ -162,8 +165,16 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
         VALUES ('system', 'payment.requires_review', 'payment', ${payment.id}, ${tx.json({ reason: 'Verified charge could not fulfill the reserved numbers' })})`;
       return 'review' as const;
     }
-    await tx`INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id)
-      SELECT ${payment.raffleId}, ${payment.userId}, unnest(${payment.selectedNumbers!}::int[]), ${payment.id}`;
+    // Computed here, once, at the exact moment a ticket is permanently
+    // issued — stored on the row forever after, never recomputed by any
+    // reader. Uses the same formula (formatDisplayNumber) the number-picker
+    // wheel already previewed these exact numbers with, so what a buyer
+    // picked is guaranteed to be what their ticket shows.
+    const displayNumbers = payment.selectedNumbers!.map((n) =>
+      formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, n, raffle.ticketCap)
+    );
+    await tx`INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id, display_number)
+      SELECT ${payment.raffleId}, ${payment.userId}, unnest(${payment.selectedNumbers!}::int[]), ${payment.id}, unnest(${displayNumbers}::text[])`;
     await tx`UPDATE payments SET status = 'completed' WHERE id = ${payment.id}`;
     return 'completed' as const;
   });
@@ -231,9 +242,14 @@ export async function findPaymentById(id: string): Promise<DbPayment | null> {
 
 export interface DbPaymentReceipt extends DbPayment {
   raffleTitle: string;
-  raffleCode: string;
+  categoryCode: string;
   numberSeed: number | null;
+  numberBlockStart: number | null;
+  ticketCap: number;
   ticketNumbers: number[];
+  /** Already-issued tickets' stored display numbers, same order as
+   *  ticketNumbers — empty until the webhook lands, same as ticketNumbers. */
+  ticketDisplayNumbers: string[];
   phoneNumber: string;
 }
 
@@ -243,14 +259,21 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
     SELECT
       p.*,
       r.title AS raffle_title,
-      r.public_code AS raffle_code,
+      r.category_code AS category_code,
       r.number_seed AS number_seed,
+      r.number_block_start AS number_block_start,
+      r.ticket_cap AS ticket_cap,
       u.phone_number AS phone_number,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number)
           FILTER (WHERE t.ticket_number IS NOT NULL),
         ARRAY[]::int[]
-      ) AS ticket_numbers
+      ) AS ticket_numbers,
+      COALESCE(
+        array_agg(t.display_number ORDER BY t.ticket_number)
+          FILTER (WHERE t.display_number IS NOT NULL),
+        ARRAY[]::text[]
+      ) AS ticket_display_numbers
     FROM payments p
     JOIN raffles r ON r.id = p.raffle_id
     JOIN users u ON u.id = p.user_id
@@ -304,12 +327,13 @@ export interface DbPaymentWithDetails {
   id: string;
   raffleId: string;
   raffleTitle: string;
-  raffleCode: string;
-  numberSeed: number | null;
+  categoryCode: string;
   amount: number;
   ticketCount: number;
   /** The actual ticket numbers issued for this payment — empty until the webhook lands. */
   ticketNumbers: number[];
+  /** Already-issued tickets' stored display numbers, same order/emptiness as ticketNumbers. */
+  ticketDisplayNumbers: string[];
   status: PaymentStatus;
   gateway: PaymentGateway;
   createdAt: Date;
@@ -332,8 +356,7 @@ export async function listUserPayments(
       p.id,
       p.raffle_id,
       r.title AS raffle_title,
-      r.public_code AS raffle_code,
-      r.number_seed AS number_seed,
+      r.category_code AS category_code,
       p.amount,
       p.ticket_count,
       p.status,
@@ -343,7 +366,11 @@ export async function listUserPayments(
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number) FILTER (WHERE t.ticket_number IS NOT NULL),
         ARRAY[]::int[]
-      ) AS ticket_numbers
+      ) AS ticket_numbers,
+      COALESCE(
+        array_agg(t.display_number ORDER BY t.ticket_number) FILTER (WHERE t.display_number IS NOT NULL),
+        ARRAY[]::text[]
+      ) AS ticket_display_numbers
     FROM payments p
     JOIN raffles r ON r.id = p.raffle_id
     LEFT JOIN tickets t ON t.payment_id = p.id

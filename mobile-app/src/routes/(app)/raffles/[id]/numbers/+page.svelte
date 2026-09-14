@@ -23,14 +23,14 @@
     start: number; end: number; ticketCap: number; allowance: number; owned: number;
     activePaymentId: string | null; paymentStarted: boolean; salesOpen: boolean;
   };
-  // The server always renders a fixed 5-digit display number (see
-  // api/lib/ticket-display-number.ts) — a scrambled scatter across
-  // 00000-99999 for newer raffles, or a plain zero-padded 1..cap for older
-  // ones with no seed. Either way it's always exactly 5 digits, which is
-  // what "how many digits before treating this as one specific ticket"
-  // needs to key off — not ticketCap, since a scrambled number for a
-  // 50-ticket raffle can still be anywhere in the full 5-digit range.
-  const DISPLAY_DIGIT_LENGTH = 5;
+  // The server always renders a fixed 6-digit display number (see
+  // api/lib/ticket-display-number.ts) — scrambled and globally unique
+  // across every raffle on the platform, not just this one. Always exactly
+  // 6 digits, which is what "how many digits before treating this as one
+  // specific ticket" needs to key off — not ticketCap, since a scrambled
+  // number for a 50-ticket raffle can still be anywhere in the full
+  // 6-digit range (this raffle's own reserved slice of it).
+  const DISPLAY_DIGIT_LENGTH = 6;
   const pageSize = 5000;
   let raffle: Raffle | null = null;
   let availability: Availability | null = null;

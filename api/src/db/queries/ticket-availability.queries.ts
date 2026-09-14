@@ -1,10 +1,10 @@
 import { sql } from '../client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
-import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
+import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
 
 export async function getTicketAvailability(raffleId: string, userId: string, start: number, limit: number) {
-  const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date; numberSeed: number | null }[]>`
-    SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at, number_seed FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
+  const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date; numberSeed: number | null; numberBlockStart: number | null }[]>`
+    SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at, number_seed, number_block_start FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
   if (!raffle) throw new AppError(404, 'Raffle not found');
   if (start > raffle.ticketCap) throw new AppError(400, 'This number is outside the raffle range.');
   const rows = await sql<{ number: number; state: 'available' | 'sold' | 'owned' | 'held' | 'held_by_you' }[]>`
@@ -19,9 +19,15 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
     LEFT JOIN payments p ON p.id = c.payment_id ORDER BY n`;
   // The internal `number` (1..ticketCap) stays exactly what everything else
   // in this file already validates/reserves against — `displayNumber` is
-  // purely what the client renders and searches by. See
-  // ticket-display-number.ts for why a null seed leaves it unchanged.
-  const numbers = rows.map((row) => ({ ...row, displayNumber: ticketDisplayNumber(raffle.numberSeed, row.number) }));
+  // purely what the client renders and searches by. Computed with the exact
+  // same formula (and this raffle's own reserved block) that
+  // completePaymentAndIssueTickets will use to permanently store it the
+  // moment this slot is actually purchased — what you see here is
+  // guaranteed to be what your ticket shows forever after.
+  const numbers = rows.map((row) => ({
+    ...row,
+    displayNumber: formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, row.number, raffle.ticketCap),
+  }));
   const [usage] = await sql<{ owned: number; held: number }[]>`SELECT
     (SELECT COUNT(*)::int FROM tickets WHERE raffle_id = ${raffleId} AND user_id = ${userId}) AS owned,
     (SELECT COALESCE(SUM(ticket_count), 0)::int FROM payments WHERE raffle_id = ${raffleId} AND user_id = ${userId}

@@ -6,7 +6,6 @@ import { findUserById } from '../../db/queries/users.queries.js';
 import { countUserTicketsInRaffle } from '../../db/queries/tickets.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
 import { sendDrawInvitation, sendRepresentativeInvitation } from '../../lib/sms.js';
-import { ticketDisplayNumber } from '../../lib/ticket-display-number.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -562,10 +561,10 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
       throw new AppError(410, 'This draw link has expired');
     }
     const [raffle] = await tx<{
-      id: string; title: string; publicCode: string; status: string;
+      id: string; title: string; publicCode: string; categoryCode: string; status: string;
       drawServerSeed: string | null; drawServerSeedHash: string | null; numberSeed: number | null;
     }[]>`
-      SELECT id, title, public_code, status, draw_server_seed, draw_server_seed_hash, number_seed
+      SELECT id, title, public_code, category_code, status, draw_server_seed, draw_server_seed_hash, number_seed
       FROM raffles WHERE id = ${trigger.raffleId} FOR UPDATE
     `;
     if (!raffle || raffle.status !== 'awaiting_trigger') throw new AppError(409, 'This raffle is not ready to draw');
@@ -598,8 +597,8 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
     // link first), not in a fixed 1,2,3 order, so "already won" has to be
     // excluded against every past draw_results row for this raffle, not
     // just tiers earlier in a loop.
-    const pool = await tx<{ ticketNumber: number; userId: string }[]>`
-      SELECT ticket_number, user_id FROM tickets
+    const pool = await tx<{ ticketNumber: number; userId: string; displayNumber: string | null }[]>`
+      SELECT ticket_number, user_id, display_number FROM tickets
       WHERE raffle_id = ${raffle.id}
         AND user_id NOT IN (
           SELECT winner_user_id FROM draw_results WHERE raffle_id = ${raffle.id}
@@ -646,7 +645,7 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
       )
     `;
 
-    const winnerTicketCode = `${raffle.publicCode}-${ticketDisplayNumber(raffle.numberSeed, winningTicket.ticketNumber)}`;
+    const winnerTicketCode = `${raffle.categoryCode}-${winningTicket.displayNumber}`;
 
     // Atomic check-and-set: the row is already locked by the FOR UPDATE
     // SELECT above (so a concurrent spin can't be mid-flight on the same
@@ -715,10 +714,11 @@ export async function getRaffleEngine(raffleId: string) {
   const raffle = await findRaffleById(raffleId);
   if (!raffle) throw new AppError(404, 'Raffle not found');
   const [participants, prizes, triggers, representatives, extensions, draw] = await Promise.all([
-    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[]; lastPurchasedAt: Date }[]>`
+    sql<{ id: string; fullName: string | null; phone: string; ticketCount: number; firstTicket: number; lastTicket: number; ticketNumbers: number[]; displayNumbers: (string | null)[]; lastPurchasedAt: Date }[]>`
       SELECT u.id, u.full_name, u.phone_number AS phone, COUNT(t.id)::int AS ticket_count,
              MIN(t.ticket_number)::int AS first_ticket, MAX(t.ticket_number)::int AS last_ticket,
              ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)::int[] AS ticket_numbers,
+             ARRAY_AGG(t.display_number ORDER BY t.ticket_number) AS display_numbers,
              MAX(t.purchased_at) AS last_purchased_at
       FROM tickets t JOIN users u ON u.id = t.user_id WHERE t.raffle_id = ${raffleId}
       GROUP BY u.id ORDER BY MIN(t.ticket_number)
@@ -739,11 +739,13 @@ export async function getRaffleEngine(raffleId: string) {
       SELECT id, previous_deadline, new_deadline, reason, extended_at, tickets_sold_at_extension
       FROM raffle_extensions WHERE raffle_id = ${raffleId} ORDER BY extended_at DESC
     `,
-    sql<{ tier: number; prizeName: string; winningTicketNumber: number; winnerUserId: string; winnerName: string | null; winnerPhone: string; drawnAt: Date; finalSeedHash: string }[]>`
-      SELECT dr.tier, rp.name AS prize_name, dr.winning_ticket_number, u.id AS winner_user_id, u.full_name AS winner_name, u.phone_number AS winner_phone, dr.drawn_at, dr.final_seed_hash
+    sql<{ tier: number; prizeName: string; winningTicketNumber: number; winningDisplayNumber: string | null; winnerUserId: string; winnerName: string | null; winnerPhone: string; drawnAt: Date; finalSeedHash: string }[]>`
+      SELECT dr.tier, rp.name AS prize_name, dr.winning_ticket_number, t.display_number AS winning_display_number,
+             u.id AS winner_user_id, u.full_name AS winner_name, u.phone_number AS winner_phone, dr.drawn_at, dr.final_seed_hash
       FROM draw_results dr
       JOIN users u ON u.id = dr.winner_user_id
       JOIN raffle_prizes rp ON rp.id = dr.prize_id
+      JOIN tickets t ON t.raffle_id = dr.raffle_id AND t.ticket_number = dr.winning_ticket_number
       WHERE dr.raffle_id = ${raffleId}
       ORDER BY dr.tier ASC
     `,
@@ -755,11 +757,16 @@ export async function getRaffleEngine(raffleId: string) {
       drawCommitment: raffle.drawServerSeedHash, deadlineAt: raffle.deadlineAt,
     },
     prizes,
+    // ticketCodes here is what the admin dashboard actually renders — reads
+    // the same stored display_number every other screen (mobile app, SMS)
+    // shows, instead of a separately-computed plain zero-padded number
+    // (the admin/mobile mismatch this whole rework started from).
     participants: participants.map((participant) => ({
       ...participant,
       phone: participant.phone,
       maskedPhone: maskPhone(participant.phone),
       ticketNumbers: participant.ticketNumbers ?? [participant.firstTicket],
+      ticketCodes: (participant.displayNumbers ?? []).map((d) => `${raffle.categoryCode}-${d}`),
     })),
     // Only the latest attempt per tier — older expired/replaced attempts
     // for the same tier are audit history, not something the admin table
@@ -790,6 +797,6 @@ export async function getRaffleEngine(raffleId: string) {
       .sort((a, b) => a.tier - b.tier)
       .map((rep) => ({ ...rep, maskedPhone: maskPhone(rep.phone) })),
     extensions,
-    draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.publicCode}-${ticketDisplayNumber(raffle.numberSeed, d.winningTicketNumber)}` })),
+    draws: draw.map((d) => ({ ...d, winningTicketCode: `${raffle.categoryCode}-${d.winningDisplayNumber}` })),
   };
 }

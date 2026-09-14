@@ -45,8 +45,8 @@
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function randomTicket(): string {
-    const value = Math.floor(Math.random() * 100000);
-    return `${draw?.raffleCode ?? 'DRAW'}-${String(value).padStart(5, '0')}`;
+    const value = Math.floor(Math.random() * 1_000_000);
+    return `${draw?.raffleCode ?? 'DRAW'}-${String(value).padStart(6, '0')}`;
   }
 
   async function enableSound(): Promise<void> {

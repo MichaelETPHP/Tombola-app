@@ -1,7 +1,6 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 import { logIntegrationEvent } from './integration-log.js';
-import { ticketDisplayNumber } from './ticket-display-number.js';
 
 export interface SendSmsOptions {
   to: string;
@@ -320,15 +319,14 @@ export async function sendWelcomeSms(phone: string): Promise<SmsGatewayResponse>
  */
 export async function sendTicketPurchaseConfirmation(
   phone: string,
-  details: { raffleName: string; raffleCode: string; ticketNumbers: number[]; numberSeed: number | null }
+  details: { raffleName: string; ticketCodes: string[] }
 ): Promise<SmsGatewayResponse> {
-  const codes = details.ticketNumbers.map((n) => `${details.raffleCode}-${ticketDisplayNumber(details.numberSeed, n)}`);
-  const count = codes.length;
+  const count = details.ticketCodes.length;
   const message = [
     `🎉 Thank you for your purchase!`,
     `Raffle: ${details.raffleName}`,
     `Your ticket${count === 1 ? '' : 's'}:`,
-    ...codes,
+    ...details.ticketCodes,
     `Good luck! · መልካም እድል!`,
     YENEETA_BOT_LINK,
   ].join('\n');
