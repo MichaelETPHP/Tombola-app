@@ -18,9 +18,9 @@ export interface DbRaffle {
   categoryCode: string;
   raffleNumber: number;
   publicCode: string;
-  numberSeed: number | null;
-  /** This raffle's reserved, non-overlapping slice of the shared 6-digit
-   *  display-number space — see ticket-cipher.ts/ticket-display-number.ts. */
+  /** This raffle's reserved, non-overlapping range of global ticket-number
+   *  indices — never shown to anyone; see ticket-display-number.ts for how
+   *  it becomes an actual displayed number. */
   numberBlockStart: number | null;
   drawServerSeed: string | null;
   drawServerSeedHash: string | null;
@@ -64,7 +64,6 @@ export async function createRaffle(data: {
   categoryCode: string;
   drawServerSeed: string;
   drawServerSeedHash: string;
-  numberSeed: number | null;
   prizeValue: number;
   prizeImageUrl?: string;
   additionalPrizes?: { name: string; value: number }[];
@@ -116,14 +115,14 @@ export async function createRaffle(data: {
       ticket_price, ticket_cap, max_tickets_per_user, deadline_days,
       status, opens_at, deadline_at, created_by, telegram_group_link,
       category_code, raffle_number, public_code, draw_server_seed, draw_server_seed_hash,
-      number_seed, number_block_start, sales_enabled, is_demo ${data.isFeatured !== undefined ? sql`, is_featured` : sql``}
+      number_block_start, sales_enabled, is_demo ${data.isFeatured !== undefined ? sql`, is_featured` : sql``}
     ) VALUES (
       COALESCE(${data.id ?? null}::uuid, gen_random_uuid()), ${data.title}, ${data.description ?? null}, ${data.prizeName},
       ${data.prizeValue}, ${data.prizeImageUrl ?? null},
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
       ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
       ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
-      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${data.numberSeed}, ${blockStart},
+      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${blockStart},
       ${data.salesEnabled ?? true}, ${data.isDemo ?? false}
       ${data.isFeatured !== undefined ? sql`, ${data.isFeatured}` : sql``}
     )

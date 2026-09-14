@@ -1,11 +1,12 @@
 import { sql } from '../client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
-import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
+import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 
 export async function getTicketAvailability(raffleId: string, userId: string, start: number, limit: number) {
-  const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date; numberSeed: number | null; numberBlockStart: number | null }[]>`
-    SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at, number_seed, number_block_start FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
+  const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date; numberBlockStart: number | null }[]>`
+    SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at, number_block_start FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
   if (!raffle) throw new AppError(404, 'Raffle not found');
+  const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
   if (start > raffle.ticketCap) throw new AppError(400, 'This number is outside the raffle range.');
   const rows = await sql<{ number: number; state: 'available' | 'sold' | 'owned' | 'held' | 'held_by_you' }[]>`
     SELECT n AS number, CASE WHEN c.sold THEN CASE WHEN p.user_id = ${userId} THEN 'owned' ELSE 'sold' END
@@ -26,7 +27,7 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
   // guaranteed to be what your ticket shows forever after.
   const numbers = rows.map((row) => ({
     ...row,
-    displayNumber: formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, row.number, raffle.ticketCap),
+    displayNumber: formatDisplayNumber(raffle.numberBlockStart, cipherKey, row.number),
   }));
   const [usage] = await sql<{ owned: number; held: number }[]>`SELECT
     (SELECT COUNT(*)::int FROM tickets WHERE raffle_id = ${raffleId} AND user_id = ${userId}) AS owned,

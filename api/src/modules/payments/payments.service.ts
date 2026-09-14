@@ -9,7 +9,7 @@ import {
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
-import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
+import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
@@ -56,6 +56,7 @@ function notifyTicketPurchase(txRef: string): void {
 export async function getPaymentStatus(id: string, userId: string) {
   const payment = await findPaymentReceiptById(id);
   if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
+  const cipherKey = payment.numberBlockStart !== null ? await getGlobalCipherKey() : null;
   return {
     id: payment.id,
     raffleId: payment.raffleId,
@@ -66,7 +67,7 @@ export async function getPaymentStatus(id: string, userId: string) {
     // so the reserved numbers need their own preview pass here, using the
     // exact same formula createTickets will use to permanently store them.
     selectedDisplayNumbers: (payment.selectedNumbers ?? []).map((number) =>
-      formatDisplayNumber(payment.numberBlockStart, payment.numberSeed, number, payment.ticketCap)
+      formatDisplayNumber(payment.numberBlockStart, cipherKey, number)
     ),
     expiresAt: payment.reservationExpiresAt,
     checkoutStarted: !!payment.checkoutStartedAt,

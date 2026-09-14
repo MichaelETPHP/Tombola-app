@@ -1,10 +1,10 @@
 import { sql } from '../../db/client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
-import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
+import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 
 /**
  * Given the scrambled display number a customer/support conversation refers
- * to (e.g. "SAM-047213"), find which raw ticket_number (1..ticketCap) it
+ * to (e.g. "SAM-427313"), find which raw ticket_number (1..ticketCap) it
  * maps to — the inverse of formatDisplayNumber. There's no closed-form
  * inverse for the Feistel cipher here, so this just scans the raffle's own
  * (bounded, at most ticketCap) range — an admin-only, occasional lookup,
@@ -13,23 +13,24 @@ import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
 function findTicketNumberForDisplay(
   displayNumber: string,
   blockStart: number | null,
-  numberSeed: number | null,
+  cipherKey: string | null,
   ticketCap: number
 ): number | null {
   for (let n = 1; n <= ticketCap; n += 1) {
-    if (formatDisplayNumber(blockStart, numberSeed, n, ticketCap) === displayNumber) return n;
+    if (formatDisplayNumber(blockStart, cipherKey, n) === displayNumber) return n;
   }
   return null;
 }
 
 export async function ticketInventory(raffleId: string, start: number, find?: string) {
-  const [raffle] = await sql<{ ticketCap: number; publicCode: string; numberBlockStart: number | null; numberSeed: number | null }[]>`
-    SELECT ticket_cap, public_code, number_block_start, number_seed FROM raffles WHERE id = ${raffleId}`;
+  const [raffle] = await sql<{ ticketCap: number; publicCode: string; numberBlockStart: number | null }[]>`
+    SELECT ticket_cap, public_code, number_block_start FROM raffles WHERE id = ${raffleId}`;
   if (!raffle) throw new AppError(404, 'Raffle not found');
+  const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
 
   let pageStart = start;
   if (find) {
-    const matched = findTicketNumberForDisplay(find, raffle.numberBlockStart, raffle.numberSeed, raffle.ticketCap);
+    const matched = findTicketNumberForDisplay(find, raffle.numberBlockStart, cipherKey, raffle.ticketCap);
     if (matched === null) throw new AppError(404, 'No ticket with that number in this raffle.');
     pageStart = Math.floor((matched - 1) / 60) * 60 + 1;
   }
@@ -42,7 +43,7 @@ export async function ticketInventory(raffleId: string, start: number, find?: st
     LEFT JOIN payments p ON p.id = c.payment_id ORDER BY n`;
   const numbers = rows.map((row) => ({
     ...row,
-    displayNumber: formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, row.number, raffle.ticketCap),
+    displayNumber: formatDisplayNumber(raffle.numberBlockStart, cipherKey, row.number),
   }));
 
   interface PendingPayment {
@@ -56,7 +57,7 @@ export async function ticketInventory(raffleId: string, start: number, find?: st
   const payments = rawPayments.map((payment) => ({
     ...payment,
     selectedDisplayNumbers: (payment.selectedNumbers ?? []).map((n) =>
-      formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, n, raffle.ticketCap)),
+      formatDisplayNumber(raffle.numberBlockStart, cipherKey, n)),
   }));
 
   return { ...raffle, numbers, payments, start: pageStart, end: Math.min(pageStart + 59, raffle.ticketCap) };

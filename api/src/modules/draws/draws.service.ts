@@ -562,9 +562,9 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
     }
     const [raffle] = await tx<{
       id: string; title: string; publicCode: string; categoryCode: string; status: string;
-      drawServerSeed: string | null; drawServerSeedHash: string | null; numberSeed: number | null;
+      drawServerSeed: string | null; drawServerSeedHash: string | null;
     }[]>`
-      SELECT id, title, public_code, category_code, status, draw_server_seed, draw_server_seed_hash, number_seed
+      SELECT id, title, public_code, category_code, status, draw_server_seed, draw_server_seed_hash
       FROM raffles WHERE id = ${trigger.raffleId} FOR UPDATE
     `;
     if (!raffle || raffle.status !== 'awaiting_trigger') throw new AppError(409, 'This raffle is not ready to draw');

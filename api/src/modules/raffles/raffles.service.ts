@@ -15,7 +15,6 @@ import {
 import { listApprovedRepresentatives } from '../../db/queries/draws.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { commitServerSeed, generateServerSeed } from '../../lib/provably-fair.js';
-import { generateNumberSeed } from '../../lib/ticket-display-number.js';
 import type { CreateRaffleInput, ListRafflesInput, UpdateRaffleInput, UpdateRaffleStatusInput } from './raffles.schema.js';
 
 /**
@@ -82,12 +81,7 @@ export async function createRaffle(data: CreateRaffleInput, adminId: string, id?
   }
   const drawServerSeed = generateServerSeed();
   const drawServerSeedHash = await commitServerSeed(drawServerSeed);
-  // Every newly created raffle gets scrambled ticket numbers going forward
-  // (see ticket-display-number.ts) — this is the one and only place a seed
-  // is ever generated, so an existing raffle imported/copied without going
-  // through here (e.g. a demo-data script) correctly stays NULL/unscrambled.
-  const numberSeed = generateNumberSeed();
-  const raffle = await withSalesSchemaError(() => dbCreateRaffle({ ...data, id, createdBy: adminId, drawServerSeed, drawServerSeedHash, numberSeed }));
+  const raffle = await withSalesSchemaError(() => dbCreateRaffle({ ...data, id, createdBy: adminId, drawServerSeed, drawServerSeedHash }));
   return withPrizes(raffle);
 }
 

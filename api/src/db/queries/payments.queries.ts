@@ -1,7 +1,7 @@
 import { sql } from '../client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { sameSelection } from '../../modules/tickets/selection.js';
-import { formatDisplayNumber } from '../../lib/ticket-display-number.js';
+import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 import type { DbRaffle } from './raffles.queries.js';
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
@@ -148,8 +148,8 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE gateway_ref = ${gatewayRef}`;
     if (!snapshot) return 'not_found' as const;
     await tx`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${snapshot.userId}`}))`;
-    const [raffle] = await tx<{ status: string; numberBlockStart: number | null; numberSeed: number | null; ticketCap: number }[]>`
-      SELECT status, number_block_start, number_seed, ticket_cap FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE
+    const [raffle] = await tx<{ status: string; numberBlockStart: number | null }[]>`
+      SELECT status, number_block_start FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE
     `;
     const [payment] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${snapshot.id} FOR UPDATE`;
     if (payment.status === 'completed' || payment.status === 'refunded') return 'already_processed' as const;
@@ -170,8 +170,9 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     // reader. Uses the same formula (formatDisplayNumber) the number-picker
     // wheel already previewed these exact numbers with, so what a buyer
     // picked is guaranteed to be what their ticket shows.
+    const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
     const displayNumbers = payment.selectedNumbers!.map((n) =>
-      formatDisplayNumber(raffle.numberBlockStart, raffle.numberSeed, n, raffle.ticketCap)
+      formatDisplayNumber(raffle.numberBlockStart, cipherKey, n)
     );
     await tx`INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id, display_number)
       SELECT ${payment.raffleId}, ${payment.userId}, unnest(${payment.selectedNumbers!}::int[]), ${payment.id}, unnest(${displayNumbers}::text[])`;
@@ -243,9 +244,7 @@ export async function findPaymentById(id: string): Promise<DbPayment | null> {
 export interface DbPaymentReceipt extends DbPayment {
   raffleTitle: string;
   categoryCode: string;
-  numberSeed: number | null;
   numberBlockStart: number | null;
-  ticketCap: number;
   ticketNumbers: number[];
   /** Already-issued tickets' stored display numbers, same order as
    *  ticketNumbers — empty until the webhook lands, same as ticketNumbers. */
@@ -260,9 +259,7 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
       p.*,
       r.title AS raffle_title,
       r.category_code AS category_code,
-      r.number_seed AS number_seed,
       r.number_block_start AS number_block_start,
-      r.ticket_cap AS ticket_cap,
       u.phone_number AS phone_number,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number)
