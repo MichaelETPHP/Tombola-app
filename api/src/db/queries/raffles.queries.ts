@@ -1,4 +1,5 @@
 import { sql } from '../client.js';
+import { allocateRandomBlock } from '../../lib/ticket-block-allocator.js';
 
 export type RaffleStatus =
   | 'draft'
@@ -94,20 +95,20 @@ export async function createRaffle(data: {
     const publicCode = `${data.categoryCode}-${String(sequence.raffleNumber).padStart(3, '0')}`;
 
     // Reserves exactly ticketCap slots of the shared 6-digit display-number
-    // space for this raffle alone — see ticket-cipher.ts. Advancing this
-    // counter and creating the raffle happen in the same transaction, so a
-    // raffle that fails to insert (or a capacity check below that throws)
-    // rolls the allocation back too; nothing is ever permanently reserved
-    // without a raffle to show for it.
-    const [allocation] = await tx<{ blockStart: number }[]>`
-      UPDATE ticket_number_allocator
-      SET next_block_start = next_block_start + ${data.ticketCap}
-      WHERE id = 1
-      RETURNING next_block_start - ${data.ticketCap} AS block_start
+    // space for this raffle alone, at a random free position rather than
+    // wherever the previous block happened to end — see
+    // ticket-block-allocator.ts for why. The row lock here (not the row's
+    // data — see that file) serializes every raffle creation on the
+    // platform so two concurrent creations can't both read the same free
+    // gaps and pick overlapping positions; it's released when this
+    // transaction commits or rolls back, same as the failed-insert case
+    // below rolling the allocation back too.
+    await tx`SELECT id FROM ticket_number_allocator WHERE id = 1 FOR UPDATE`;
+    const occupiedBlocks = await tx<{ blockStart: number; ticketCap: number }[]>`
+      SELECT number_block_start AS block_start, ticket_cap
+      FROM raffles WHERE number_block_start IS NOT NULL
     `;
-    if (allocation.blockStart + data.ticketCap > 1_000_000) {
-      throw new Error('Platform has reached its lifetime ticket-code capacity (1,000,000 tickets across every raffle ever run) — cannot create another raffle.');
-    }
+    const blockStart = allocateRandomBlock(occupiedBlocks, data.ticketCap);
 
     const rows = await tx<DbRaffle[]>`
     INSERT INTO raffles (
@@ -122,7 +123,7 @@ export async function createRaffle(data: {
       ${data.ticketPrice}, ${data.ticketCap}, ${data.maxTicketsPerUser},
       ${data.deadlineDays}, ${data.status ?? 'draft'}, ${opensAt}, ${deadline}, ${data.createdBy},
       ${data.telegramGroupLink ?? null}, ${data.categoryCode}, ${sequence.raffleNumber}, ${publicCode},
-      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${data.numberSeed}, ${allocation.blockStart},
+      ${data.drawServerSeed}, ${data.drawServerSeedHash}, ${data.numberSeed}, ${blockStart},
       ${data.salesEnabled ?? true}, ${data.isDemo ?? false}
       ${data.isFeatured !== undefined ? sql`, ${data.isFeatured}` : sql``}
     )
