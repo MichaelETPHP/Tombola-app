@@ -6,8 +6,9 @@
 #
 # This file intentionally contains no host `ports:` mappings. Coolify's proxy
 # routes the three exposed services using the domains configured on the dev
-# resource. NODE_ENV is fixed to production because these are built images;
-# DEMO_OTP_ENABLED and MOCK_PAYMENTS provide the development behaviour.
+# resource. NODE_ENV is development at runtime; the images still use
+# production dependencies/build output. DEMO_OTP_ENABLED and MOCK_PAYMENTS
+# provide the development behaviour.
 
 services:
   api:
@@ -20,7 +21,7 @@ services:
     volumes:
       - api_uploads_dev:/app/uploads
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: '3435'
       API_BASE_URL: ${DEV_API_BASE_URL:-}
       DATABASE_URL: ${DEV_DATABASE_URL:-}
@@ -81,7 +82,7 @@ services:
     expose:
       - '5355'
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: '5355'
       HOST: '0.0.0.0'
       ORIGIN: ${DEV_ADMIN_APP_URL:-}
