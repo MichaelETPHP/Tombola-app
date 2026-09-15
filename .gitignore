@@ -8,6 +8,14 @@ node_modules/
 *.txt
 *.md
 
+# Safe project documentation and placeholder configuration may be committed.
+# Real .env files remain ignored by the rules above.
+!.env.example
+!**/.env.example
+!ENVIRONMENT_WORKFLOW.md
+!.github/
+!.github/**
+
 # Local security inventory (never commit)
 /Sec.md
 

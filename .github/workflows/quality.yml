@@ -1,0 +1,63 @@
+name: Quality
+
+on:
+  push:
+    branches: [dev, production]
+  pull_request:
+    branches: [dev, production]
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install API dependencies
+        working-directory: api
+        run: bun install --frozen-lockfile
+
+      - name: Check API types
+        working-directory: api
+        run: bun run check
+
+      - name: Test API
+        working-directory: api
+        run: bun test
+
+      - name: Install admin dependencies
+        working-directory: admin-app
+        run: bun install --frozen-lockfile
+
+      - name: Check admin app
+        working-directory: admin-app
+        run: bun run check
+
+      - name: Build admin app
+        working-directory: admin-app
+        run: bun run build
+
+      - name: Install mobile dependencies
+        working-directory: mobile-app
+        run: bun install --frozen-lockfile
+
+      - name: Check mobile app
+        working-directory: mobile-app
+        run: bun run check
+
+      - name: Build mobile app
+        working-directory: mobile-app
+        run: bun run build
