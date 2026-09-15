@@ -1,10 +1,13 @@
-# YeneEta development deployment.
+# YeneEta development stack for the Coolify `dev` resource.
 #
-# This file intentionally uses DEV_* inputs so Coolify's dev environment is
-# independent from the production environment variables. The application
-# still receives the normal names it expects inside each container.
-# NODE_ENV stays production because this is a deployed, HTTPS environment;
-# the dev/prod distinction comes from the Coolify environment and Git branch.
+# Every setting is prefixed with DEV_ so project-level/production variables
+# cannot silently leak into this stack. Add these variables only to the dev
+# resource's Production Environment Variables section in Coolify.
+#
+# This file intentionally contains no host `ports:` mappings. Coolify's proxy
+# routes the three exposed services using the domains configured on the dev
+# resource. NODE_ENV is fixed to production because these are built images;
+# DEMO_OTP_ENABLED and MOCK_PAYMENTS provide the development behaviour.
 
 services:
   api:
@@ -19,19 +22,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: '3435'
-      API_BASE_URL: ${DEV_API_BASE_URL}
-      DATABASE_URL: ${DEV_DATABASE_URL}
+      API_BASE_URL: ${DEV_API_BASE_URL:-}
+      DATABASE_URL: ${DEV_DATABASE_URL:-}
       DB_SCHEMA: ${DEV_DB_SCHEMA:-Tombola_DB}
       DB_SSL: ${DEV_DB_SSL:-false}
       DB_POOL_MIN: ${DEV_DB_POOL_MIN:-2}
       DB_POOL_MAX: ${DEV_DB_POOL_MAX:-20}
-      JWT_ACCESS_SECRET: ${DEV_JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${DEV_JWT_REFRESH_SECRET}
+      JWT_ACCESS_SECRET: ${DEV_JWT_ACCESS_SECRET:-}
+      JWT_REFRESH_SECRET: ${DEV_JWT_REFRESH_SECRET:-}
       SMS_API_URL: ${DEV_SMS_API_URL:-}
       SMS_API_KEY: ${DEV_SMS_API_KEY:-}
       SMS_API_USERNAME: ${DEV_SMS_API_USERNAME:-}
       SMS_API_PASSWORD: ${DEV_SMS_API_PASSWORD:-}
-      SMS_SENDER_LABEL: ${DEV_SMS_SENDER_LABEL:-}
+      SMS_SENDER_LABEL: ${DEV_SMS_SENDER_LABEL:-YeneEta}
       DEMO_OTP_ENABLED: ${DEV_DEMO_OTP_ENABLED:-true}
       CHAPA_SECRET_KEY: ${DEV_CHAPA_SECRET_KEY:-}
       CHAPA_WEBHOOK_SECRET: ${DEV_CHAPA_WEBHOOK_SECRET:-}
@@ -40,19 +43,27 @@ services:
       MOCK_PAYMENTS_SECRET: ${DEV_MOCK_PAYMENTS_SECRET:-}
       TELEBIRR_APP_ID: ${DEV_TELEBIRR_APP_ID:-}
       TELEBIRR_APP_KEY: ${DEV_TELEBIRR_APP_KEY:-}
-      MOBILE_APP_URL: ${DEV_MOBILE_APP_URL}
-      CORS_ORIGINS: ${DEV_CORS_ORIGINS}
+      MOBILE_APP_URL: ${DEV_MOBILE_APP_URL:-}
+      ADMIN_APP_URL: ${DEV_ADMIN_APP_URL:-}
+      CORS_ORIGINS: ${DEV_CORS_ORIGINS:-}
       TELEGRAM_BOT_TOKEN: ${DEV_TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CLIENT_ID: ${DEV_TELEGRAM_CLIENT_ID:-}
       TELEGRAM_AUTH_MAX_AGE_SECONDS: ${DEV_TELEGRAM_AUTH_MAX_AGE_SECONDS:-3600}
       TELEGRAM_WEBHOOK_SECRET: ${DEV_TELEGRAM_WEBHOOK_SECRET:-}
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3435/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
 
   mobile-app:
     build:
       context: .
       dockerfile: mobile-app/Dockerfile
       args:
-        VITE_API_URL: ${DEV_VITE_API_URL}
+        VITE_API_URL: ${DEV_VITE_API_URL:-}
+        VITE_CHAPA_PUBLIC_KEY: ${DEV_VITE_CHAPA_PUBLIC_KEY:-}
     restart: unless-stopped
     expose:
       - '80'
@@ -65,7 +76,7 @@ services:
       context: .
       dockerfile: admin-app/Dockerfile
       args:
-        VITE_API_URL: ${DEV_VITE_API_URL}
+        VITE_API_URL: ${DEV_VITE_API_URL:-}
     restart: unless-stopped
     expose:
       - '5355'
@@ -73,7 +84,7 @@ services:
       NODE_ENV: production
       PORT: '5355'
       HOST: '0.0.0.0'
-      ORIGIN: ${DEV_ADMIN_APP_URL}
+      ORIGIN: ${DEV_ADMIN_APP_URL:-}
     depends_on:
       api:
         condition: service_healthy
