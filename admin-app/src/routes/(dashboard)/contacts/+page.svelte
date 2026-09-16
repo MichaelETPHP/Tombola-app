@@ -230,6 +230,7 @@
 
   <p class="text-[11px] leading-4 text-faint">
     CSV must have a column named <strong class="text-ink">Phone</strong> (or Mobile/Number) — a <strong class="text-ink">Name</strong> column is optional. Every number is normalized to +251 format and never saved twice.
+    <strong class="text-ink">Only Ethiopian (+251) numbers are accepted</strong> — any other country's number is automatically rejected as invalid, whatever format it's in.
   </p>
 
   <!-- ── Filters ────────────────────────────────────────────────── -->

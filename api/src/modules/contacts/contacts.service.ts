@@ -116,6 +116,12 @@ export async function importContactsFromCsv(csvText: string): Promise<ImportResu
       const rawPhone = (row[phoneIndex] ?? '').trim();
       if (!rawPhone) continue;
       const phone = toE164(rawPhone);
+      // isValidE164 requires a literal +251 prefix (see sms.ts) — a
+      // contact list sourced from elsewhere can easily contain a foreign
+      // number, and this gateway only ever reaches Ethiopian phones, so
+      // any other country's number is rejected here as "invalid" right
+      // alongside genuinely malformed ones. Deliberate, not a limitation
+      // to fix — see the admin page's own note to this effect.
       if (!isValidE164(phone)) { skippedInvalid += 1; continue; }
       if (seen.has(phone)) { skippedDuplicates += 1; continue; }
       seen.add(phone);
