@@ -295,10 +295,9 @@ const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
 // never a branded sender name — there's no code-level way around that (a
 // real Alphanumeric Sender ID needs a different, telecom-registered
 // provider entirely). This is the practical, zero-cost stand-in: ask the
-// recipient to save the number themselves, on messages where trust matters
-// most — first contact, and anything asking them to tap a link — not on
-// routine/high-frequency sends like ticket confirmations, where the
-// context (they just finished checkout in-app) already establishes trust.
+// recipient to save the number themselves. Deliberately sent only once,
+// on sendWelcomeSms — the first message this number will ever send someone
+// — not repeated on every later message.
 const SAVE_NUMBER_LINE = 'Save this number as YeneEta · ይህን ቁጥር YeneEta ብለው ያስቀምጡ';
 
 /**
@@ -361,7 +360,6 @@ export async function sendDrawWinnerAnnouncement(
     `Our team will reach out soon about claiming your prize.`,
     `Good luck! · መልካም እድል!`,
     YENEETA_BOT_LINK,
-    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_winner' });
 }
@@ -384,7 +382,6 @@ export async function sendRepresentativeInvitation(
   const message = [
     `YeneEta: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link}`,
     `Expires ${format.format(details.expiresAt)}.`,
-    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, event: 'representative_invitation', message });
 }
@@ -411,7 +408,6 @@ export async function sendDrawInvitation(
     `Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw.`,
     `Link expires ${format.format(details.expiresAt)}.`,
     `Good luck! · መልካም እድል!`,
-    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_invitation' });
 }
