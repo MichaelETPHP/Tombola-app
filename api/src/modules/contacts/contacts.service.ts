@@ -2,7 +2,7 @@ import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nanoid } from 'nanoid';
 import { parseCsv } from '../../lib/csv.js';
-import { sendBulkSms, toE164, isValidE164 } from '../../lib/sms.js';
+import { sendBulkSmsWithSummaryLog, toE164, isValidE164 } from '../../lib/sms.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
 export interface Contact {
@@ -194,10 +194,15 @@ export async function deleteContacts(phones: string[]): Promise<{ deleted: numbe
   });
 }
 
-/** Bulk-sends one message to a set of imported contacts — thin wrapper
- *  over the same sendBulkSms every other bulk-SMS admin action uses. */
+/**
+ * Bulk-sends one message to a set of imported contacts. Unlike the
+ * registered-users bulk-SMS action, this logs ONE summary row in the admin
+ * SMS log ("Contacts broadcast — 45/50 delivered") instead of one row per
+ * recipient — these aren't platform accounts, so a per-recipient audit
+ * trail isn't the point; a delivery report for the broadcast is.
+ */
 export async function sendSmsToContacts(phones: string[], message: string) {
-  const result = await sendBulkSms(phones, message);
+  const result = await sendBulkSmsWithSummaryLog(phones, message, 'contacts_broadcast');
   const sentCount = result.recipients.filter((r) => r.success).length;
   const failedCount = result.recipients.length - sentCount;
   return { requested: phones.length, sentCount, failedCount, recipients: result.recipients };

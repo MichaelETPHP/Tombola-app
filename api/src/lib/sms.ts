@@ -161,17 +161,21 @@ export function isValidE164(phone: string): boolean {
 }
 
 /**
- * Send one message to many recipients in a single gateway request — the
+ * The actual gateway call, shared by every bulk-SMS entry point — the
  * 3rdparty API accepts a `phoneNumbers` array natively (confirmed: one
  * request with N numbers returns one message id with a per-recipient
  * `recipients[]` breakdown), so this is one HTTP call regardless of batch
- * size, not a loop of N calls.
+ * size, not a loop of N calls. Deliberately does no logging itself: callers
+ * decide whether that belongs in the admin log as one row per recipient
+ * (sendBulkSms, below) or one summary row for the whole broadcast
+ * (sendBulkSmsWithSummaryLog) — the gateway mechanics are identical either
+ * way, only what gets written to integration_logs differs.
  *
  * Malformed/unnormalizable numbers are excluded from the request entirely
  * (reported back as failed with a clear reason) rather than letting one
  * bad row reject the whole batch.
  */
-export async function sendBulkSms(phones: string[], message: string): Promise<BulkSmsResponse> {
+async function sendBulkSmsCore(phones: string[], message: string): Promise<BulkSmsResponse> {
   const normalized = phones.map((phone) => ({ original: phone, e164: toE164(phone) }));
   const valid = normalized.filter((p) => isValidE164(p.e164));
   const invalid: BulkSmsRecipientResult[] = normalized
@@ -212,14 +216,6 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`Bulk SMS send failed (${response.status}): ${errorMessage}`);
-      // The whole batch request itself failed (not a per-recipient
-      // rejection) — every intended recipient gets its own log row anyway,
-      // same as the success path, so the log viewer's "who got this
-      // broadcast" view doesn't have a gap for the one failure mode that
-      // isn't per-recipient.
-      for (const p of valid) {
-        logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, httpStatus: response.status, error: errorMessage });
-      }
       return {
         success: false,
         error: errorMessage,
@@ -232,28 +228,56 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
       success: r.state !== 'Failed',
       error: r.state === 'Failed' ? (r.error ?? 'Rejected by gateway') : undefined,
     }));
-
-    // One log row per recipient — this is what lets the admin SMS log show
-    // "was THIS specific phone number delivered" rather than only a
-    // batch-level success/fail count.
-    for (const r of sentResults) {
-      logIntegrationEvent('sms', r.success ? 'success' : 'error', 'bulk_send', {
-        to: r.phoneNumber, message, messageId: data.id, error: r.error,
-      });
-    }
     return { success: true, messageId: data.id, recipients: [...sentResults, ...invalid] };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`Bulk SMS send exception: ${errorMessage}`);
-    for (const p of valid) {
-      logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, error: errorMessage });
-    }
     return {
       success: false,
       error: errorMessage,
       recipients: [...valid.map((p) => ({ phoneNumber: p.e164, success: false, error: errorMessage })), ...invalid],
     };
   }
+}
+
+/**
+ * Send one message to many recipients, logging one admin-log row PER
+ * RECIPIENT — this is what lets the SMS log show "was THIS specific phone
+ * number delivered," used by every bulk-SMS feature that broadcasts to
+ * registered users. See sendBulkSmsWithSummaryLog for the alternative
+ * (one aggregate row for the whole batch).
+ */
+export async function sendBulkSms(phones: string[], message: string): Promise<BulkSmsResponse> {
+  const result = await sendBulkSmsCore(phones, message);
+  for (const r of result.recipients) {
+    logIntegrationEvent('sms', r.success ? 'success' : 'error', 'bulk_send', {
+      to: r.phoneNumber, message, messageId: result.messageId, error: r.error,
+    });
+  }
+  return result;
+}
+
+/**
+ * Same gateway call as sendBulkSms, but logs exactly ONE row summarizing
+ * the whole broadcast (recipient count, delivered/failed counts) instead
+ * of one row per recipient — for a mailing-list-style send (e.g. imported
+ * contacts) where a per-recipient breakdown isn't wanted in the admin log,
+ * just a report of how many people got the message.
+ */
+export async function sendBulkSmsWithSummaryLog(phones: string[], message: string, event: string): Promise<BulkSmsResponse> {
+  const result = await sendBulkSmsCore(phones, message);
+  const sentCount = result.recipients.filter((r) => r.success).length;
+  const failedCount = result.recipients.length - sentCount;
+  logIntegrationEvent('sms', failedCount === 0 ? 'success' : 'error', event, {
+    to: `${result.recipients.length} contact${result.recipients.length !== 1 ? 's' : ''}`,
+    message,
+    messageId: result.messageId,
+    totalRecipients: result.recipients.length,
+    sentCount,
+    failedCount,
+    error: failedCount > 0 ? `${failedCount} of ${result.recipients.length} failed` : undefined,
+  });
+  return result;
 }
 
 /**

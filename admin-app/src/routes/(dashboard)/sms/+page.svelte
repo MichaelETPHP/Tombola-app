@@ -40,7 +40,11 @@
     ticket_confirmation: 'Ticket purchase',
     trigger_link: 'Draw trigger link',
     draw_invitation: 'Draw invitation',
+    draw_winner: 'Winner announcement',
+    representative_invitation: 'Representative invitation',
+    welcome: 'Welcome message',
     bulk_send: 'Admin broadcast',
+    contacts_broadcast: 'Contacts broadcast',
     send: 'Message',
   };
 

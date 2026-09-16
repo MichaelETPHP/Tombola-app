@@ -5,7 +5,7 @@
   import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
   import {
     CircleAlert, Contact, Copy, RefreshCw, Search, Send, Trash2, Upload,
-    X, CheckSquare, Square, SquareMinus, ChevronLeft, ChevronRight,
+    X, CheckSquare, Square, SquareMinus,
   } from 'lucide-svelte';
 
   interface ImportedContact {
@@ -14,14 +14,12 @@
     importedAt: string;
   }
 
-  const PAGE_SIZE = 20;
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
 
   let contacts: ImportedContact[] = [];
   let loading = true;
   let loadError = false;
   let search = '';
-  let currentPage = 1;
 
   let fileInput: HTMLInputElement;
   let importing = false;
@@ -51,31 +49,23 @@
     }
   }
 
-  // ── Filtering & Pagination ────────────────────────────────────
+  // ── Filtering ──────────────────────────────────────────────────
+  // No pagination, deliberately — the whole (filtered) list renders at
+  // once so nothing is ever hidden behind a page control.
   $: normalizedSearch = search.trim().toLowerCase();
   $: filteredContacts = contacts.filter((c) =>
     !normalizedSearch ||
     c.phone.toLowerCase().includes(normalizedSearch) ||
     (c.name ?? '').toLowerCase().includes(normalizedSearch)
   );
-  $: totalPages = Math.max(1, Math.ceil(filteredContacts.length / PAGE_SIZE));
-  $: safePage = Math.min(currentPage, totalPages);
-  $: pageContacts = filteredContacts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Reset to page 1 when the search changes
-  $: { normalizedSearch; currentPage = 1; }
+  $: selectedVisibleCount = filteredContacts.filter((c) => selectedPhones.has(c.phone)).length;
+  $: allVisibleSelected = filteredContacts.length > 0 && selectedVisibleCount === filteredContacts.length;
+  $: someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
 
-  $: pageSelectedCount = pageContacts.filter((c) => selectedPhones.has(c.phone)).length;
-  $: allPageSelected = pageContacts.length > 0 && pageSelectedCount === pageContacts.length;
-  $: somePageSelected = pageSelectedCount > 0 && !allPageSelected;
-
-  function togglePageSelectAll() {
-    if (allPageSelected) pageContacts.forEach((c) => selectedPhones.delete(c.phone));
-    else pageContacts.forEach((c) => selectedPhones.add(c.phone));
-    selectedPhones = new Set(selectedPhones);
-  }
-  function selectAllFiltered() {
-    filteredContacts.forEach((c) => selectedPhones.add(c.phone));
+  function toggleSelectAllVisible() {
+    if (allVisibleSelected) filteredContacts.forEach((c) => selectedPhones.delete(c.phone));
+    else filteredContacts.forEach((c) => selectedPhones.add(c.phone));
     selectedPhones = new Set(selectedPhones);
   }
   function toggleSelect(phone: string) {
@@ -83,17 +73,6 @@
     selectedPhones = new Set(selectedPhones);
   }
   function clearSelection() { selectedPhones = new Set(); }
-  function goToPage(p: number) { currentPage = Math.max(1, Math.min(totalPages, p)); }
-
-  function pageRange(cur: number, total: number): (number | '…')[] {
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const pages: (number | '…')[] = [1];
-    if (cur > 3) pages.push('…');
-    for (let p = Math.max(2, cur - 1); p <= Math.min(total - 1, cur + 1); p++) pages.push(p);
-    if (cur < total - 2) pages.push('…');
-    pages.push(total);
-    return pages;
-  }
 
   // ── Load ─────────────────────────────────────────────────────
   async function load() {
@@ -258,7 +237,7 @@
         {#if selectedCount < filteredContacts.length}
           <button type="button"
             class="admin-press text-[11px] font-bold text-primary-dark underline underline-offset-2"
-            on:click={selectAllFiltered}>
+            on:click={toggleSelectAllVisible}>
             Select all {filteredContacts.length}
           </button>
           <span class="text-primary/40">·</span>
@@ -307,14 +286,14 @@
             <tr class="border-b border-border bg-bg text-left">
               <th class="w-12 px-4 py-3">
                 <button type="button"
-                  aria-label={allPageSelected ? 'Deselect page' : 'Select page'}
-                  aria-checked={allPageSelected ? 'true' : somePageSelected ? 'mixed' : 'false'}
+                  aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
+                  aria-checked={allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'}
                   role="checkbox"
                   class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                  on:click={togglePageSelectAll}>
-                  {#if allPageSelected}
+                  on:click={toggleSelectAllVisible}>
+                  {#if allVisibleSelected}
                     <CheckSquare size={16} class="text-primary-dark" />
-                  {:else if somePageSelected}
+                  {:else if someVisibleSelected}
                     <SquareMinus size={16} class="text-primary-dark" />
                   {:else}
                     <Square size={16} />
@@ -328,10 +307,10 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
-            {#if pageContacts.length === 0}
+            {#if filteredContacts.length === 0}
               <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-muted">No contacts match this search.</td></tr>
             {:else}
-              {#each pageContacts as contact (contact.phone)}
+              {#each filteredContacts as contact (contact.phone)}
                 {@const isSelected = selectedPhones.has(contact.phone)}
                 <tr class="transition-colors duration-100 {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
                   <td class="px-4 py-3">
@@ -376,45 +355,13 @@
         </table>
       </div>
 
-      <!-- ── Pagination ──────────────────────────────────────────── -->
-      {#if totalPages > 1 || filteredContacts.length > 0}
-        <div class="flex flex-col items-center gap-3 border-t border-border px-4 py-4 sm:flex-row sm:justify-between">
+      <!-- ── Count summary — no pagination, the full filtered list already rendered above ── -->
+      {#if filteredContacts.length > 0}
+        <div class="flex items-center justify-between border-t border-border px-4 py-3">
           <p class="text-[11px] text-faint">
-            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredContacts.length)} of {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+            {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''} shown
             {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
           </p>
-
-          {#if totalPages > 1}
-            <div class="flex items-center gap-1">
-              <button type="button"
-                class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border bg-card text-muted disabled:opacity-30"
-                disabled={safePage <= 1}
-                on:click={() => goToPage(safePage - 1)}
-                aria-label="Previous page">
-                <ChevronLeft size={15} />
-              </button>
-
-              {#each pageRange(safePage, totalPages) as p (p)}
-                {#if p === '…'}
-                  <span class="px-1 text-[12px] text-faint">…</span>
-                {:else}
-                  <button type="button"
-                    class="admin-press flex h-8 min-w-[32px] items-center justify-center rounded-button border px-2 text-[12px] font-bold {safePage === p ? 'border-primary bg-primary text-white' : 'border-border bg-card text-muted hover:bg-bg'}"
-                    on:click={() => goToPage(p as number)}>
-                    {p}
-                  </button>
-                {/if}
-              {/each}
-
-              <button type="button"
-                class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border bg-card text-muted disabled:opacity-30"
-                disabled={safePage >= totalPages}
-                on:click={() => goToPage(safePage + 1)}
-                aria-label="Next page">
-                <ChevronRight size={15} />
-              </button>
-            </div>
-          {/if}
         </div>
       {/if}
     </div>
