@@ -359,6 +359,74 @@ export async function sendDrawTrigger(
 }
 
 /**
+ * Re-sends a pending trigger's invitation to the SAME already-selected
+ * participant — for the "the SMS gateway reported success but they never
+ * actually got it" case, which reassignDrawTrigger below doesn't cover
+ * (that one deliberately excludes the current holder and picks someone
+ * else). The raw link token is only ever known for the few moments right
+ * after it's generated — sendDrawTrigger hashes it immediately and never
+ * persists the original — so there is no way to literally resend the same
+ * link. This mints a fresh token for the same person instead, extending
+ * the expiry window the same way the original send did; from the
+ * recipient's side it's indistinguishable from a resend.
+ */
+export async function resendDrawTrigger(raffleId: string, tier: number, adminId: string | null) {
+  const raffle = await findRaffleById(raffleId);
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+
+  const rawToken = nanoid(32);
+  const sentAt = new Date();
+  const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
+  const trigger = await sql.begin(async (tx) => {
+    const [current] = await tx<{ id: string; selectedUserId: string | null }[]>`
+      SELECT id, selected_user_id AS "selectedUserId" FROM draw_triggers
+      WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status = 'pending' FOR UPDATE
+    `;
+    if (!current?.selectedUserId) throw new AppError(409, 'There is no pending invitation to resend for this tier.');
+    const tokenHash = await sha256(rawToken);
+    await tx`
+      UPDATE draw_triggers SET link_token = ${tokenHash}, token_is_hashed = true, sent_at = ${sentAt}, expires_at = ${expiresAt}
+      WHERE id = ${current.id}
+    `;
+    return { id: current.id, selectedUserId: current.selectedUserId };
+  });
+
+  const user = await findUserById(trigger.selectedUserId);
+  if (!user) throw new AppError(404, 'The selected participant no longer exists.');
+  const link = `${env.MOBILE_APP_URL}/draw/${rawToken}`;
+  let delivery: 'sent' | 'demo' | 'failed' = env.DEMO_OTP_ENABLED ? 'demo' : 'failed';
+  if (!env.DEMO_OTP_ENABLED) {
+    try {
+      const prize = (await listPrizeTiers(raffleId)).find((item) => item.tier === tier);
+      const result = await sendDrawInvitation(user.phoneNumber, {
+        link,
+        raffleName: raffle.title,
+        prizeLabel: `${ordinal(tier)} Prize`,
+        prizeName: prize?.name ?? raffle.prizeName,
+        drawAt: sentAt,
+        expiresAt,
+      });
+      delivery = result.success ? 'sent' : 'failed';
+    } catch (error) {
+      logger.error('Could not re-deliver draw trigger SMS', error);
+    }
+  }
+  await sql`
+    INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_resent', 'raffle', ${raffleId},
+      ${sql.json({ triggerId: trigger.id, tier, delivery })})
+  `;
+  if (delivery === 'failed') throw new AppError(502, 'SMS delivery failed. Try resending again.');
+  return {
+    triggerId: trigger.id,
+    tier,
+    expiresAt,
+    delivery,
+    link: env.DEMO_OTP_ENABLED ? link : undefined,
+  };
+}
+
+/**
  * Replaces whatever link a tier currently has (unsent, sent-but-unclicked,
  * or expired) with a fresh one for a different random participant, and
  * sends it immediately — this is the one action that still does

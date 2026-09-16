@@ -9,7 +9,7 @@ import { processPrizeImage } from '../../lib/image.js';
 import { deleteUploadedImage, saveUploadedImage, uploadedImagePathFromPublicUrl } from '../../lib/uploads.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
-import { generateSecureLink, sendDrawTrigger, reassignDrawTrigger, getRaffleEngine, assignDrawRepresentative, reassignDrawRepresentative } from '../draws/draws.service.js';
+import { generateSecureLink, sendDrawTrigger, resendDrawTrigger, reassignDrawTrigger, getRaffleEngine, assignDrawRepresentative, reassignDrawRepresentative } from '../draws/draws.service.js';
 
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
@@ -77,6 +77,16 @@ adminRafflesRoutes.post('/:id/draw-trigger', requireRole('owner'), async (c) => 
 // and starts its expiration clock.
 adminRafflesRoutes.post('/:id/draw-trigger/:triggerId/send', requireRole('owner'), async (c) => {
   const trigger = await sendDrawTrigger(c.req.param('id'), c.req.param('triggerId'), c.get('admin').id);
+  return c.json({ trigger });
+});
+
+// Re-sends the invitation to the SAME already-selected participant — for
+// "the SMS never actually arrived," as opposed to /reassign below, which
+// deliberately picks someone else. Only valid while that tier's trigger is
+// still 'pending' (sent, not yet spun).
+adminRafflesRoutes.post('/:id/draw-trigger/resend', requireRole('owner'), async (c) => {
+  const data = generateDrawTriggerSchema.parse(await c.req.json().catch(() => ({})));
+  const trigger = await resendDrawTrigger(c.req.param('id'), data.tier, c.get('admin').id);
   return c.json({ trigger });
 });
 

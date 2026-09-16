@@ -7,7 +7,7 @@
   import {
     Check, Clipboard, Clock3, Fingerprint, Link2, RefreshCw,
     ShieldCheck, Ticket, Users, Search, Copy, Phone, ExternalLink,
-    X, Sparkles, AlertCircle, CalendarDays, Trophy
+    X, Sparkles, AlertCircle, CalendarDays, Trophy, MessageSquare
   } from 'lucide-svelte';
 
   export let raffleId: string;
@@ -97,6 +97,7 @@
   // representative looked like nothing happened while demo mode is on.
   let generatedRepresentativeLinks: Record<number, string> = {};
   let assigningTier: number | null = null;
+  let resendingTier: number | null = null;
 
   function apiErrorMessage(err: unknown, fallback: string): string {
     if (!(err instanceof ApiError)) return 'Network error.';
@@ -160,6 +161,31 @@
     return engine.participants.filter((p) =>
       (p.fullName ?? '').toLowerCase().includes(q) || p.phone.toLowerCase().includes(q)
     );
+  }
+
+  // Re-sends a pending tier's invitation to the SAME already-selected
+  // participant — for when the SMS gateway reported success but they say
+  // it never arrived. Distinct from reassign, which picks someone else.
+  async function resendTrigger(tier: number) {
+    if (!engine || resendingTier !== null) return;
+    resendingTier = tier;
+    try {
+      const response = await api.post<{ trigger: { delivery: 'sent' | 'demo' | 'failed'; link?: string } }>(
+        `/admin/raffles/${raffleId}/draw-trigger/resend`,
+        { tier }
+      );
+      if (response.trigger.delivery === 'sent') {
+        toast.success(`${ordinal(tier)} prize invitation resent by SMS.`, 'Invitation Resent');
+      } else if (response.trigger.link) {
+        toast.info(`${ordinal(tier)} prize invitation resent — demo mode, copy the link to test.`, 'Link Ready');
+        await copyToClipboard(response.trigger.link, `${ordinal(tier)} prize invitation link`);
+      }
+      await load();
+    } catch (cause) {
+      toast.error(apiErrorMessage(cause, `Could not resend the ${ordinal(tier)} prize invitation.`), 'Resend Failed');
+    } finally {
+      resendingTier = null;
+    }
   }
 
   async function assignRepresentative(tier: number, userId: string) {
@@ -498,8 +524,9 @@
       <!-- ── Right: Prize Draw Links (random trigger recipients) — fully
            automatic: the system generates and sends each tier's link the
            moment its representative approves (see the panel below), and
-           auto-reassigns it if it expires unclicked. Read-only status,
-           no admin action here at all. ── -->
+           auto-reassigns it if it expires unclicked. Mostly read-only —
+           the one action here is resending the SMS to the same recipient
+           when they say it never arrived (see resendTrigger above). ── -->
       <div>
         <h3 class="mb-1 text-sm font-extrabold text-ink flex items-center gap-2">
           <Link2 size={15} class="text-primary" />
@@ -562,6 +589,21 @@
                         >
                           <Copy size={11} />
                         </button>
+                        {#if trigger.status === 'pending' && !drawn}
+                          <button
+                            type="button"
+                            class="admin-press text-faint hover:text-primary transition-colors disabled:opacity-50"
+                            title="Resend SMS to this participant"
+                            disabled={resendingTier !== null}
+                            on:click={() => resendTrigger(prize.tier)}
+                          >
+                            {#if resendingTier === prize.tier}
+                              <RefreshCw size={11} class="animate-spin" />
+                            {:else}
+                              <MessageSquare size={11} />
+                            {/if}
+                          </button>
+                        {/if}
                       </div>
                     </div>
                     {#if (trigger.status === 'pending' || drawn) && trigger.sentAt}
