@@ -5,12 +5,12 @@ import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
 import { countUserTicketsInRaffle } from '../../db/queries/tickets.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
-import { sendDrawInvitation, sendRepresentativeInvitation } from '../../lib/sms.js';
+import { sendDrawInvitation, sendRepresentativeInvitation, sendDrawWinnerAnnouncement } from '../../lib/sms.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
-const TRIGGER_TTL_MS = 60 * 60 * 1000;
+const TRIGGER_TTL_MS = env.TRIGGER_TTL_MINUTES * 60 * 1000;
 
 function secureRandomIndex(length: number): number {
   if (!Number.isSafeInteger(length) || length < 1) throw new Error('Selection pool is empty');
@@ -359,6 +359,77 @@ export async function sendDrawTrigger(
 }
 
 /**
+ * Re-sends a pending trigger's invitation to the SAME already-selected
+ * participant — for the "the SMS gateway reported success but they never
+ * actually got it" case, which reassignDrawTrigger below doesn't cover
+ * (that one deliberately excludes the current holder and picks someone
+ * else). The raw link token is only ever known for the few moments right
+ * after it's generated — sendDrawTrigger hashes it immediately and never
+ * persists the original — so there is no way to literally resend the same
+ * link. This mints a fresh token for the same person instead, extending
+ * the expiry window the same way the original send did; from the
+ * recipient's side it's indistinguishable from a resend.
+ */
+export async function resendDrawTrigger(raffleId: string, tier: number, adminId: string | null) {
+  const raffle = await findRaffleById(raffleId);
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+
+  const rawToken = nanoid(32);
+  const sentAt = new Date();
+  const expiresAt = new Date(Date.now() + TRIGGER_TTL_MS);
+  const trigger = await sql.begin(async (tx) => {
+    const [current] = await tx<{ id: string; selectedUserId: string | null }[]>`
+      SELECT id, selected_user_id AS "selectedUserId" FROM draw_triggers
+      WHERE raffle_id = ${raffleId} AND tier = ${tier} AND status = 'pending' FOR UPDATE
+    `;
+    if (!current?.selectedUserId) throw new AppError(409, 'There is no pending invitation to resend for this tier.');
+    const tokenHash = await sha256(rawToken);
+    await tx`
+      UPDATE draw_triggers SET link_token = ${tokenHash}, token_is_hashed = true, sent_at = ${sentAt}, expires_at = ${expiresAt}
+      WHERE id = ${current.id}
+    `;
+    return { id: current.id, selectedUserId: current.selectedUserId };
+  });
+
+  const user = await findUserById(trigger.selectedUserId);
+  if (!user) throw new AppError(404, 'The selected participant no longer exists.');
+  const link = `${env.MOBILE_APP_URL}/draw/${rawToken}`;
+  let delivery: 'sent' | 'demo' | 'failed' = env.DEMO_OTP_ENABLED ? 'demo' : 'failed';
+  if (!env.DEMO_OTP_ENABLED) {
+    try {
+      const prize = (await listPrizeTiers(raffleId)).find((item) => item.tier === tier);
+      const result = await sendDrawInvitation(user.phoneNumber, {
+        link,
+        raffleName: raffle.title,
+        prizeLabel: `${ordinal(tier)} Prize`,
+        prizeName: prize?.name ?? raffle.prizeName,
+        drawAt: sentAt,
+        expiresAt,
+      });
+      delivery = result.success ? 'sent' : 'failed';
+    } catch (error) {
+      logger.error('Could not re-deliver draw trigger SMS', error);
+    }
+  }
+  await sql`
+    INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_resent', 'raffle', ${raffleId},
+      ${sql.json({ triggerId: trigger.id, tier, delivery })})
+  `;
+  // Unlike sendDrawTrigger's original send, a failed delivery here doesn't
+  // throw — the whole point of resend is "the SMS still might not arrive,"
+  // so the admin needs the link back regardless of what the gateway
+  // reported, to share it through some other channel themselves.
+  return {
+    triggerId: trigger.id,
+    tier,
+    expiresAt,
+    delivery,
+    link,
+  };
+}
+
+/**
  * Replaces whatever link a tier currently has (unsent, sent-but-unclicked,
  * or expired) with a fresh one for a different random participant, and
  * sends it immediately — this is the one action that still does
@@ -537,6 +608,35 @@ export async function approveRepresentative(token: string) {
   return { status: 'approved' as const, tier: result.tier };
 }
 
+/**
+ * Best-effort winner SMS, fired right after a spin resolves — never
+ * awaited by executeDraw and never allowed to throw out of this function,
+ * so a dropped/failed send can't roll back or delay an already-recorded,
+ * provably-fair draw result. Same fire-and-forget shape as
+ * payments.service.ts::notifyTicketPurchase.
+ */
+function notifyDrawWinner(result: {
+  raffleName: string; tier: number; prizeName: string; winnerTicketCode: string; winnerUserId: string;
+}): void {
+  void (async () => {
+    try {
+      const winner = await findUserById(result.winnerUserId);
+      if (!winner) return;
+      const sent = await sendDrawWinnerAnnouncement(winner.phoneNumber, {
+        raffleName: result.raffleName,
+        prizeLabel: `${ordinal(result.tier)} Prize`,
+        prizeName: result.prizeName,
+        ticketCode: result.winnerTicketCode,
+      });
+      if (!sent.success) {
+        logger.error(`Winner announcement SMS failed for raffle ${result.raffleName} tier ${result.tier}: ${sent.error}`);
+      }
+    } catch (error) {
+      logger.error(`Winner announcement SMS exception for raffle ${result.raffleName} tier ${result.tier}`, error);
+    }
+  })();
+}
+
 export async function executeDraw(token: string, spinNonce: string, clickedIp: string | null = null) {
   // clicked_ip is a Postgres INET column — clientIp()'s 'unknown' fallback
   // (no x-forwarded-for/x-real-ip, e.g. a direct local-dev connection with
@@ -694,6 +794,7 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
       prizeName: prize.name,
       winnerTicketNumber: winningTicket.ticketNumber,
       winnerTicketCode,
+      winnerUserId: winningTicket.userId,
       totalTickets,
       // Withheld until every tier has been drawn — see comment above.
       serverSeed: allTiersDrawn ? serverSeed : null,
@@ -707,7 +808,9 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
     };
   });
   logger.info(`Draw completed for raffle ${result.raffleId} tier ${result.tier}: ${result.winnerTicketCode}`);
-  return result;
+  notifyDrawWinner(result);
+  const { winnerUserId: _winnerUserId, ...publicResult } = result;
+  return publicResult;
 }
 
 export async function getRaffleEngine(raffleId: string) {

@@ -38,6 +38,17 @@ const envSchema = z.object({
   SMS_SENDER_LABEL: z.string().optional(),
   DEMO_OTP_ENABLED: z.string().default('false').transform((val) => val === 'true'),
 
+  // How long a real participant has to tap their draw-spin invitation
+  // before the system auto-reassigns it to someone else (see
+  // draws.service.ts). Kept configurable rather than hardcoded so a dev
+  // deployment can use a short window for fast testing without affecting
+  // real production participants.
+  TRIGGER_TTL_MINUTES: z
+    .string()
+    .default('60')
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().positive()),
+
   // Telegram Mini App + Login. Bot token and OIDC client ID must belong to
   // the same bot. Login remains disabled until these are configured.
   TELEGRAM_BOT_TOKEN: emptyToUndefined(z.string().min(20).optional()),

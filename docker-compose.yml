@@ -47,6 +47,10 @@ services:
       SMS_API_URL: ${SMS_API_URL:-}
       SMS_API_KEY: ${SMS_API_KEY:-}
       DEMO_OTP_ENABLED: ${DEMO_OTP_ENABLED:-true}
+      # How long a real participant has to tap their draw-spin SMS link
+      # before the system auto-picks someone else. Kept separate from the
+      # dev stack's much shorter testing value below.
+      TRIGGER_TTL_MINUTES: ${TRIGGER_TTL_MINUTES:-60}
       # Everything below is mock-data-only for now, per the current stage
       # of this project — flip MOCK_PAYMENTS to false and fill in the real
       # Chapa keys once that integration is actually ready.
