@@ -38,6 +38,18 @@ const envSchema = z.object({
   SMS_SENDER_LABEL: z.string().optional(),
   DEMO_OTP_ENABLED: z.string().default('false').transform((val) => val === 'true'),
 
+  // Comma-separated phone numbers (any format — normalized the same way
+  // every other phone in this app is) that Imported Contacts always treats
+  // as selectable, even if they already belong to a registered account.
+  // Purely a testing convenience for someone whose own phone is already a
+  // platform account and still wants to test the contacts bulk-SMS flow
+  // against it — see contacts.service.ts. Empty by default: no effect
+  // anywhere unless explicitly set.
+  CONTACTS_TEST_PHONE_NUMBERS: z
+    .string()
+    .default('')
+    .transform((val) => val.split(',').map((p) => p.trim()).filter(Boolean)),
+
   // How long a real participant has to tap their draw-spin invitation
   // before the system auto-reassigns it to someone else (see
   // draws.service.ts). Kept configurable rather than hardcoded so a dev

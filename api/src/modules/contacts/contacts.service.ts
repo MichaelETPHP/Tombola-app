@@ -5,6 +5,15 @@ import { parseCsv } from '../../lib/csv.js';
 import { sendBulkSmsWithSummaryLog, toE164, isValidE164 } from '../../lib/sms.js';
 import { findUsersByPhones } from '../../db/queries/users.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+import { env } from '../../config/env.js';
+
+/** CONTACTS_TEST_PHONE_NUMBERS bypasses the "already registered" lock —
+ *  both the checkbox and the send guard below — for whoever's own phone
+ *  is used to test this feature end to end. Empty (no effect) unless
+ *  explicitly configured. */
+function isAlwaysSelectable(phone: string): boolean {
+  return env.CONTACTS_TEST_PHONE_NUMBERS.map(toE164).includes(phone);
+}
 
 export interface Contact {
   phone: string;
@@ -81,7 +90,7 @@ export async function listContacts(): Promise<ContactWithStatus[]> {
   const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
   return [...contacts]
     .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
-    .map((c) => ({ ...c, isRegistered: registeredPhones.has(c.phone) }));
+    .map((c) => ({ ...c, isRegistered: registeredPhones.has(c.phone) && !isAlwaysSelectable(c.phone) }));
 }
 
 /**
@@ -233,7 +242,7 @@ export async function deleteContacts(phones: string[]): Promise<{ deleted: numbe
 export async function sendSmsToContacts(phones: string[], message: string) {
   const registeredUsers = await findUsersByPhones(phones.map(toE164));
   const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
-  const targetPhones = phones.filter((p) => !registeredPhones.has(toE164(p)));
+  const targetPhones = phones.filter((p) => !registeredPhones.has(toE164(p)) || isAlwaysSelectable(toE164(p)));
   const excludedRegistered = phones.length - targetPhones.length;
 
   const result = await sendBulkSmsWithSummaryLog(targetPhones, message, 'contacts_broadcast');

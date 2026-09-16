@@ -51,6 +51,9 @@ services:
       # before the system auto-picks someone else. Kept separate from the
       # dev stack's much shorter testing value below.
       TRIGGER_TTL_MINUTES: ${TRIGGER_TTL_MINUTES:-60}
+      # Testing convenience only — see contacts.service.ts. Leave unset in
+      # production; empty means no effect.
+      CONTACTS_TEST_PHONE_NUMBERS: ${CONTACTS_TEST_PHONE_NUMBERS:-}
       # Everything below is mock-data-only for now, per the current stage
       # of this project — flip MOCK_PAYMENTS to false and fill in the real
       # Chapa keys once that integration is actually ready.
