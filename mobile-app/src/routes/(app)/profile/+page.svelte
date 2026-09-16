@@ -183,7 +183,7 @@
          card's worth of space. -->
     <div class="flex items-center gap-3.5 rounded-card bg-card p-4 shadow-card">
       <div
-        class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bg-start text-lg font-bold text-primary-dark"
+        class="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bg-start text-lg font-bold text-primary-dark"
       >
         {#if $auth.user?.telegramPhotoUrl || dicebearUri}
           <img
@@ -194,6 +194,14 @@
         {:else}
           <User size={24} />
         {/if}
+        <span
+          class="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-blue text-white shadow-[0_4px_10px_rgba(36,88,214,0.32)]"
+          role="img"
+          aria-label={$_('profile.verifiedAria')}
+          title={$_('profile.verifiedAria')}
+        >
+          <Check size={11} strokeWidth={3.2} aria-hidden="true" />
+        </span>
       </div>
       <div class="min-w-0 flex-1">
         <p class="truncate text-[15px] font-bold text-ink">{$auth.user?.fullName || $_('profile.addYourName')}</p>
