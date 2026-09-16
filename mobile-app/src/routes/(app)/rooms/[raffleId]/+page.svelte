@@ -249,7 +249,7 @@
   }
 </script>
 
-<svelte:head><title>{roomTitle || $_('rooms.roomFallback')} · YeneEta</title></svelte:head>
+<svelte:head><title>{roomTitle || $_('rooms.roomFallback')} · 251 Lottery</title></svelte:head>
 
 <div class="relative">
   <!-- Header -->

@@ -95,7 +95,7 @@ export async function purchaseTickets(
           // short and punctuation-free at the source; chapaInitialize
           // still sanitizes defensively since raffle.title is
           // admin-entered free text with no charset restriction of its own.
-          title: 'YeneEta',
+          title: '251 Lottery',
           description: `${quantity} ticket${quantity === 1 ? '' : 's'} for ${raffle.title}`,
         },
         mock: {

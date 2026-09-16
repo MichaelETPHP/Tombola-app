@@ -42,6 +42,8 @@ export const colors = {
 
   actionIconBg: '#DCE6FB',
   actionIconColor: '#0135C6',
+
+  online: '#1FAA59',
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────
@@ -57,9 +59,9 @@ export const spacing = {
 
 // ── Corner Radii ─────────────────────────────────────────
 export const radii = {
-  card: 24,
-  button: 16,
-  action: 20,
+  card: 28,
+  button: 18,
+  action: 22,
   nav: 32,
   iconCircle: 18, // half of 36px circle
   actionCircle: 22, // half of 44px circle

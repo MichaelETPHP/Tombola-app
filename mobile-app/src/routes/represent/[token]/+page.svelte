@@ -87,10 +87,16 @@
         <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{error}</p>
       </section>
     {:else if loading}
-      <div class="my-auto flex flex-col items-center gap-3 py-8">
-        <div class="h-12 w-12 animate-spin rounded-full border-4 border-[#C9D6EF] border-t-[#0135C6]"></div>
-        <p class="text-xs font-bold text-[#60746f]">{$_('representative.loading')}</p>
+      <section class="mt-8 border-y border-[#C9D6EF] py-4" aria-hidden="true">
+        <div class="skeleton mx-auto h-4 w-48 rounded-full"></div>
+        <div class="skeleton mx-auto mt-3 h-3 w-36 rounded-full"></div>
+      </section>
+      <div class="my-auto flex flex-col items-center gap-3 py-8 text-center" aria-hidden="true">
+        <div class="skeleton h-4 w-64 rounded-full"></div>
+        <div class="skeleton h-4 w-44 rounded-full"></div>
+        <div class="skeleton mt-3 h-14 w-56 rounded-2xl"></div>
       </div>
+      <span class="sr-only">{$_('representative.loading')}</span>
     {:else if context}
       <section class="mt-8 border-y border-[#C9D6EF] py-4">
         <p class="text-center text-sm font-black text-[#0135C6]">

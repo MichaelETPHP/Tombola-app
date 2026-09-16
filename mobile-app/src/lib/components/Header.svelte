@@ -50,7 +50,7 @@
       height="40"
     />
     <div class="min-w-0">
-      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">YeneEta</p>
+      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">251 Lottery</p>
       <p class="mt-1 text-[10px] font-medium text-muted">{$_('header.tagline')}</p>
     </div>
   </a>
@@ -65,8 +65,8 @@
     >
       <TikTokIcon size={18} />
       <span class="live-dot absolute right-1 top-1 flex h-2.5 w-2.5" aria-hidden="true">
-        <span class="live-dot-ping absolute inset-0 rounded-full bg-primary"></span>
-        <span class="relative h-2.5 w-2.5 rounded-full border-2 border-card bg-primary"></span>
+        <span class="live-dot-ping absolute inset-0 rounded-full bg-online"></span>
+        <span class="relative h-2.5 w-2.5 rounded-full border-2 border-card bg-online"></span>
       </span>
     </button>
 

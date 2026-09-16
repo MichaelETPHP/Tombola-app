@@ -60,7 +60,7 @@
   const formatEtb = (n: number) => Number(n).toLocaleString();
 </script>
 
-<svelte:head><title>Payout review | YeneEta Admin</title></svelte:head>
+<svelte:head><title>Payout review | 251 Lottery Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <div class="flex items-center gap-3">

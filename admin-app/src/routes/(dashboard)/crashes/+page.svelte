@@ -107,7 +107,7 @@
   onMount(refreshAll);
 </script>
 
-<svelte:head><title>Crash reports · YeneEta Admin</title></svelte:head>
+<svelte:head><title>Crash reports · 251 Lottery Admin</title></svelte:head>
 
 {#if $auth.admin?.role !== 'owner'}
   <div class="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-card border border-border bg-card p-8 text-center">

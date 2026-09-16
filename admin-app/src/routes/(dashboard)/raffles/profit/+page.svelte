@@ -108,7 +108,7 @@
   });
 </script>
 
-<svelte:head><title>Profit | YeneEta Admin</title></svelte:head>
+<svelte:head><title>Profit | 251 Lottery Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <header class="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">

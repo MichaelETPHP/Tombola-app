@@ -28,14 +28,14 @@
   });
 </script>
 
-<svelte:head><title>Returning to YeneEta</title></svelte:head>
+<svelte:head><title>Returning to 251 Lottery</title></svelte:head>
 
 <main class="safe-area-top flex min-h-dvh items-center justify-center bg-bg-start px-5 text-ink">
   <section class="w-full max-w-sm rounded-card bg-card p-6 text-center shadow-card">
     <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-action-bg text-primary-dark">
       <ShieldCheck size={25} />
     </span>
-    <h1 class="mt-4 text-xl font-extrabold tracking-[-0.025em]">{invalid ? 'Invalid payment return' : 'Returning to YeneEta'}</h1>
+    <h1 class="mt-4 text-xl font-extrabold tracking-[-0.025em]">{invalid ? 'Invalid payment return' : 'Returning to 251 Lottery'}</h1>
     <p class="mt-2 text-sm leading-6 text-muted">
       {invalid ? 'This payment link is incomplete.' : 'Your payment is being securely verified. Tickets are issued only after confirmation.'}
     </p>

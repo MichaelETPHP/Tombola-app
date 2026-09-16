@@ -16,7 +16,7 @@ const allowLocalDevelopmentHttp = process.env.CAPACITOR_ALLOW_HTTP === 'true';
 
 const config: CapacitorConfig = {
   appId: 'com.tombola.app',
-  appName: 'YeneEta',
+  appName: '251 Lottery',
   webDir: 'build',
   android: {
     // Required only for a debug build calling a LAN API over http://.

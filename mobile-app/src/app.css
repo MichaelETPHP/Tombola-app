@@ -44,6 +44,8 @@
   --color-action-bg: #DCE6FB;
   --color-action-icon: #0135C6;
 
+  --color-online: #1FAA59;
+
   --color-bg-start: #E1E9FC;
   --color-bg-end: #C3D7F5;
 
@@ -51,9 +53,9 @@
   --shadow-card-light: 0 4px 12px rgba(0, 0, 0, 0.04);
   --shadow-nav: 0 10px 24px rgba(0, 0, 0, 0.08);
 
-  --radius-card: 24px;
-  --radius-button: 16px;
-  --radius-action: 20px;
+  --radius-card: 28px;
+  --radius-button: 18px;
+  --radius-action: 22px;
   --radius-nav: 32px;
 }
 
