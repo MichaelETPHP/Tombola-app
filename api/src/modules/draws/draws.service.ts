@@ -10,7 +10,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
-const TRIGGER_TTL_MS = 5 * 60 * 1000;
+const TRIGGER_TTL_MS = env.TRIGGER_TTL_MINUTES * 60 * 1000;
 
 function secureRandomIndex(length: number): number {
   if (!Number.isSafeInteger(length) || length < 1) throw new Error('Selection pool is empty');

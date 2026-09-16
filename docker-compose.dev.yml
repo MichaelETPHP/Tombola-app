@@ -37,6 +37,10 @@ services:
       SMS_API_PASSWORD: ${DEV_SMS_API_PASSWORD:-}
       SMS_SENDER_LABEL: ${DEV_SMS_SENDER_LABEL:-YeneEta}
       DEMO_OTP_ENABLED: ${DEV_DEMO_OTP_ENABLED:-true}
+      # Short window for fast manual testing of the draw-trigger auto-reassign
+      # cycle — production defaults to a real 60-minute window instead (see
+      # docker-compose.yml).
+      TRIGGER_TTL_MINUTES: ${DEV_TRIGGER_TTL_MINUTES:-5}
       CHAPA_SECRET_KEY: ${DEV_CHAPA_SECRET_KEY:-}
       CHAPA_WEBHOOK_SECRET: ${DEV_CHAPA_WEBHOOK_SECRET:-}
       CHAPA_MODE: ${DEV_CHAPA_MODE:-test}
