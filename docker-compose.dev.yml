@@ -6,8 +6,9 @@
 #
 # This file intentionally contains no host `ports:` mappings. Coolify's proxy
 # routes the three exposed services using the domains configured on the dev
-# resource. NODE_ENV is development at runtime; the images still use
-# production dependencies/build output. DEMO_OTP_ENABLED and MOCK_PAYMENTS
+# resource. Runtime values use DEV_ names so they cannot collide with the
+# production resource. DEV_NODE_ENV defaults to development; the images still
+# use production dependencies/build output. DEMO_OTP_ENABLED and MOCK_PAYMENTS
 # provide the development behaviour.
 
 services:
@@ -21,7 +22,9 @@ services:
     volumes:
       - api_uploads_dev:/app/uploads
     environment:
-      NODE_ENV: development
+      # Do not create a global NODE_ENV variable in Coolify. Configure the
+      # dev resource with DEV_NODE_ENV if an override is ever required.
+      NODE_ENV: ${DEV_NODE_ENV:-development}
       PORT: '3435'
       API_BASE_URL: ${DEV_API_BASE_URL:-}
       DATABASE_URL: ${DEV_DATABASE_URL:-}
@@ -52,7 +55,9 @@ services:
       TELEGRAM_AUTH_MAX_AGE_SECONDS: ${DEV_TELEGRAM_AUTH_MAX_AGE_SECONDS:-3600}
       TELEGRAM_WEBHOOK_SECRET: ${DEV_TELEGRAM_WEBHOOK_SECRET:-}
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://localhost:3435/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      # Container health measures whether the API process can serve requests.
+      # Use /health separately when checking DB/config readiness.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3435/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 15s
@@ -82,7 +87,7 @@ services:
     expose:
       - '5355'
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${DEV_NODE_ENV:-development}
       PORT: '5355'
       HOST: '0.0.0.0'
       ORIGIN: ${DEV_ADMIN_APP_URL:-}
