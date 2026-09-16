@@ -36,7 +36,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       // Dismissed by the root layout after authentication is restored.
       launchAutoHide: false,
-      backgroundColor: '#E3F9EF',
+      backgroundColor: '#E1E9FC',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER',
       showSpinner: false,
@@ -45,7 +45,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'LIGHT',
-      backgroundColor: '#00D3A0',
+      backgroundColor: '#0135C6',
     },
     Keyboard: {
       resize: 'body',

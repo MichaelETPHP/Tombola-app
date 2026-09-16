@@ -105,8 +105,8 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
   safeBridgeCall('expand', () => webApp.expand());
   safeBridgeCall('disableVerticalSwipes', () => webApp.disableVerticalSwipes?.());
   safeBridgeCall('enableClosingConfirmation', () => webApp.enableClosingConfirmation?.());
-  safeBridgeCall('setHeaderColor', () => webApp.setHeaderColor?.('#00D3A0'));
-  safeBridgeCall('setBackgroundColor', () => webApp.setBackgroundColor?.('#E3F9EF'));
+  safeBridgeCall('setHeaderColor', () => webApp.setHeaderColor?.('#0135C6'));
+  safeBridgeCall('setBackgroundColor', () => webApp.setBackgroundColor?.('#E1E9FC'));
   safeBridgeCall('setBottomBarColor', () => webApp.setBottomBarColor?.('#FFFFFF'));
 
   // Fullscreen is available from Bot API 8.0. Keep the version guard as old

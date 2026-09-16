@@ -82,7 +82,7 @@
 
       <div class="receipt-rule my-4"></div>
 
-      <p class="text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#00a884]">✓ {$_('receipt.confirmedGoodLuck')}</p>
+      <p class="text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#0135C6]">✓ {$_('receipt.confirmedGoodLuck')}</p>
     </div>
   </div>
 

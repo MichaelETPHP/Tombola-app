@@ -21,8 +21,8 @@
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  --color-primary: #00d3a0;
-  --color-primary-dark: #00b589;
+  --color-primary: #0135C6;
+  --color-primary-dark: #0129A3;
   --color-coral-start: #ff6b6b;
   --color-coral-end: #ff8674;
 
@@ -41,11 +41,11 @@
   --color-nav-inactive: #a6abbd;
   --color-dot-inactive: #d9dce3;
 
-  --color-action-bg: #dff7ee;
-  --color-action-icon: #00c896;
+  --color-action-bg: #DCE6FB;
+  --color-action-icon: #0135C6;
 
-  --color-bg-start: #e3f9ef;
-  --color-bg-end: #b9eeda;
+  --color-bg-start: #E1E9FC;
+  --color-bg-end: #C3D7F5;
 
   --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.06);
   --shadow-card-light: 0 4px 12px rgba(0, 0, 0, 0.04);

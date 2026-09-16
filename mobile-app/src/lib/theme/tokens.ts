@@ -9,8 +9,8 @@
 
 // ── Brand Colors ─────────────────────────────────────────
 export const colors = {
-  primary: '#00D3A0',
-  primaryDark: '#00B589',
+  primary: '#0135C6',
+  primaryDark: '#0129A3',
 
   coralStart: '#FF6B6B',
   coralEnd: '#FF8674',
@@ -32,16 +32,16 @@ export const colors = {
   textSecondary: '#8A8FA3',
 
   navInactive: '#A6ABBD',
-  navActiveBg: '#00D3A0',
+  navActiveBg: '#0135C6',
   navActiveText: '#FFFFFF',
 
   dotInactive: '#D9DCE3',
 
-  bgGradientStart: '#E3F9EF',
-  bgGradientEnd: '#B9EEDA',
+  bgGradientStart: '#E1E9FC',
+  bgGradientEnd: '#C3D7F5',
 
-  actionIconBg: '#DFF7EE',
-  actionIconColor: '#00C896',
+  actionIconBg: '#DCE6FB',
+  actionIconColor: '#0135C6',
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────

@@ -102,7 +102,7 @@
   .unread-badge {
     box-shadow:
       0 0 0 2px var(--color-card),
-      0 3px 8px -2px rgba(184, 56, 45, 0.55);
+      0 3px 8px -2px rgba(216, 67, 76, 0.55);
     font-variant-numeric: tabular-nums;
   }
 
@@ -128,7 +128,7 @@
     transform: translate3d(0, -19px, 0) scale(1);
     box-shadow:
       0 0 0 6px var(--color-card),
-      0 13px 25px -16px rgba(0, 181, 137, 0.48),
+      0 13px 25px -16px rgba(1, 41, 163, 0.48),
       inset 0 1px 0 rgba(255, 255, 255, 0.7);
   }
 

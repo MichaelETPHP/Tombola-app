@@ -43,7 +43,7 @@
   <Header />
 
   <section class="flex flex-col gap-2.5 pt-1">
-    <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary-dark px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_7px_16px_-12px_rgba(0,105,80,0.8)]">
+    <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary-dark px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_7px_16px_-12px_rgba(1,41,163,0.8)]">
       <span class="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true"></span>
       {$_('home.livePrizes')}
     </span>
@@ -63,7 +63,7 @@
       <p class="text-xs leading-relaxed text-muted">{$_('home.loadErrorBody')}</p>
       <button
         type="button"
-        class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#10211d]"
+        class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#080E49]"
         on:click={loadRaffles}
       >
         {$_('home.tryAgain')} <ArrowRight size={15} />

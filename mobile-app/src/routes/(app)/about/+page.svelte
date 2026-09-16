@@ -82,11 +82,11 @@
     </div>
   </header>
 
-  <section class="brand-panel relative overflow-hidden rounded-[24px] bg-[#123f35] px-5 py-6 text-white">
+  <section class="brand-panel relative overflow-hidden rounded-[24px] bg-[#080E49] px-5 py-6 text-white">
     <div class="brand-orbit pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full" aria-hidden="true"></div>
     <div class="relative flex items-center gap-3.5">
       <img
-        src="/images/yeneeta-logo-mark.svg"
+        src="/logo-new.png"
         alt=""
         width="52"
         height="52"
@@ -138,7 +138,7 @@
       type="button"
       disabled={sharing}
       on:click={shareBot}
-      class="share-button tappable pressable mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#10211d] disabled:opacity-60"
+      class="share-button tappable pressable mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#080E49] disabled:opacity-60"
     >
       <Share2 size={17} />
       {sharing ? $_('about.openingShare') : $_('about.shareTelegramLink')}
@@ -232,16 +232,16 @@
   }
 
   .brand-panel {
-    box-shadow: 0 18px 38px -24px rgba(10, 59, 47, 0.68);
+    box-shadow: 0 18px 38px -24px rgba(8, 14, 73, 0.68);
   }
 
   .brand-orbit {
-    border: 30px solid rgba(86, 230, 190, 0.1);
-    box-shadow: 0 0 0 22px rgba(86, 230, 190, 0.05);
+    border: 30px solid rgba(70, 130, 230, 0.1);
+    box-shadow: 0 0 0 22px rgba(70, 130, 230, 0.05);
   }
 
   .share-button {
-    box-shadow: 0 11px 24px -16px rgba(0, 105, 80, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+    box-shadow: 0 11px 24px -16px rgba(1, 41, 163, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.62);
   }
 
   .channel {

@@ -90,7 +90,7 @@
 
     <!-- Small iPhone Spinning Icon Loader -->
     <div class="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-md border border-white/10">
-      <IosSpinner size={16} color="#00D3A0" />
+      <IosSpinner size={16} color="#0135C6" />
       <span class="text-[11px] font-medium text-white/80">{$_('splash.loading')}</span>
     </div>
   </header>

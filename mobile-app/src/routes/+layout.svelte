@@ -389,8 +389,8 @@
          app's own reactive/store machinery (i18n included) is what broke;
          a fallback that depends on the same thing that might have just
          failed isn't a fallback. -->
-    <div class="fixed inset-0 z-[9998] flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#e9faf3] px-6 text-center">
-      <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm">
+    <div class="fixed inset-0 z-[9998] flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#E7EEFC] px-6 text-center">
+      <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#D8434C] shadow-sm">
         <TriangleAlert size={27} />
       </span>
       <div>

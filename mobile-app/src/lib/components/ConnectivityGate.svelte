@@ -70,7 +70,7 @@
 
 {#if isBlocked}
   <div
-    class="safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#e9faf3] px-5 text-ink"
+    class="safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#E7EEFC] px-5 text-ink"
     role="alertdialog"
     aria-modal="true"
     aria-live="assertive"
@@ -78,11 +78,11 @@
   >
     <div class="mx-auto flex w-full max-w-md flex-1 flex-col">
       <div
-        class="mt-2 flex items-center gap-3 rounded-[18px] border border-[#e9c8c5] bg-[#fff7f6] px-4 py-3 shadow-[0_10px_28px_-20px_rgba(90,35,30,0.35)]"
-        class:border-[#ccebdd]={isInitialCheck}
+        class="mt-2 flex items-center gap-3 rounded-[18px] border border-[#e9c8c5] bg-[#fff7f6] px-4 py-3 shadow-[0_10px_28px_-20px_rgba(140,37,48,0.35)]"
+        class:border-[#CEDCF5]={isInitialCheck}
         class:bg-white={isInitialCheck}
       >
-        <div class={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isInitialCheck ? 'bg-primary/15 text-primary-dark' : 'bg-[#fce1de] text-[#b4473d]'}`}>
+        <div class={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isInitialCheck ? 'bg-primary/15 text-primary-dark' : 'bg-[#fce1de] text-[#A10F1B]'}`}>
           {#if isInitialCheck}<Signal size={19} strokeWidth={2.2} />{:else}<WifiOff size={19} strokeWidth={2.2} />{/if}
         </div>
         <div class="min-w-0">
@@ -91,7 +91,7 @@
             {isInitialCheck ? text.checkingBody : text.waiting}
           </p>
         </div>
-        <span class="connection-dot ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-[#d9665b]" class:bg-primary={isInitialCheck}></span>
+        <span class="connection-dot ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-[#D8434C]" class:bg-primary={isInitialCheck}></span>
       </div>
 
       <div class="flex flex-1 flex-col items-center justify-center pb-14 text-center">
@@ -136,7 +136,7 @@
     aria-live="polite"
     transition:fly={{ y: -28, duration: 320, easing: cubicOut }}
   >
-    <div class="pointer-events-auto mt-2 flex w-full max-w-md items-center gap-3 rounded-[18px] border border-[#bce8d9] bg-white/95 px-4 py-3 shadow-[0_14px_35px_-20px_rgba(0,110,82,0.4)] backdrop-blur-md">
+    <div class="pointer-events-auto mt-2 flex w-full max-w-md items-center gap-3 rounded-[18px] border border-[#C6D9F2] bg-white/95 px-4 py-3 shadow-[0_14px_35px_-20px_rgba(1,41,163,0.4)] backdrop-blur-md">
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary-dark">
         <CheckCircle2 size={20} strokeWidth={2.2} />
       </span>

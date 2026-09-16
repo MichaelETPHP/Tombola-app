@@ -63,7 +63,7 @@
           class="featured-ticket pressable relative flex min-h-[346px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
           aria-label={$_('banner.enterAria', { values: { title: raffle.title } })}
         >
-          <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#dff7ee]">
+          <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#DCE6FB]">
             <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager={index === 0} />
 
             <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
@@ -95,9 +95,9 @@
                 <div class="h-full rounded-full bg-primary-dark transition-[width] duration-500 ease-[var(--ease-out)]" style="width: {soldPercentage(raffle)}%"></div>
               </div>
 
-              <span class="featured-cta inline-flex h-[52px] w-full items-center justify-between rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#10211d] shadow-[0_10px_22px_-14px_rgba(0,105,80,0.72),inset_0_1px_0_rgba(255,255,255,0.72)]">
+              <span class="featured-cta inline-flex h-[52px] w-full items-center justify-between rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#080E49] shadow-[0_10px_22px_-14px_rgba(1,41,163,0.72),inset_0_1px_0_rgba(255,255,255,0.72)]">
                 {$_('banner.chooseTickets', { values: { n: raffle.maxTicketsPerUser } })}
-                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#10211d] text-white"><ArrowRight size={17} strokeWidth={2.4} /></span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#080E49] text-white"><ArrowRight size={17} strokeWidth={2.4} /></span>
               </span>
             </div>
           </div>
@@ -128,7 +128,7 @@
 
   .featured-ticket {
     border: 1px solid rgba(255, 255, 255, 0.88);
-    box-shadow: 0 18px 40px -25px rgba(17, 54, 44, 0.42), 0 5px 14px -10px rgba(17, 54, 44, 0.18);
+    box-shadow: 0 18px 40px -25px rgba(8, 14, 73, 0.42), 0 5px 14px -10px rgba(8, 14, 73, 0.18);
     transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
   }
 
@@ -138,13 +138,13 @@
 
   .featured-ticket:active {
     transform: translateY(1px) scale(0.985);
-    box-shadow: 0 8px 22px -17px rgba(17, 54, 44, 0.38);
+    box-shadow: 0 8px 22px -17px rgba(8, 14, 73, 0.38);
   }
 
   .live-badge,
   .price-badge {
     border: 1px solid rgba(255, 255, 255, 0.28);
-    background: rgba(16, 33, 29, 0.78);
+    background: rgba(8, 14, 73, 0.78);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(14px) saturate(1.12);
     -webkit-backdrop-filter: blur(14px) saturate(1.12);

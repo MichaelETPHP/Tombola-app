@@ -249,10 +249,10 @@
   </section>
 {:else}
   <article class="raffle-screen">
-    <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-[#dff7ee] shadow-[0_12px_30px_rgba(20,89,72,0.10)]">
+    <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-[#DCE6FB] shadow-[0_12px_30px_rgba(1,41,163,0.10)]">
       <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager />
       <div class="prize-glass-flash pointer-events-none absolute inset-y-0 left-0 w-[38%] {pageVisible ? '' : 'is-paused'}" aria-hidden="true"></div>
-      <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#152521]/45 to-transparent"></div>
+      <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#080E49]/45 to-transparent"></div>
       <button type="button" aria-label={$_('raffle.backAria')} on:click={goBack} class="tappable pressable absolute left-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"><ChevronLeft size={20} /></button>
     </section>
 
@@ -313,7 +313,7 @@
       </div>
     {/if}
 
-    <section class="ticket-sheet relative overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(24,95,77,0.08)]">
+    <section class="ticket-sheet relative overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(1,41,163,0.08)]">
       <button
         type="button"
         class="tappable pressable absolute right-2.5 top-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-bg-start text-primary-dark"
@@ -376,7 +376,7 @@
 {/if}
 
 {#if termsOpen}
-  <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#152521]/45" aria-label={$_('raffle.closeAria')} on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
+  <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#080E49]/45" aria-label={$_('raffle.closeAria')} on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
   <section class="no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
     <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">{$_('raffle.termsTitle')}</h2><button type="button" aria-label={$_('raffle.closeAria')} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>{$_('raffle.termsList.age')}</li><li>{$_('raffle.termsList.final')}</li><li>{$_('raffle.termsList.independent')}</li><li>{$_('raffle.termsList.max')}</li><li>{$_('raffle.termsList.fairness')}</li></ul>
@@ -387,7 +387,7 @@
 {#if lightboxIndex !== null}
   {@const activePrize = rankedPrizes[lightboxIndex]}
   <div class="lightbox fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={activePrize ? $_('raffle.placeLabel', { values: { ordinal: ordinal(activePrize.tier) } }) + ' ' + $_('raffle.prizePhoto') : ''}>
-    <button type="button" aria-label={$_('raffle.closeAria')} class="absolute inset-0 bg-[#0b1613]/92 backdrop-blur-sm" on:click={closeLightbox} transition:fade={{ duration: 200 }}></button>
+    <button type="button" aria-label={$_('raffle.closeAria')} class="absolute inset-0 bg-[#080E49]/92 backdrop-blur-sm" on:click={closeLightbox} transition:fade={{ duration: 200 }}></button>
 
     <div class="lightbox-content absolute inset-0 flex flex-col" transition:scale={lightboxContentParams()}>
       <div
@@ -410,11 +410,11 @@
       <button
         type="button"
         aria-label={$_('raffle.closeAria')}
-        class="safe-area-floating-top tappable pressable absolute right-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#172c27]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
+        class="safe-area-floating-top tappable pressable absolute right-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#080E49]/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-md"
         on:click={closeLightbox}
       ><X size={19} /></button>
 
-      <div class="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-16 text-center bg-gradient-to-t from-[#0b1613]/85 to-transparent">
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-16 text-center bg-gradient-to-t from-[#080E49]/85 to-transparent">
         {#if activePrize}
           <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">{$_('raffle.placeLabel', { values: { ordinal: ordinal(activePrize.tier) } })}</p>
           <p class="mt-1 text-[15px] font-extrabold text-white">{activePrize.name}</p>

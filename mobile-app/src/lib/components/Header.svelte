@@ -43,9 +43,9 @@
 <header class="flex items-center justify-between gap-2">
   <a href="/home" class="tappable flex min-w-0 items-center gap-3 text-inherit no-underline" aria-label={$_('header.homeAria')}>
     <img
-      src="/images/yeneeta-logo-mark.svg"
+      src="/logo-new.png"
       alt=""
-      class="h-10 w-10 shrink-0 rounded-[14px] object-cover shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_5px_12px_-8px_rgba(0,122,95,0.65)]"
+      class="h-10 w-10 shrink-0 rounded-[14px] object-cover shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_5px_12px_-8px_rgba(1,53,198,0.35)]"
       width="40"
       height="40"
     />
@@ -110,7 +110,7 @@
       <a
         href="/profile"
         on:click={hapticLight}
-        class="profile-avatar tappable relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-card text-primary-dark no-underline shadow-[0_7px_16px_-11px_rgba(0,122,95,0.65),inset_0_1px_0_rgba(255,255,255,0.8)]"
+        class="profile-avatar tappable relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-card text-primary-dark no-underline shadow-[0_7px_16px_-11px_rgba(1,41,163,0.65),inset_0_1px_0_rgba(255,255,255,0.8)]"
         aria-label={$_('header.profileAria', { values: { name: profileName } })}
         title={$_('header.profileTitle')}
         in:scale={{ duration: 260, start: 0.78, opacity: 0, easing: cubicOut }}

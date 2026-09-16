@@ -24,9 +24,9 @@
   in:fly={{ y: 8, duration: 220, delay: Math.min(index, 4) * 35, easing: cubicOut }}
   aria-label={$_('raffleCard.viewAria', { values: { title: raffle.title } })}
 >
-  <div class="relative min-h-full overflow-hidden bg-[#dff7ee]">
+  <div class="relative min-h-full overflow-hidden bg-[#DCE6FB]">
     <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="sm" fit="contain" {eager} />
-    <span class="absolute bottom-2 left-2 rounded-full bg-[#10211d]/82 px-2 py-1 text-[9px] font-extrabold text-white backdrop-blur-md">{formatEtb(raffle.ticketPrice)} ETB</span>
+    <span class="absolute bottom-2 left-2 rounded-full bg-[#080E49]/82 px-2 py-1 text-[9px] font-extrabold text-white backdrop-blur-md">{formatEtb(raffle.ticketPrice)} ETB</span>
   </div>
 
   <div class="flex min-w-0 flex-col p-3.5">
@@ -56,6 +56,6 @@
 <style>
   .raffle-ticket {
     border: 1px solid rgba(255, 255, 255, 0.86);
-    box-shadow: 0 12px 28px -21px rgba(17, 54, 44, 0.42);
+    box-shadow: 0 12px 28px -21px rgba(8, 14, 73, 0.42);
   }
 </style>

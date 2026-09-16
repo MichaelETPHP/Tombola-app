@@ -180,13 +180,13 @@
     aria-label={refreshing ? 'Refreshing' : armed ? 'Release to refresh' : undefined}
   >
     {#if refreshing}
-      <IosSpinner size={22} color="#00B589" />
+      <IosSpinner size={22} color="#0129A3" />
     {:else if pulling && count > 0}
       {#key count}
         <span
           in:scale={{ duration: 160, start: 0.7, opacity: 0, easing: cubicOut }}
           class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold transition-colors duration-150 {armed
-            ? 'bg-primary text-[#10211d]'
+            ? 'bg-primary text-[#080E49]'
             : 'bg-bg-start text-primary-dark'}"
         >
           {count}

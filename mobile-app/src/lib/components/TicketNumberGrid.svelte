@@ -113,7 +113,7 @@
 </div>
 
 <style>
-  .grid-shell { position: relative; border-radius: 14px; background: rgba(255,255,255,.82); box-shadow: 0 13px 30px -24px rgba(25,60,51,.55); }
+  .grid-shell { position: relative; border-radius: 14px; background: rgba(255,255,255,.82); box-shadow: 0 13px 30px -24px rgba(8,14,73,.55); }
   .grid-scroll {
     max-height: min(46vh, 440px);
     overflow-y: auto;
@@ -133,7 +133,7 @@
     min-height: 42px;
     border-radius: 9px;
     border: 1px solid rgba(72,91,82,.14);
-    background: #edf1ef;
+    background: #ECF0FA;
     color: #0a0a0a;
     font-size: 11px;
     font-weight: 750;
@@ -141,13 +141,13 @@
     transition: transform 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
   }
   .grid-scroll > button:not(:disabled):active { transform: scale(.95); }
-  .grid-scroll > button.selected { background: #08765a; border-color: #08765a; color: #fff; }
-  .grid-scroll > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #f2f4f3; }
+  .grid-scroll > button.selected { background: #0129A3; border-color: #0129A3; color: #fff; }
+  .grid-scroll > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #F1F3FA; }
   /* Sold — gone for good, to someone else — reads as the loudest "no" of
      the three unavailable states: a red strike, not just a muted one. */
-  .grid-scroll > button.sold { color: #b3122b; opacity: .85; background: #fdecee; border-color: rgba(179,18,43,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
-  .grid-scroll > button.held-elsewhere { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-color: rgba(168,75,87,.2); }
-  .grid-scroll > button.yours { color: #08765a; background: #d4f4e6; opacity: 1; text-decoration: none; border-color: rgba(8,118,90,.25); }
+  .grid-scroll > button.sold { color: #CC1421; opacity: .85; background: #fdecee; border-color: rgba(204,20,33,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+  .grid-scroll > button.held-elsewhere { color: #B23A45; background: #FBE7E8; opacity: 1; text-decoration: none; border-color: rgba(178,58,69,.2); }
+  .grid-scroll > button.yours { color: #0129A3; background: #D6E1F9; opacity: 1; text-decoration: none; border-color: rgba(1,41,163,.25); }
   .grid-flash { position: absolute; z-index: 6; top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 6px 11px; border-radius: 999px; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 8px 18px -8px rgba(0,0,0,.45); pointer-events: none; }
   /* iOS-picker-style edge fades — signal "there's more above/below" the
      same way a UIPickerView's top/bottom mask does, without a hard visual
