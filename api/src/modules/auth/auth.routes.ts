@@ -24,6 +24,7 @@ import { env } from '../../config/env.js';
 import { createTelegramNonce } from '../../lib/jwt.js';
 import { extractSharedContact } from '../../lib/telegram.js';
 import { logger } from '../../lib/logger.js';
+import { logClientCrash } from '../../lib/client-crash-log.js';
 import type { LoginMeta } from './auth.service.js';
 
 export const authRoutes = new Hono<AppEnv>();
@@ -142,12 +143,24 @@ authRoutes.post('/telegram/mini-app/complete', rateLimit({ max: 40, windowSecond
 authRoutes.post('/telegram/webhook', async (c) => {
   if (!env.TELEGRAM_WEBHOOK_SECRET) {
     logger.warn('Telegram webhook received but TELEGRAM_WEBHOOK_SECRET is not configured — ignoring');
+    logClientCrash({
+      message: 'Telegram webhook received but TELEGRAM_WEBHOOK_SECRET is not configured',
+      platform: 'api', url: c.req.path, selfHealed: false,
+    });
     return c.json({ ok: true }, 200);
   }
 
   const secret = c.req.header('x-telegram-bot-api-secret-token');
   if (secret !== env.TELEGRAM_WEBHOOK_SECRET) {
     logger.warn('Telegram webhook rejected: secret token mismatch');
+    // This exact silent failure is what made the "didn't hear back from
+    // Telegram" bug so hard to track down before — Telegram just sees a
+    // 401 and moves on, and nothing else about it was ever visible from
+    // the admin dashboard. Now it is.
+    logClientCrash({
+      message: 'Telegram webhook rejected: secret token mismatch (check TELEGRAM_WEBHOOK_SECRET matches what was registered via setWebhook)',
+      platform: 'api', url: c.req.path, selfHealed: false,
+    });
     return c.json({ ok: false }, 401);
   }
 
@@ -157,6 +170,11 @@ authRoutes.post('/telegram/webhook', async (c) => {
     if (contact) await linkTelegramContact(contact);
   } catch (error) {
     logger.error(`Telegram webhook processing failed: ${String(error)}`);
+    logClientCrash({
+      message: `Telegram webhook processing failed: ${error instanceof Error ? error.message : String(error)}`,
+      stack: error instanceof Error ? error.stack : undefined,
+      platform: 'api', url: c.req.path, selfHealed: false,
+    });
   }
 
   // Always 200 once authenticated — Telegram retries indefinitely on a

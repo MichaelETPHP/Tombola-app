@@ -1,7 +1,12 @@
 import { sql } from '../db/client.js';
 import { logger } from './logger.js';
 
-export type ClientCrashPlatform = 'telegram' | 'native' | 'browser';
+// 'api' covers a backend-side failure (an unhandled route error, or a
+// webhook rejected/failed before it ever reached app code that could
+// throw) — everything else here is a client (mobile app) crash. Same
+// table, same admin /crashes viewer, since "what broke and when" doesn't
+// benefit from being split across two different places to check.
+export type ClientCrashPlatform = 'telegram' | 'native' | 'browser' | 'api';
 
 export interface ClientCrashInput {
   message: string;

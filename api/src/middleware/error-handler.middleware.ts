@@ -2,6 +2,7 @@ import type { ErrorHandler } from 'hono';
 import { ZodError } from 'zod';
 import { logger } from '../lib/logger.js';
 import { translate } from '../lib/i18n.js';
+import { logClientCrash } from '../lib/client-crash-log.js';
 
 /**
  * Application-level error class with HTTP status code.
@@ -58,11 +59,21 @@ export const errorHandler: ErrorHandler = (err, c) => {
     return c.json({ error: translate(t, 'auth.invalidToken'), code: 'AUTH_INVALID_TOKEN', requestId: c.get('requestId') }, 401);
   }
 
-  // Unexpected errors → 500
+  // Unexpected errors → 500. Persisted (not just console output) so it
+  // shows up on the admin /crashes page instead of only being visible to
+  // whoever happens to be tailing the container's live logs at that moment.
   logger.error('Unhandled error', {
     message: err.message,
     stack: err.stack,
     name: err.name,
+  });
+  logClientCrash({
+    message: err.message || 'Unhandled API error',
+    stack: err.stack,
+    url: c.req.path,
+    platform: 'api',
+    userAgent: c.req.header('user-agent'),
+    selfHealed: false,
   });
 
   const isDev = process.env.NODE_ENV !== 'production';

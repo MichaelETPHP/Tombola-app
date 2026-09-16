@@ -12,10 +12,11 @@
     ShieldAlert,
     Smartphone,
     Globe,
+    Server,
     Send as TelegramIcon,
   } from 'lucide-svelte';
 
-  type Platform = 'telegram' | 'native' | 'browser';
+  type Platform = 'telegram' | 'native' | 'browser' | 'api';
 
   interface CrashEntry {
     id: string;
@@ -39,6 +40,7 @@
     telegram: TelegramIcon,
     native: Smartphone,
     browser: Globe,
+    api: Server,
   };
 
   let stats: CrashStats | null = null;
@@ -154,6 +156,7 @@
           <option value="telegram">Telegram Mini App</option>
           <option value="native">Native app</option>
           <option value="browser">Browser / PWA</option>
+          <option value="api">API / Backend</option>
         </select>
       </label>
     </div>
