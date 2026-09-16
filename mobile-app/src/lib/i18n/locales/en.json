@@ -392,6 +392,7 @@
     "logoutSuccessBanner": "Logout successful",
     "loadingAria": "Loading profile",
     "title": "Profile",
+    "verifiedAria": "Verified profile",
     "addYourName": "Add your name",
     "closeEditAria": "Close edit profile",
     "editAria": "Edit profile",
