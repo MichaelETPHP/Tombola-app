@@ -3,12 +3,21 @@ import { join } from 'node:path';
 import { nanoid } from 'nanoid';
 import { parseCsv } from '../../lib/csv.js';
 import { sendBulkSmsWithSummaryLog, toE164, isValidE164 } from '../../lib/sms.js';
+import { findUsersByPhones } from '../../db/queries/users.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
 export interface Contact {
   phone: string;
   name: string | null;
   importedAt: string;
+}
+
+/** What the admin list actually renders — a stored Contact plus a live
+ *  cross-check against the platform's real users, computed fresh on every
+ *  list request (never persisted) since someone can register at any time
+ *  after being imported. */
+export interface ContactWithStatus extends Contact {
+  isRegistered: boolean;
 }
 
 // Same directory tree as raffle image uploads (see lib/uploads.ts) —
@@ -56,9 +65,23 @@ async function writeContactsAtomic(contacts: Contact[]): Promise<void> {
   await rename(tempPath, CONTACTS_FILE);
 }
 
-export async function listContacts(): Promise<Contact[]> {
+/**
+ * The whole point of a marketing-only contact list is reaching people who
+ * AREN'T customers yet — once one of them actually registers on the
+ * platform, they're no longer a lead to cold-market to, they're a real
+ * account reachable through everything else the platform already does.
+ * isRegistered flags that (checked fresh every call, one query against
+ * every contact's phone at once — not N individual lookups) so the admin
+ * page can grey them out of bulk sends instead of double-marketing someone
+ * who already converted.
+ */
+export async function listContacts(): Promise<ContactWithStatus[]> {
   const contacts = await readContacts();
-  return [...contacts].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+  const registeredUsers = await findUsersByPhones(contacts.map((c) => c.phone));
+  const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
+  return [...contacts]
+    .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
+    .map((c) => ({ ...c, isRegistered: registeredPhones.has(c.phone) }));
 }
 
 /**
@@ -200,10 +223,21 @@ export async function deleteContacts(phones: string[]): Promise<{ deleted: numbe
  * SMS log ("Contacts broadcast — 45/50 delivered") instead of one row per
  * recipient — these aren't platform accounts, so a per-recipient audit
  * trail isn't the point; a delivery report for the broadcast is.
+ *
+ * Numbers that already belong to a registered user are silently excluded
+ * before sending, regardless of what the caller asked for — the admin
+ * page's own checkboxes already prevent selecting one, but that's a UI
+ * convenience, not the actual guarantee. This is: a converted lead is a
+ * real account now, not someone to keep cold-marketing.
  */
 export async function sendSmsToContacts(phones: string[], message: string) {
-  const result = await sendBulkSmsWithSummaryLog(phones, message, 'contacts_broadcast');
+  const registeredUsers = await findUsersByPhones(phones.map(toE164));
+  const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
+  const targetPhones = phones.filter((p) => !registeredPhones.has(toE164(p)));
+  const excludedRegistered = phones.length - targetPhones.length;
+
+  const result = await sendBulkSmsWithSummaryLog(targetPhones, message, 'contacts_broadcast');
   const sentCount = result.recipients.filter((r) => r.success).length;
   const failedCount = result.recipients.length - sentCount;
-  return { requested: phones.length, sentCount, failedCount, recipients: result.recipients };
+  return { requested: phones.length, sentCount, failedCount, excludedRegistered, recipients: result.recipients };
 }

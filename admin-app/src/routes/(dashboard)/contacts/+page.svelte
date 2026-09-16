@@ -3,6 +3,7 @@
   import { api, ApiError } from '$lib/api/client.js';
   import { toast } from '$lib/stores/toast.store.js';
   import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import {
     CircleAlert, Contact, Copy, RefreshCw, Search, Send, Trash2, Upload,
     X, CheckSquare, Square, SquareMinus,
@@ -12,7 +13,13 @@
     phone: string;
     name: string | null;
     importedAt: string;
+    // Computed fresh by the server on every load — true once this number
+    // belongs to a real registered account. A converted lead isn't
+    // selectable for marketing SMS any more (see canSelect below).
+    isRegistered: boolean;
   }
+
+  const canSelect = (c: ImportedContact) => !c.isRegistered;
 
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
 
@@ -59,17 +66,22 @@
     (c.name ?? '').toLowerCase().includes(normalizedSearch)
   );
 
-  $: selectedVisibleCount = filteredContacts.filter((c) => selectedPhones.has(c.phone)).length;
-  $: allVisibleSelected = filteredContacts.length > 0 && selectedVisibleCount === filteredContacts.length;
+  // "All"/"some" only ever considers selectable (not-yet-registered)
+  // contacts — an already-registered lead has no checkbox at all, so it
+  // must never count against "everything is selected."
+  $: selectableVisible = filteredContacts.filter(canSelect);
+  $: selectedVisibleCount = selectableVisible.filter((c) => selectedPhones.has(c.phone)).length;
+  $: allVisibleSelected = selectableVisible.length > 0 && selectedVisibleCount === selectableVisible.length;
   $: someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
 
   function toggleSelectAllVisible() {
-    if (allVisibleSelected) filteredContacts.forEach((c) => selectedPhones.delete(c.phone));
-    else filteredContacts.forEach((c) => selectedPhones.add(c.phone));
+    if (allVisibleSelected) selectableVisible.forEach((c) => selectedPhones.delete(c.phone));
+    else selectableVisible.forEach((c) => selectedPhones.add(c.phone));
     selectedPhones = new Set(selectedPhones);
   }
-  function toggleSelect(phone: string) {
-    selectedPhones.has(phone) ? selectedPhones.delete(phone) : selectedPhones.add(phone);
+  function toggleSelect(contact: ImportedContact) {
+    if (!canSelect(contact)) return;
+    selectedPhones.has(contact.phone) ? selectedPhones.delete(contact.phone) : selectedPhones.add(contact.phone);
     selectedPhones = new Set(selectedPhones);
   }
   function clearSelection() { selectedPhones = new Set(); }
@@ -122,14 +134,21 @@
     if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim()) return;
     sendingSms = true;
     try {
-      const result = await api.post<{ requested: number; sentCount: number; failedCount: number }>(
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number }>(
         '/admin/contacts/sms',
         { phones, message: smsMessage.trim() }
       );
+      // excludedRegistered should normally be 0 — the page already hides
+      // the checkbox for a registered contact — but the server re-checks
+      // independently (someone could register between page load and send),
+      // so it's surfaced here rather than silently swallowed.
+      const excludedNote = result.excludedRegistered > 0
+        ? ` (${result.excludedRegistered} skipped — already registered)`
+        : '';
       if (result.failedCount === 0) {
-        toast.success(`Sent to ${result.sentCount} contact${result.sentCount !== 1 ? 's' : ''}.`, 'SMS Sent');
+        toast.success(`Sent to ${result.sentCount} contact${result.sentCount !== 1 ? 's' : ''}.${excludedNote}`, 'SMS Sent');
       } else {
-        toast.error(`${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.`, 'SMS Partially Sent');
+        toast.error(`${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.${excludedNote}`, 'SMS Partially Sent');
       }
       clearSelection();
       closeCompose();
@@ -302,23 +321,30 @@
               </th>
               <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
               <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
+              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Status</th>
               <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Imported</th>
               <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             {#if filteredContacts.length === 0}
-              <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-muted">No contacts match this search.</td></tr>
+              <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">No contacts match this search.</td></tr>
             {:else}
               {#each filteredContacts as contact (contact.phone)}
                 {@const isSelected = selectedPhones.has(contact.phone)}
-                <tr class="transition-colors duration-100 {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
+                <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
                   <td class="px-4 py-3">
-                    <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
-                      class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                      on:click={() => toggleSelect(contact.phone)}>
-                      {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
-                    </button>
+                    {#if canSelect(contact)}
+                      <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
+                        class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
+                        on:click={() => toggleSelect(contact)}>
+                        {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
+                      </button>
+                    {:else}
+                      <span class="flex items-center justify-center text-faint" title="Already a registered account — not selectable for marketing SMS">
+                        <Square size={16} class="opacity-25" />
+                      </span>
+                    {/if}
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
@@ -335,6 +361,9 @@
                   </td>
                   <td class="px-4 py-3">
                     <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <StatusBadge status={contact.isRegistered ? 'registered' : 'lead'} />
                   </td>
                   <td class="px-4 py-3 text-xs text-muted">
                     <p class="font-medium text-ink">{toEthiopianDate(contact.importedAt)}</p>

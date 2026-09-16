@@ -40,6 +40,11 @@ export const colors = {
 // ── Status → Color Mapping ───────────────────────────────
 export const statusColors = {
   active: { fg: colors.success, bg: colors.successBg },
+  // Imported Contacts: a lead who has since become a real registered
+  // account (green — converted, matches "active"'s tone deliberately) vs.
+  // one who hasn't yet (neutral, same as "draft").
+  registered: { fg: colors.success, bg: colors.successBg },
+  lead: { fg: colors.textSecondary, bg: colors.border },
   suspended: { fg: colors.danger, bg: colors.dangerBg },
   banned: { fg: colors.danger, bg: colors.dangerBg },
   draft: { fg: colors.textSecondary, bg: colors.border },
