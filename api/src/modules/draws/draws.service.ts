@@ -416,13 +416,16 @@ export async function resendDrawTrigger(raffleId: string, tier: number, adminId:
     VALUES (${adminId ? 'admin' : 'system'}, ${adminId}, 'draw.trigger_resent', 'raffle', ${raffleId},
       ${sql.json({ triggerId: trigger.id, tier, delivery })})
   `;
-  if (delivery === 'failed') throw new AppError(502, 'SMS delivery failed. Try resending again.');
+  // Unlike sendDrawTrigger's original send, a failed delivery here doesn't
+  // throw — the whole point of resend is "the SMS still might not arrive,"
+  // so the admin needs the link back regardless of what the gateway
+  // reported, to share it through some other channel themselves.
   return {
     triggerId: trigger.id,
     tier,
     expiresAt,
     delivery,
-    link: env.DEMO_OTP_ENABLED ? link : undefined,
+    link,
   };
 }
 

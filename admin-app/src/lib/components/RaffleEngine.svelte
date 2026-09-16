@@ -163,6 +163,12 @@
     );
   }
 
+  // Every resend mints a fresh link for the SAME already-selected
+  // participant (see resendDrawTrigger) and is always shown here — not
+  // just on demo/failure — so if the SMS still doesn't land, the admin has
+  // the actual working link to share through some other channel.
+  let resentTriggerLinks: Record<number, string> = {};
+
   // Re-sends a pending tier's invitation to the SAME already-selected
   // participant — for when the SMS gateway reported success but they say
   // it never arrived. Distinct from reassign, which picks someone else.
@@ -170,15 +176,17 @@
     if (!engine || resendingTier !== null) return;
     resendingTier = tier;
     try {
-      const response = await api.post<{ trigger: { delivery: 'sent' | 'demo' | 'failed'; link?: string } }>(
+      const response = await api.post<{ trigger: { delivery: 'sent' | 'demo' | 'failed'; link: string } }>(
         `/admin/raffles/${raffleId}/draw-trigger/resend`,
         { tier }
       );
+      resentTriggerLinks = { ...resentTriggerLinks, [tier]: response.trigger.link };
       if (response.trigger.delivery === 'sent') {
         toast.success(`${ordinal(tier)} prize invitation resent by SMS.`, 'Invitation Resent');
-      } else if (response.trigger.link) {
-        toast.info(`${ordinal(tier)} prize invitation resent — demo mode, copy the link to test.`, 'Link Ready');
-        await copyToClipboard(response.trigger.link, `${ordinal(tier)} prize invitation link`);
+      } else if (response.trigger.delivery === 'demo') {
+        toast.info(`${ordinal(tier)} prize invitation resent — demo mode, copy the link below to test.`, 'Link Ready');
+      } else {
+        toast.error(`SMS delivery failed again — copy the link below and share it directly.`, 'Delivery Failed');
       }
       await load();
     } catch (cause) {
@@ -619,6 +627,24 @@
                       </div>
                     {/if}
                   </div>
+                  <!-- Shown after Resend is used — the freshly minted link,
+                       always, not just on demo/failure, since the whole
+                       point is giving the admin a manual-share fallback the
+                       moment they suspect the SMS itself is unreliable. -->
+                  {#if resentTriggerLinks[prize.tier]}
+                    <div class="mt-2 flex items-center gap-2 rounded-button border border-primary/30 bg-primary-bg/70 p-2 pl-3">
+                      <p class="min-w-0 flex-1 truncate font-mono text-[11px] font-bold text-primary-dark">
+                        {resentTriggerLinks[prize.tier]}
+                      </p>
+                      <button
+                        type="button"
+                        on:click={() => copyToClipboard(resentTriggerLinks[prize.tier], 'Invitation link')}
+                        class="admin-press flex h-7 shrink-0 items-center gap-1.5 rounded-button bg-primary px-2.5 text-[11px] font-bold text-white shadow-xs"
+                      >
+                        <Clipboard size={11} /> Copy
+                      </button>
+                    </div>
+                  {/if}
                 {:else if trigger?.status === 'expired'}
                   <p class="mt-3 rounded-button border border-danger/25 bg-danger-bg/60 p-2.5 text-[11px] leading-4 text-muted">
                     That link expired unclicked — the system is automatically picking a different participant.
