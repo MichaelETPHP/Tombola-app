@@ -61,12 +61,52 @@ export async function listContacts(): Promise<Contact[]> {
   return [...contacts].sort((a, b) => b.importedAt.localeCompare(a.importedAt));
 }
 
-/** Loosely matches a CSV header cell to what it's meant to hold. */
-function isPhoneHeader(header: string): boolean {
-  return /phone|mobile|number|tel/i.test(header);
+/**
+ * Matches a CSV header cell to what it's meant to hold. Word-boundary
+ * matching, not a bare substring test, specifically because a real Google
+ * Contacts export has a "Phonetic First Name" column — a naive /phone/i
+ * test matches that too (it's the same 5 letters), silently pulling
+ * transliterated names in as "phone numbers." Google also exports up to 5
+ * numbers per contact as separate "Phone 1 - Value" .. "Phone 5 - Value"
+ * columns (each paired with its own "Phone N - Label" column, which must
+ * NOT be treated as a phone source either) — every matching column is
+ * used, not just the first, so a contact's 2nd/3rd number isn't dropped.
+ */
+function isPhoneValueHeader(header: string): boolean {
+  const h = header.trim();
+  if (/\b(label|type)\b/i.test(h)) return false;
+  return /\b(phone|mobile|tel|telephone|number)\b/i.test(h);
 }
 function isNameHeader(header: string): boolean {
-  return /name/i.test(header);
+  return /\bname\b/i.test(header) && !/\b(organization|company|file\s*as|phonetic|nickname)\b/i.test(header);
+}
+
+/**
+ * A CSV sourced from elsewhere can have genuinely messy rows — Google
+ * Contacts exports in particular sometimes have a phone number typed into
+ * the name field itself (comma-split across First/Middle/Last Name by
+ * whatever created the original entry). A "name" that's actually just
+ * digits/phone punctuation is worse than no name at all, so it's dropped
+ * rather than stored as a nonsense label.
+ */
+function looksLikeRealName(value: string): boolean {
+  return !/^[\s\d+().-]*$/.test(value);
+}
+
+/** Prefers Google's separate First/Last Name columns (combined); falls
+ *  back to a single generic name-ish column for a simpler CSV. */
+function extractName(row: string[], firstNameIndex: number, lastNameIndex: number, genericNameIndex: number): string | null {
+  if (firstNameIndex >= 0 || lastNameIndex >= 0) {
+    const first = firstNameIndex >= 0 ? (row[firstNameIndex] ?? '').trim() : '';
+    const last = lastNameIndex >= 0 ? (row[lastNameIndex] ?? '').trim() : '';
+    const combined = [first, last].filter(Boolean).join(' ').trim();
+    if (combined && looksLikeRealName(combined)) return combined;
+  }
+  if (genericNameIndex >= 0) {
+    const value = (row[genericNameIndex] ?? '').trim();
+    if (value && looksLikeRealName(value)) return value;
+  }
+  return null;
 }
 
 export interface ImportResult {
@@ -87,16 +127,19 @@ export async function importContactsFromCsv(csvText: string): Promise<ImportResu
   if (rows.length === 0) throw new AppError(400, 'The CSV file is empty.');
 
   const [header, ...dataRows] = rows;
-  let phoneIndex = header.findIndex(isPhoneHeader);
-  let nameIndex = header.findIndex(isNameHeader);
-  let bodyRows = dataRows;
+  let phoneIndexes = header.reduce<number[]>((acc, h, i) => {
+    if (isPhoneValueHeader(h)) acc.push(i);
+    return acc;
+  }, []);
+  const firstNameIndex = header.findIndex((h) => h.trim().toLowerCase() === 'first name');
+  const lastNameIndex = header.findIndex((h) => h.trim().toLowerCase() === 'last name');
+  const genericNameIndex = header.findIndex(isNameHeader);
 
-  if (phoneIndex === -1) {
+  if (phoneIndexes.length === 0) {
     if (header.length === 1) {
       // A bare list of numbers, one per line, whatever the single header
       // cell says (or doesn't say) — still usable.
-      phoneIndex = 0;
-      bodyRows = dataRows;
+      phoneIndexes = [0];
     } else {
       throw new AppError(400, 'The CSV must have a column named Phone (or Mobile/Number).');
     }
@@ -112,22 +155,28 @@ export async function importContactsFromCsv(csvText: string): Promise<ImportResu
     let skippedInvalid = 0;
     const next = [...existing];
 
-    for (const row of bodyRows) {
-      const rawPhone = (row[phoneIndex] ?? '').trim();
-      if (!rawPhone) continue;
-      const phone = toE164(rawPhone);
-      // isValidE164 requires a literal +251 prefix (see sms.ts) — a
-      // contact list sourced from elsewhere can easily contain a foreign
-      // number, and this gateway only ever reaches Ethiopian phones, so
-      // any other country's number is rejected here as "invalid" right
-      // alongside genuinely malformed ones. Deliberate, not a limitation
-      // to fix — see the admin page's own note to this effect.
-      if (!isValidE164(phone)) { skippedInvalid += 1; continue; }
-      if (seen.has(phone)) { skippedDuplicates += 1; continue; }
-      seen.add(phone);
-      const name = nameIndex >= 0 ? (row[nameIndex] ?? '').trim() || null : null;
-      next.push({ phone, name, importedAt });
-      imported += 1;
+    for (const row of dataRows) {
+      const name = extractName(row, firstNameIndex, lastNameIndex, genericNameIndex);
+      // A contact can have more than one number (Google exports up to 5
+      // per person as separate columns) — every one of them is a distinct,
+      // independently valid SMS recipient, so all are imported under the
+      // same name rather than keeping only the first.
+      for (const phoneIndex of phoneIndexes) {
+        const rawPhone = (row[phoneIndex] ?? '').trim();
+        if (!rawPhone) continue;
+        const phone = toE164(rawPhone);
+        // isValidE164 requires a literal +251 prefix (see sms.ts) — a
+        // contact list sourced from elsewhere can easily contain a foreign
+        // number, and this gateway only ever reaches Ethiopian phones, so
+        // any other country's number is rejected here as "invalid" right
+        // alongside genuinely malformed ones. Deliberate, not a limitation
+        // to fix — see the admin page's own note to this effect.
+        if (!isValidE164(phone)) { skippedInvalid += 1; continue; }
+        if (seen.has(phone)) { skippedDuplicates += 1; continue; }
+        seen.add(phone);
+        next.push({ phone, name, importedAt });
+        imported += 1;
+      }
     }
 
     await writeContactsAtomic(next);
