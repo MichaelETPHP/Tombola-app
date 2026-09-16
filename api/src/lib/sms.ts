@@ -290,6 +290,17 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
 
 const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
 
+// The gateway relays through a real Android phone's own SIM (see
+// SMS_SENDER_LABEL above), so recipients always see a plain phone number,
+// never a branded sender name — there's no code-level way around that (a
+// real Alphanumeric Sender ID needs a different, telecom-registered
+// provider entirely). This is the practical, zero-cost stand-in: ask the
+// recipient to save the number themselves, on messages where trust matters
+// most — first contact, and anything asking them to tap a link — not on
+// routine/high-frequency sends like ticket confirmations, where the
+// context (they just finished checkout in-app) already establishes trust.
+const SAVE_NUMBER_LINE = 'Save this number as YeneEta · ይህን ቁጥር YeneEta ብለው ያስቀምጡ';
+
 /**
  * Sent once, the moment a brand-new account is created via Telegram
  * (contact-share completing the webhook link, or the OIDC flow) — never
@@ -305,6 +316,7 @@ export async function sendWelcomeSms(phone: string): Promise<SmsGatewayResponse>
     `🎉 Welcome to YeneEta!`,
     `Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.`,
     `እንኳን ደህና መጡ · Welcome aboard!`,
+    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'welcome' });
 }
@@ -349,6 +361,7 @@ export async function sendDrawWinnerAnnouncement(
     `Our team will reach out soon about claiming your prize.`,
     `Good luck! · መልካም እድል!`,
     YENEETA_BOT_LINK,
+    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_winner' });
 }
@@ -368,11 +381,12 @@ export async function sendRepresentativeInvitation(
     timeStyle: 'short',
     timeZone: 'Africa/Addis_Ababa',
   });
-  return sendSms({
-    to: phone,
-    event: 'representative_invitation',
-    message: `YeneEta: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link} — Expires ${format.format(details.expiresAt)}.`,
-  });
+  const message = [
+    `YeneEta: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link}`,
+    `Expires ${format.format(details.expiresAt)}.`,
+    SAVE_NUMBER_LINE,
+  ].join('\n');
+  return sendSms({ to: phone, event: 'representative_invitation', message });
 }
 
 /** Send one prize tier's single-use draw invitation with its context. */
@@ -397,6 +411,7 @@ export async function sendDrawInvitation(
     `Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw.`,
     `Link expires ${format.format(details.expiresAt)}.`,
     `Good luck! · መልካም እድል!`,
+    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_invitation' });
 }
