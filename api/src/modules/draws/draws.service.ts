@@ -5,7 +5,7 @@ import { findRaffleById } from '../../db/queries/raffles.queries.js';
 import { findUserById } from '../../db/queries/users.queries.js';
 import { countUserTicketsInRaffle } from '../../db/queries/tickets.queries.js';
 import { commitServerSeed, computeWinner, generateServerSeed, sha256 } from '../../lib/provably-fair.js';
-import { sendDrawInvitation, sendRepresentativeInvitation } from '../../lib/sms.js';
+import { sendDrawInvitation, sendRepresentativeInvitation, sendDrawWinnerAnnouncement } from '../../lib/sms.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -608,6 +608,35 @@ export async function approveRepresentative(token: string) {
   return { status: 'approved' as const, tier: result.tier };
 }
 
+/**
+ * Best-effort winner SMS, fired right after a spin resolves — never
+ * awaited by executeDraw and never allowed to throw out of this function,
+ * so a dropped/failed send can't roll back or delay an already-recorded,
+ * provably-fair draw result. Same fire-and-forget shape as
+ * payments.service.ts::notifyTicketPurchase.
+ */
+function notifyDrawWinner(result: {
+  raffleName: string; tier: number; prizeName: string; winnerTicketCode: string; winnerUserId: string;
+}): void {
+  void (async () => {
+    try {
+      const winner = await findUserById(result.winnerUserId);
+      if (!winner) return;
+      const sent = await sendDrawWinnerAnnouncement(winner.phoneNumber, {
+        raffleName: result.raffleName,
+        prizeLabel: `${ordinal(result.tier)} Prize`,
+        prizeName: result.prizeName,
+        ticketCode: result.winnerTicketCode,
+      });
+      if (!sent.success) {
+        logger.error(`Winner announcement SMS failed for raffle ${result.raffleName} tier ${result.tier}: ${sent.error}`);
+      }
+    } catch (error) {
+      logger.error(`Winner announcement SMS exception for raffle ${result.raffleName} tier ${result.tier}`, error);
+    }
+  })();
+}
+
 export async function executeDraw(token: string, spinNonce: string, clickedIp: string | null = null) {
   // clicked_ip is a Postgres INET column — clientIp()'s 'unknown' fallback
   // (no x-forwarded-for/x-real-ip, e.g. a direct local-dev connection with
@@ -765,6 +794,7 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
       prizeName: prize.name,
       winnerTicketNumber: winningTicket.ticketNumber,
       winnerTicketCode,
+      winnerUserId: winningTicket.userId,
       totalTickets,
       // Withheld until every tier has been drawn — see comment above.
       serverSeed: allTiersDrawn ? serverSeed : null,
@@ -778,7 +808,9 @@ export async function executeDraw(token: string, spinNonce: string, clickedIp: s
     };
   });
   logger.info(`Draw completed for raffle ${result.raffleId} tier ${result.tier}: ${result.winnerTicketCode}`);
-  return result;
+  notifyDrawWinner(result);
+  const { winnerUserId: _winnerUserId, ...publicResult } = result;
+  return publicResult;
 }
 
 export async function getRaffleEngine(raffleId: string) {

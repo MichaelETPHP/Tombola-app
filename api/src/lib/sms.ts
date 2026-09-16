@@ -334,6 +334,26 @@ export async function sendTicketPurchaseConfirmation(
 }
 
 /**
+ * Sent the moment a spin actually resolves a winner (see
+ * draws.service.ts::executeDraw) — fire-and-forget, exactly like the
+ * ticket-purchase confirmation above, since a dropped SMS here must never
+ * fail or roll back an already-recorded, provably-fair draw result.
+ */
+export async function sendDrawWinnerAnnouncement(
+  phone: string,
+  details: { raffleName: string; prizeLabel: string; prizeName: string; ticketCode: string }
+): Promise<SmsGatewayResponse> {
+  const message = [
+    `🎉🏆 Congratulations! You are the winner!`,
+    `Ticket ${details.ticketCode} won the ${details.prizeLabel} (${details.prizeName}) in "${details.raffleName}"!`,
+    `Our team will reach out soon about claiming your prize.`,
+    `Good luck! · መልካም እድል!`,
+    YENEETA_BOT_LINK,
+  ].join('\n');
+  return sendSms({ to: phone, message, event: 'draw_winner' });
+}
+
+/**
  * Send one prize tier's single-use representative-approval link. Distinct
  * from sendDrawInvitation: the recipient here is an admin-picked witness who
  * only needs to tap Approve, not run the actual spin — the copy reflects
