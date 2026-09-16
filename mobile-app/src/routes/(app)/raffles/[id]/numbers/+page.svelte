@@ -15,7 +15,7 @@
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
-  import TicketNumberWheel from '$lib/components/TicketNumberWheel.svelte';
+  import TicketNumberGrid from '$lib/components/TicketNumberGrid.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { ArrowLeft, ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Search, Ticket, X } from 'lucide-svelte';
 
@@ -37,7 +37,6 @@
   let raffle: Raffle | null = null;
   let availability: Availability | null = null;
   let selected: number[] = [];
-  let wheelSlots: (number | null)[] = [null, null, null, null];
   let start = 1;
   let search = '';
   let error = '';
@@ -54,19 +53,14 @@
   let conflicts: number[] = [];
   let resumePaymentId: string | null = null;
   let requestVersion = 0;
-  let focusWheel = 0;
   let focusNumber: number | null = null;
   let focusNonce = 0;
-  let wheelsSectionEl: HTMLElement;
-  // Picking a search result already scrolls the *wheel itself* to center
-  // the number (see focusNumber/focusNonce below) — but the wheels live
-  // further down the page than the search box, so without this the wheel
-  // was doing that entirely off-screen and nothing visibly happened. This
-  // brings the wheels into view in the same motion, so the red centered
-  // number is actually what the user sees land.
-  $: if (focusNonce > 0 && wheelsSectionEl) {
-    wheelsSectionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
+  // Unlike the old per-wheel scroller (which set scrollTop directly and
+  // needed a separate explicit scroll to bring the whole wheel section into
+  // view), TicketNumberGrid centers a focused cell via the standard
+  // Element.scrollIntoView, which already walks up and scrolls every
+  // scrollable ancestor — including this page's own scroll container — in
+  // one motion. No second, separate scroll call needed here.
   let searchFocused = false;
   let searching = false;
   let searchFeedback = '';
@@ -109,19 +103,10 @@
   }
   $: allowance = availability?.allowance ?? 0;
   $: total = selected.length * Number(raffle?.ticketPrice ?? 0);
-  $: wheelCount = Math.max(0, Math.min(4, raffle?.maxTicketsPerUser ?? 4, availability?.allowance ?? raffle?.maxTicketsPerUser ?? 4));
 
   function goBack() {
     hapticLight();
     navigateBack();
-  }
-
-  function commitSlots(next: (number | null)[]) {
-    wheelSlots = next;
-    selected = next.filter((number): number is number => number !== null);
-    requestKey = '';
-    conflicts = conflicts.filter((number) => selected.includes(number));
-    saveDraft();
   }
 
   function saveDraft() {
@@ -149,12 +134,12 @@
     }
   }
 
-  // Explicit tap on the "Your ticket wheels" refresh button — shows the
-  // skeleton (unlike the silent background refresh below) so the tap
-  // clearly did something. Never runs once tickets are picked: reloading
-  // `availability` mid-choice can re-render every wheel with a new `rows`
-  // array reference, which is exactly the kind of surprise reflow/scroll
-  // jump that shouldn't happen while someone is mid-decision.
+  // Explicit tap on the number-grid refresh button — shows the skeleton
+  // (unlike the silent background refresh below) so the tap clearly did
+  // something. Never runs once tickets are picked: reloading `availability`
+  // mid-choice re-renders the grid with a new `rows` array reference, which
+  // is exactly the kind of surprise reflow/scroll jump that shouldn't
+  // happen while someone is mid-decision.
   async function manualRefresh() {
     if (selected.length) return;
     manualRefreshing = true;
@@ -173,7 +158,6 @@
     const draft = getPendingPurchase();
     if (draft && draft.raffleId === $page.params.id && Array.isArray(draft.selectedNumbers)) {
       selected = [...new Set(draft.selectedNumbers.filter((n) => Number.isInteger(n) && n > 0))].slice(0, 4);
-      wheelSlots = [...selected, ...Array(4 - selected.length).fill(null)];
       requestKey = draft.idempotencyKey ?? '';
     }
     api.get<{ raffle: Raffle }>(`/raffles/${$page.params.id}`, { skipAuth: true })
@@ -183,12 +167,13 @@
     // No pullRefresh.set() here, deliberately: this page is a fixed
     // full-screen overlay (see .number-picker below) with its own internal
     // scroller, so the *document* is always sitting at scrollTop 0 no
-    // matter where the wheels/content are scrolled to. PullToRefresh's
+    // matter where the picker/grid content is scrolled to. PullToRefresh's
     // "are we at the top" check reads exactly that document scrollTop, so
     // it can never tell "user is at the top of the picker" apart from
-    // "user is swiping a wheel mid-list" — every downward wheel swipe was
-    // being read as a pull-to-refresh gesture. The manual refresh button
-    // next to "Your ticket wheels" below covers the same need safely.
+    // "user is swiping inside the number grid" — every downward swipe
+    // inside the grid was being read as a pull-to-refresh gesture. The
+    // manual refresh button next to the number grid below covers the same
+    // need safely.
     // Never runs while a selection is in progress — same reasoning as
     // manualRefresh() above, just for the automatic/background triggers.
     const foreground = () => { if (!document.hidden && !purchasing && !selected.length) refresh(); };
@@ -200,11 +185,6 @@
   function toggle(n: number) {
     if (purchasing) return;
     let selecting: boolean;
-<<<<<<< HEAD
-    const existingSlot = wheelSlots.indexOf(n);
-    if (existingSlot >= 0) {
-      const next = [...wheelSlots]; next[existingSlot] = null; commitSlots(next); selecting = false;
-=======
     if (selected.includes(n)) {
       selected = selected.filter((number) => number !== n);
       selecting = false;
@@ -218,33 +198,14 @@
       notice = $_('numbers.allFilled', { values: { allowance } });
       noticeIsWarning = true;
       return;
->>>>>>> a12a5e0 (Polish the ticket number grid: iOS-picker fades, scroll ticks, red sold state, urgent limit warning)
     }
-    else if (selected.length < allowance) {
-      const slot = wheelSlots.findIndex((number) => number === null);
-      if (slot < 0) return;
-      const next = [...wheelSlots]; next[slot] = n; commitSlots(next); selecting = true;
-    }
-    else { notice = $_('numbers.allowanceNotice', { values: { allowance } }); return; }
+    requestKey = '';
+    conflicts = conflicts.filter((number) => selected.includes(number));
+    saveDraft();
     notice = '';
     noticeIsWarning = false;
     hapticLight();
     playSelectionSound(selecting);
-  }
-
-  function setWheelSelection(event: CustomEvent<{ slot: number; number: number | null }>) {
-    const { slot, number } = event.detail;
-    if (slot >= allowance && wheelSlots[slot] === null) {
-      notice = $_('numbers.allowanceNotice', { values: { allowance } });
-      return;
-    }
-    if (number !== null && wheelSlots.some((value, index) => value === number && index !== slot)) return;
-    const next = [...wheelSlots];
-    next[slot] = number;
-    commitSlots(next);
-    notice = '';
-    // The wheel already emits a restrained detent while moving; avoid
-    // layering the louder tap-selection chirp over that native feedback.
   }
 
   function selectFoundNumber(n: number) {
@@ -259,16 +220,6 @@
       return;
     }
     searchFeedback = '';
-<<<<<<< HEAD
-    const existingSlot = wheelSlots.indexOf(n);
-    const slot = existingSlot >= 0 ? existingSlot : wheelSlots.findIndex((number) => number === null);
-    if (slot < 0 || (slot >= allowance && existingSlot < 0)) {
-      notice = $_('numbers.allFilled', { values: { allowance } });
-      return;
-    }
-    if (existingSlot < 0) {
-      const next = [...wheelSlots]; next[slot] = n; commitSlots(next);
-=======
     if (!selected.includes(n)) {
       if (selected.length >= allowance) {
         notice = $_('numbers.allFilled', { values: { allowance } });
@@ -279,19 +230,13 @@
       requestKey = '';
       conflicts = conflicts.filter((number) => selected.includes(number));
       saveDraft();
->>>>>>> a12a5e0 (Polish the ticket number grid: iOS-picker fades, scroll ticks, red sold state, urgent limit warning)
       playSelectionSound(true);
       void hapticLight();
     }
-    focusWheel = slot;
     focusNumber = n;
     focusNonce += 1;
-<<<<<<< HEAD
-    notice = $_('numbers.selectedInChoice', { values: { number: numberLabel(n), slot: slot + 1 } });
-=======
     noticeIsWarning = false;
     notice = $_('numbers.selectedInChoice', { values: { number: numberLabel(n), slot: selected.indexOf(n) + 1 } });
->>>>>>> a12a5e0 (Polish the ticket number grid: iOS-picker fades, scroll ticks, red sold state, urgent limit warning)
   }
 
   async function findNumber() {
@@ -336,7 +281,6 @@
     releasing = true;
     await cancelPaymentAndReturnHome(resumePaymentId);
     selected = [];
-    wheelSlots = [null, null, null, null];
     requestKey = '';
     conflicts = [];
     await refresh();
@@ -446,28 +390,20 @@
   {/if}
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<div class="picker-message allowance-limit" role="alert"><CircleAlert size={18} /><div><p class="allowance-limit-text">{$_('numbers.allowanceReached')}</p><a href="/tickets" class="allowance-limit-cta"><Ticket size={14} />{$_('numbers.viewMyTickets')}<ArrowRight size={14} /></a></div></div>{/if}
 
-  <section class="numbers-section" bind:this={wheelsSectionEl} aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
+  <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
     <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
     {#if loading || manualRefreshing}
-      <div class="wheel-grid wheels-{wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} loading-wheels" class:single-wheel={(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) === 1} style:--wheel-count={wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} aria-label={$_('numbers.loadingWheelsAria')}>{#each Array(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) as _}<div><span></span><div></div></div>{/each}</div>
+      <div class="grid-skeleton" aria-label={$_('numbers.loadingWheelsAria')}></div>
     {:else if availability}
-      <div class="wheel-grid wheels-{wheelCount}" class:single-wheel={wheelCount === 1} style:--wheel-count={wheelCount}>
-        {#each Array(wheelCount) as _, slot}
-          <div>
-            <TicketNumberWheel
-              {slot}
-              rows={availability.numbers}
-              value={wheelSlots[slot]}
-              selectedNumbers={selected}
-              disabled={purchasing || refreshing || !availability.salesOpen}
-              focusNumber={focusWheel === slot ? focusNumber : null}
-              {focusNonce}
-              on:change={setWheelSelection}
-            />
-          </div>
-        {/each}
-      </div>
+      <TicketNumberGrid
+        rows={availability.numbers}
+        selectedNumbers={selected}
+        disabled={purchasing || refreshing || !availability.salesOpen}
+        {focusNumber}
+        {focusNonce}
+        onToggle={toggle}
+      />
       <p class="grid-note">{$_('numbers.gridNote')}</p>
     {/if}
   </section>
@@ -519,24 +455,8 @@
   .suggestion-tag.yours { color: #08765a; background: #d4f4e6; }
   .resume-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .resume-actions button:last-child { color: #85434a; }
-  .wheel-grid { display: grid; grid-template-columns: repeat(var(--wheel-count), minmax(0, 1fr)); gap: 7px; width: 100%; margin: 12px auto 0; }
-  /* A single choice still uses the same wheel interaction, but it needs the
-     width and row rhythm of a real ticket-number table. The old 96px rail
-     made a one-ticket raffle look like a cramped column and hid the fact
-     that each row was tappable. */
-  .wheel-grid.single-wheel { max-width: 236px; }
-  :global(.wheel-grid.single-wheel .wheel-shell) { background: #fff; box-shadow: 0 16px 34px -24px rgba(25,60,51,.65); }
-  :global(.wheel-grid.single-wheel .wheel-scroll > button) { justify-content: space-between; padding-inline: 20px; border-bottom: 1px solid rgba(72,91,82,.1); }
-  :global(.wheel-grid.single-wheel .wheel-scroll > button:last-child) { border-bottom: 0; }
-  :global(.wheel-grid.single-wheel .wheel-scroll > button[aria-selected='true']) { padding-inline: 18px; color: #b3122b; letter-spacing: .025em; }
-  :global(.wheel-grid.single-wheel .selection-band) { left: 8px; right: 8px; background: #f0f5f2; }
-  :global(.wheel-grid.single-wheel .filled .selection-band) { background: #d5f1e5; }
-  :global(.wheel-grid.single-wheel .wheel-hint) { color: #08765a; }
-  .wheel-grid.wheels-2 { max-width: 199px; }
-  .wheel-grid.wheels-3 { max-width: 302px; }
-  .loading-wheels > div > span { display: block; width: 18px; height: 18px; margin: 5px 3px; border-radius: 50%; background: #e7eee9; }
-  .loading-wheels > div > div { height: 210px; border-radius: 14px; background: linear-gradient(100deg, #e8efeb 20%, #f6f9f7 45%, #e8efeb 70%); background-size: 220% 100%; animation: wheel-loading 1.15s linear infinite; }
-  @keyframes wheel-loading { to { background-position: -220% 0; } }
+  .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #e8efeb 20%, #f6f9f7 45%, #e8efeb 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
+  @keyframes grid-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
   .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 12px 16px max(12px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); }
   .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
@@ -573,6 +493,6 @@
   }
   .allowance-limit-cta:active { transform: scale(0.96); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .continue-button.is-purchasing:disabled { background: #193c33; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
-  @media (max-width: 359px) { .wheel-grid { column-gap: 4px; } .wheel-grid.single-wheel { max-width: 220px; } .selection-footer { padding-inline: 16px; } }
-  @media (prefers-reduced-motion: reduce) { .loading-wheels > div > div { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
+  @media (max-width: 359px) { .selection-footer { padding-inline: 16px; } }
+  @media (prefers-reduced-motion: reduce) { .grid-skeleton { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>
