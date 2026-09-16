@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { Bug, ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
+  import { Bug, ChartNoAxesCombined, ChevronDown, Contact, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -18,6 +18,7 @@
   $: initials = ($auth.admin?.fullName ?? $auth.admin?.phone ?? 'YA').split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('');
   $: links = [
     { href: '/users', label: 'Registered users', icon: Users },
+    { href: '/contacts', label: 'Imported contacts', icon: Contact },
     { href: '/payouts', label: 'Payouts', icon: PackageCheck },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
     ...($auth.admin?.role === 'owner' ? [

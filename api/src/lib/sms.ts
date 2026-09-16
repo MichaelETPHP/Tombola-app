@@ -40,7 +40,7 @@ export interface BulkSmsResponse {
  * pass Ethiopian local format (0916182957), so normalize that one specific,
  * known shape here rather than pushing this concern onto every caller.
  */
-function toE164(phone: string): string {
+export function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (phone.trim().startsWith('+')) return `+${digits}`;
   if (digits.startsWith('0') && digits.length === 10) return `+251${digits.slice(1)}`;
@@ -156,7 +156,7 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
 }
 
 /** A phone that survives `toE164` normalization still matching Ethiopian E.164 shape. */
-function isValidE164(phone: string): boolean {
+export function isValidE164(phone: string): boolean {
   return /^\+251[0-9]{9}$/.test(phone);
 }
 
