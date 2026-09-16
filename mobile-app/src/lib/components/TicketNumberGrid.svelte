@@ -41,11 +41,34 @@
     onToggle(row.number);
   }
 
+  // A "radio-tuner" detent on every ~40px scrolled, mirroring the old
+  // wheel's per-row tick — but suppressed while a programmatic scroll
+  // (search-driven scrollToFocused below) is in flight, so jumping to a
+  // found number doesn't itself sound like a manual scroll.
+  const TICK_DISTANCE = 40;
+  let lastTickScrollTop = 0;
+  let suppressTicksUntil = 0;
+
+  function handleScroll() {
+    if (!container) return;
+    if (performance.now() < suppressTicksUntil) {
+      lastTickScrollTop = container.scrollTop;
+      return;
+    }
+    if (Math.abs(container.scrollTop - lastTickScrollTop) >= TICK_DISTANCE) {
+      lastTickScrollTop = container.scrollTop;
+      playWheelTick();
+      void hapticLight();
+    }
+  }
+
   async function scrollToFocused() {
     await tick();
     if (!container || focusNumber === null) return;
     const el = container.querySelector<HTMLElement>(`[data-number="${focusNumber}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el) return;
+    suppressTicksUntil = performance.now() + 700;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   $: if (focusNonce > 0 && focusNonce !== appliedFocusNonce) {
@@ -58,7 +81,16 @@
   {#if flashMessage}
     <span class="grid-flash" role="status" transition:scale={{ duration: 160, start: 0.9, easing: cubicOut }}>{flashMessage}</span>
   {/if}
-  <div bind:this={container} class="grid-scroll" role="listbox" aria-label={$_('numbers.gridSectionAria')} aria-multiselectable="true">
+  <span class="grid-fade top" aria-hidden="true"></span>
+  <span class="grid-fade bottom" aria-hidden="true"></span>
+  <div
+    bind:this={container}
+    class="grid-scroll"
+    role="listbox"
+    aria-label={$_('numbers.gridSectionAria')}
+    aria-multiselectable="true"
+    on:scroll={handleScroll}
+  >
     {#each rows as row (row.number)}
       <button
         type="button"
@@ -67,6 +99,7 @@
         aria-selected={isSelected(row.number)}
         aria-disabled={!isPickable(row)}
         class:unavailable={!isPickable(row)}
+        class:sold={row.state === 'sold' && !isSelected(row.number)}
         class:held-elsewhere={row.state === 'held' && !isSelected(row.number)}
         class:yours={(row.state === 'owned' || row.state === 'held_by_you') && !isSelected(row.number)}
         class:selected={isSelected(row.number)}
@@ -110,8 +143,17 @@
   .grid-scroll > button:not(:disabled):active { transform: scale(.95); }
   .grid-scroll > button.selected { background: #08765a; border-color: #08765a; color: #fff; }
   .grid-scroll > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #f2f4f3; }
+  /* Sold — gone for good, to someone else — reads as the loudest "no" of
+     the three unavailable states: a red strike, not just a muted one. */
+  .grid-scroll > button.sold { color: #b3122b; opacity: .85; background: #fdecee; border-color: rgba(179,18,43,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
   .grid-scroll > button.held-elsewhere { color: #a84b57; background: #f9e5e6; opacity: 1; text-decoration: none; border-color: rgba(168,75,87,.2); }
   .grid-scroll > button.yours { color: #08765a; background: #d4f4e6; opacity: 1; text-decoration: none; border-color: rgba(8,118,90,.25); }
   .grid-flash { position: absolute; z-index: 6; top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 6px 11px; border-radius: 999px; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 8px 18px -8px rgba(0,0,0,.45); pointer-events: none; }
+  /* iOS-picker-style edge fades — signal "there's more above/below" the
+     same way a UIPickerView's top/bottom mask does, without a hard visual
+     cut where the scrollable area ends. */
+  .grid-fade { position: absolute; z-index: 3; pointer-events: none; left: 1px; right: 1px; height: 28px; }
+  .grid-fade.top { top: 1px; background: linear-gradient(to bottom, rgba(255,255,255,.88) 15%, rgba(255,255,255,0)); border-radius: 14px 14px 0 0; }
+  .grid-fade.bottom { bottom: 1px; background: linear-gradient(to top, rgba(255,255,255,.88) 15%, rgba(255,255,255,0)); border-radius: 0 0 14px 14px; }
   @media (prefers-reduced-motion: reduce) { .grid-scroll > button { transition: none; } .grid-scroll > button:not(:disabled):active { transform: none; } }
 </style>

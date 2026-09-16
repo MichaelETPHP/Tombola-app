@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { scale } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { _ } from 'svelte-i18n';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -39,6 +41,10 @@
   let search = '';
   let error = '';
   let notice = '';
+  // True only for the "you're at your ticket limit" warning — everything
+  // else `notice` shows (a search pick's confirmation, etc.) is routine
+  // status, not a stop-and-look alert.
+  let noticeIsWarning = false;
   let loading = true;
   let refreshing = false;
   let purchasing = false;
@@ -186,13 +192,18 @@
       selected = [...selected, n];
       selecting = true;
     } else {
-      notice = $_('numbers.allowanceNotice', { values: { allowance } });
+      // Same wording/urgency as the search flow's over-limit case below —
+      // one consistent "you're at your max" warning regardless of which
+      // path (tap or search) triggered it.
+      notice = $_('numbers.allFilled', { values: { allowance } });
+      noticeIsWarning = true;
       return;
     }
     requestKey = '';
     conflicts = conflicts.filter((number) => selected.includes(number));
     saveDraft();
     notice = '';
+    noticeIsWarning = false;
     hapticLight();
     playSelectionSound(selecting);
   }
@@ -212,6 +223,7 @@
     if (!selected.includes(n)) {
       if (selected.length >= allowance) {
         notice = $_('numbers.allFilled', { values: { allowance } });
+        noticeIsWarning = true;
         return;
       }
       selected = [...selected, n];
@@ -223,6 +235,7 @@
     }
     focusNumber = n;
     focusNonce += 1;
+    noticeIsWarning = false;
     notice = $_('numbers.selectedInChoice', { values: { number: numberLabel(n), slot: selected.indexOf(n) + 1 } });
   }
 
@@ -370,7 +383,11 @@
   </section>
 
   {#if error}<div class="picker-message error" role="alert"><CircleAlert size={18} /><div>{error}<button on:click={refresh} disabled={refreshing}>{$_('numbers.refreshButton')}</button></div></div>{/if}
-  {#if notice}<p class="picker-notice" role="status">{notice}</p>{/if}
+  {#if notice && noticeIsWarning}
+    <p class="picker-notice notice-warning" role="alert" transition:scale={{ duration: 160, start: 0.95, easing: cubicOut }}><CircleAlert size={14} />{notice}</p>
+  {:else if notice}
+    <p class="picker-notice" role="status">{notice}</p>
+  {/if}
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<div class="picker-message allowance-limit" role="alert"><CircleAlert size={18} /><div><p class="allowance-limit-text">{$_('numbers.allowanceReached')}</p><a href="/tickets" class="allowance-limit-cta"><Ticket size={14} />{$_('numbers.viewMyTickets')}<ArrowRight size={14} /></a></div></div>{/if}
 
   <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
@@ -446,7 +463,11 @@
   .price-per-ticket { margin-top: 1px; font-size: 10px; color: var(--picker-muted); }
   .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 36px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
   .footer-action { display: flex; align-items: center; gap: 14px; } .footer-action > div { min-width: 78px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #193c33; color: white; font-size: 13px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
-  .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
+  .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
+  /* The one notice that means "stop, you can't do that" (ticket-limit
+     reached) gets the same loud red treatment as .allowance-limit below —
+     every other notice here is routine status, not a warning. */
+  .picker-notice.notice-warning { padding: 10px 12px; margin-bottom: 4px; border-radius: 10px; background: #fff0f1; color: #b3122b; font-weight: 700; }
 
   /* Reached-allowance notice — deliberately the loudest state this picker
      can show (bold red, not the neutral green info tint every other
