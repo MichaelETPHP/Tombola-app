@@ -405,9 +405,9 @@
     <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
     {#if loading || manualRefreshing}
-      <div class="wheel-grid wheels-{wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} loading-wheels" style:--wheel-count={wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} aria-label={$_('numbers.loadingWheelsAria')}>{#each Array(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) as _}<div><span></span><div></div></div>{/each}</div>
+      <div class="wheel-grid wheels-{wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} loading-wheels" class:single-wheel={(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) === 1} style:--wheel-count={wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)} aria-label={$_('numbers.loadingWheelsAria')}>{#each Array(wheelCount || Math.min(4, raffle?.maxTicketsPerUser ?? 4)) as _}<div><span></span><div></div></div>{/each}</div>
     {:else if availability}
-      <div class="wheel-grid wheels-{wheelCount}" style:--wheel-count={wheelCount}>
+      <div class="wheel-grid wheels-{wheelCount}" class:single-wheel={wheelCount === 1} style:--wheel-count={wheelCount}>
         {#each Array(wheelCount) as _, slot}
           <div>
             <TicketNumberWheel
@@ -475,7 +475,18 @@
   .resume-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .resume-actions button:last-child { color: #85434a; }
   .wheel-grid { display: grid; grid-template-columns: repeat(var(--wheel-count), minmax(0, 1fr)); gap: 7px; width: 100%; margin: 12px auto 0; }
-  .wheel-grid.wheels-1 { max-width: 96px; }
+  /* A single choice still uses the same wheel interaction, but it needs the
+     width and row rhythm of a real ticket-number table. The old 96px rail
+     made a one-ticket raffle look like a cramped column and hid the fact
+     that each row was tappable. */
+  .wheel-grid.single-wheel { max-width: 236px; }
+  :global(.wheel-grid.single-wheel .wheel-shell) { background: #fff; box-shadow: 0 16px 34px -24px rgba(25,60,51,.65); }
+  :global(.wheel-grid.single-wheel .wheel-scroll > button) { justify-content: space-between; padding-inline: 20px; border-bottom: 1px solid rgba(72,91,82,.1); }
+  :global(.wheel-grid.single-wheel .wheel-scroll > button:last-child) { border-bottom: 0; }
+  :global(.wheel-grid.single-wheel .wheel-scroll > button[aria-selected='true']) { padding-inline: 18px; color: #b3122b; letter-spacing: .025em; }
+  :global(.wheel-grid.single-wheel .selection-band) { left: 8px; right: 8px; background: #f0f5f2; }
+  :global(.wheel-grid.single-wheel .filled .selection-band) { background: #d5f1e5; }
+  :global(.wheel-grid.single-wheel .wheel-hint) { color: #08765a; }
   .wheel-grid.wheels-2 { max-width: 199px; }
   .wheel-grid.wheels-3 { max-width: 302px; }
   .loading-wheels > div > span { display: block; width: 18px; height: 18px; margin: 5px 3px; border-radius: 50%; background: #e7eee9; }
@@ -513,6 +524,6 @@
   }
   .allowance-limit-cta:active { transform: scale(0.96); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .continue-button.is-purchasing:disabled { background: #193c33; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
-  @media (max-width: 359px) { .wheel-grid { column-gap: 4px; } .selection-footer { padding-inline: 16px; } }
+  @media (max-width: 359px) { .wheel-grid { column-gap: 4px; } .wheel-grid.single-wheel { max-width: 220px; } .selection-footer { padding-inline: 16px; } }
   @media (prefers-reduced-motion: reduce) { .loading-wheels > div > div { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>

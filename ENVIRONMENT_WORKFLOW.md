@@ -30,6 +30,12 @@ the project is being established. Store their values separately in each
 deployment's secret/environment settings even when the values are identical.
 This makes it possible to separate them later without changing source code.
 
+The development Coolify resource uses `docker-compose.dev.yml`. Its Coolify
+variables use the `DEV_` prefix and are mapped to the standard names inside the
+containers. The production resource continues to use `docker-compose.yml` and
+the unprefixed production variables. This prevents the two Coolify environments
+from sharing a variable record accidentally.
+
 For local development, copy the tracked templates and fill in private values:
 
 ```powershell
