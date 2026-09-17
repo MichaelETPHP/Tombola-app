@@ -5,7 +5,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import type { Payout } from '$lib/schemas/index.js';
   import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
-  import { CircleAlert, Clock3, PackageCheck, RefreshCw, Trophy, User } from 'lucide-svelte';
+  import { CircleAlert, Clock3, PackageCheck, RefreshCw, Trophy, Truck, User } from 'lucide-svelte';
 
   const formatEtb = (n: number) => Number(n).toLocaleString();
 
@@ -85,7 +85,9 @@
       <h1 class="text-[28px] font-extrabold leading-none tracking-[-0.04em] text-ink md:text-[34px]">Payouts</h1>
       <p class="mt-2 max-w-[580px] text-sm leading-relaxed text-muted">Review winner claims, verify identification, and track physical prize fulfillment.</p>
     </div>
-    <div class="flex items-center divide-x divide-border rounded-button border border-border bg-card px-4 py-2.5">
+    <div class="flex flex-wrap items-center gap-3">
+      <a href="/payouts/delivery-methods" class="admin-press flex h-11 items-center gap-2 rounded-button border border-border bg-card px-4 text-xs font-bold text-ink no-underline"><Truck size={15} /> Delivery methods</a>
+      <div class="flex items-center divide-x divide-border rounded-button border border-border bg-card px-4 py-2.5">
       <div class="flex items-center gap-2 pr-4">
         <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-warning-bg text-warning"><Clock3 size={15} /></span>
         <div><p class="font-mono text-base font-bold leading-none text-ink">{payouts.length}</p><p class="mt-1 text-[9px] text-muted">In queue</p></div>
@@ -93,6 +95,7 @@
       <div class="pl-4">
         <p class="font-mono text-base font-bold leading-none text-ink">{formatEtb(totalNetValue)} ETB</p>
         <p class="mt-1 text-[9px] text-muted">Net value shown</p>
+      </div>
       </div>
     </div>
   </header>

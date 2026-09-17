@@ -2,16 +2,31 @@ import { sql } from '../../db/client.js';
 import {
   findPayoutById,
   findPayoutByIdDetailed,
-  findPayoutsByUserId,
+  findPayoutsByUserIdDetailed,
   submitClaim as dbSubmitClaim,
+  setPayoutIdDocument,
   listPayouts as dbListPayouts,
   type DbPayout,
   type DbPayoutDetailed,
   type PayoutClaimStatus,
 } from '../../db/queries/payouts.queries.js';
+import {
+  findDeliveryMethodById,
+  listActiveDeliveryMethods,
+  listAllDeliveryMethods,
+  createDeliveryMethod,
+  updateDeliveryMethod,
+} from '../../db/queries/payout-delivery-methods.queries.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { canTransitionPayout } from '../../lib/payout-transitions.js';
-import type { SubmitClaimInput, UpdatePayoutStatusInput } from './payouts.schema.js';
+import { processIdDocument } from '../../lib/image.js';
+import { saveUploadedImage, deleteUploadedImage, uploadedImagePathFromPublicUrl, resolveUploadPath } from '../../lib/uploads.js';
+import type {
+  SubmitClaimInput,
+  UpdatePayoutStatusInput,
+  CreateDeliveryMethodInput,
+  UpdateDeliveryMethodInput,
+} from './payouts.schema.js';
 
 /**
  * Shape the API exposes for a payout — keeps `status` stable for clients
@@ -54,14 +69,12 @@ function toApiPayoutDetailed(payout: DbPayoutDetailed) {
 }
 
 /**
- * Submit a prize claim (winner provides delivery info + ID document).
+ * Submit a prize claim (delivery info). The ID document is a separate,
+ * earlier step (uploadClaimIdDocument) — it must already be on file by
+ * the time this runs, precisely so an interrupted claim never loses the
+ * one part (a photo) that's actually annoying to redo.
  */
-export async function submitClaim(
-  payoutId: string,
-  userId: string,
-  data: SubmitClaimInput,
-  idDocumentUrl: string
-) {
+export async function submitClaim(payoutId: string, userId: string, data: SubmitClaimInput) {
   const payout = await findPayoutById(payoutId);
   if (!payout) {
     throw new AppError(404, 'Payout not found');
@@ -79,10 +92,21 @@ export async function submitClaim(
     throw new AppError(400, 'Claim deadline has passed');
   }
 
+  if (!payout.idDocumentUrl) {
+    throw new AppError(400, 'Upload a photo of your ID before submitting.');
+  }
+
+  const method = await findDeliveryMethodById(data.deliveryMethodId);
+  if (!method || !method.isActive) {
+    throw new AppError(400, 'Choose a valid delivery method.');
+  }
+  if (method.requiresDetails && !data.deliveryAddress?.trim()) {
+    throw new AppError(400, method.detailsLabel ? `${method.detailsLabel} is required for this method.` : 'More details are required for this method.');
+  }
+
   const updated = await dbSubmitClaim(payoutId, {
-    idDocumentUrl,
-    deliveryMethod: data.deliveryMethod,
-    deliveryAddress: data.deliveryAddress,
+    deliveryMethod: method.label,
+    deliveryAddress: data.deliveryAddress?.trim() || null,
   });
 
   return updated ? toApiPayout(updated) : null;
@@ -145,6 +169,100 @@ export async function listPayouts(options: {
  * List the authenticated user's own win/claim history.
  */
 export async function listMyPayouts(userId: string, limit: number, offset: number) {
-  const payouts = await findPayoutsByUserId(userId, limit, offset);
-  return payouts.map(toApiPayout);
+  const payouts = await findPayoutsByUserIdDetailed(userId, limit, offset);
+  return payouts.map(toApiPayoutDetailed);
+}
+
+/**
+ * Get one of the authenticated user's own payouts, with raffle/prize
+ * context — the claim screen's fetch. 404s (not 403) for someone else's
+ * payout id, same information-hiding reasoning as everywhere else this
+ * app scopes a lookup to the requester.
+ */
+export async function getMyPayoutById(payoutId: string, userId: string) {
+  const payout = await findPayoutByIdDetailed(payoutId);
+  if (!payout || payout.winnerUserId !== userId) {
+    throw new AppError(404, 'Payout not found');
+  }
+  return toApiPayoutDetailed(payout);
+}
+
+/** Active methods — what a winner picks from on the claim screen. */
+export async function getActiveDeliveryMethods() {
+  return listActiveDeliveryMethods();
+}
+
+/** Every method, active or not — the admin management table. */
+export async function getAllDeliveryMethods() {
+  return listAllDeliveryMethods();
+}
+
+export async function addDeliveryMethod(data: CreateDeliveryMethodInput) {
+  return createDeliveryMethod({
+    label: data.label,
+    requiresDetails: data.requiresDetails,
+    detailsLabel: data.detailsLabel ?? null,
+    sortOrder: data.sortOrder,
+  });
+}
+
+export async function editDeliveryMethod(id: string, data: UpdateDeliveryMethodInput) {
+  const updated = await updateDeliveryMethod(id, data);
+  if (!updated) throw new AppError(404, 'Delivery method not found');
+  return updated;
+}
+
+/**
+ * Store a winner's ID-document photo for an in-progress claim. Unlike a
+ * raffle prize photo, this is sensitive personal data — it deliberately
+ * does NOT go through the public /uploads/:category/:filename route (see
+ * uploads.routes.ts, which refuses the 'id-documents' category outright);
+ * only readIdDocumentFile below, behind an ownership/admin check, can ever
+ * read one back.
+ */
+export async function uploadClaimIdDocument(payoutId: string, userId: string, fileBuffer: Buffer): Promise<string> {
+  const payout = await findPayoutById(payoutId);
+  if (!payout) throw new AppError(404, 'Payout not found');
+  if (payout.winnerUserId !== userId) throw new AppError(403, 'You are not authorized to claim this prize');
+  if (payout.claimStatus !== 'pending_claim') throw new AppError(400, `Claim already submitted (status: ${payout.claimStatus})`);
+
+  let processed;
+  try {
+    processed = await processIdDocument(fileBuffer);
+  } catch {
+    throw new AppError(400, 'The uploaded file is not a valid image.');
+  }
+
+  let stored;
+  try {
+    stored = await saveUploadedImage(processed, 'id-documents');
+  } catch {
+    throw new AppError(503, 'ID document storage is unavailable or not configured');
+  }
+
+  const updated = await setPayoutIdDocument(payoutId, stored.publicUrl);
+  if (!updated) {
+    // Lost a race with the claim resolving some other way between the
+    // fetch above and now — don't leave an orphaned file on disk.
+    await deleteUploadedImage(stored.path).catch(() => undefined);
+    throw new AppError(400, `Claim already submitted (status: ${payout.claimStatus})`);
+  }
+
+  // A retake replaces the previous photo — clean up the one it superseded.
+  const previousPath = uploadedImagePathFromPublicUrl(payout.idDocumentUrl);
+  if (previousPath) deleteUploadedImage(previousPath).catch(() => undefined);
+
+  return stored.publicUrl;
+}
+
+/**
+ * Resolve a payout's stored ID-document URL to a real file on disk, for an
+ * authenticated route to stream back. Returns null if there's nothing on
+ * file yet or the URL doesn't point at this app's own upload storage.
+ */
+export function resolveIdDocumentPath(idDocumentUrl: string | null): string | null {
+  const relative = uploadedImagePathFromPublicUrl(idDocumentUrl);
+  if (!relative) return null;
+  const [category, filename] = relative.split('/');
+  return resolveUploadPath(category, filename);
 }

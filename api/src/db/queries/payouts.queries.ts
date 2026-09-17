@@ -8,7 +8,11 @@ export type PayoutClaimStatus =
   | 'fulfilled'
   | 'expired';
 
-export type DeliveryMethod = 'pickup' | 'delivery';
+// Free text now (see migration 032) — a plain historical record of which
+// payout_delivery_methods.label the winner picked at claim time, not a
+// foreign key, so a method the admin later renames or deactivates never
+// corrupts an already-submitted claim.
+export type DeliveryMethod = string;
 export type FulfillmentStatus = 'processing' | 'shipped' | 'delivered' | 'failed';
 
 export interface DbPayout {
@@ -114,21 +118,35 @@ export async function findPayoutByIdDetailed(id: string): Promise<DbPayoutDetail
 }
 
 /**
- * Submit a claim (winner uploads ID doc and delivery info).
+ * Save the winner's uploaded ID-document photo — a separate step from
+ * submitClaim below so the photo survives even if the winner closes the
+ * app before filling in delivery info. Only ever touches a claim that's
+ * still pending, same guard as submitClaim itself.
+ */
+export async function setPayoutIdDocument(id: string, idDocumentUrl: string): Promise<DbPayout | null> {
+  const rows = await sql<DbPayout[]>`
+    UPDATE payouts SET id_document_url = ${idDocumentUrl}, updated_at = NOW()
+    WHERE id = ${id} AND claim_status = 'pending_claim'
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * Submit a claim (delivery info) — the ID document must already be on
+ * file via setPayoutIdDocument above.
  */
 export async function submitClaim(
   id: string,
   data: {
-    idDocumentUrl: string;
     deliveryMethod: DeliveryMethod;
-    deliveryAddress: string;
+    deliveryAddress: string | null;
   }
 ): Promise<DbPayout | null> {
   const rows = await sql<DbPayout[]>`
     UPDATE payouts
     SET
       claim_status = 'id_submitted',
-      id_document_url = ${data.idDocumentUrl},
       delivery_method = ${data.deliveryMethod},
       delivery_address = ${data.deliveryAddress},
       claimed_at = NOW(),

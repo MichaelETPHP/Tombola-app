@@ -38,7 +38,9 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const headers = new Headers(fetchOptions.headers);
   headers.set('Accept-Language', get(language) ?? 'en');
 
-  if (!headers.has('Content-Type') && fetchOptions.body) {
+  // A FormData body (file uploads) needs the browser to set its own
+  // multipart boundary — forcing application/json here would break it.
+  if (!headers.has('Content-Type') && fetchOptions.body && !(fetchOptions.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -154,4 +156,7 @@ export const api = {
 
   delete: <T>(path: string, options?: FetchOptions) =>
     apiFetch<T>(path, { ...options, method: 'DELETE' }),
+
+  upload: <T>(path: string, body: FormData, options?: FetchOptions) =>
+    apiFetch<T>(path, { ...options, method: 'POST', body }),
 };
