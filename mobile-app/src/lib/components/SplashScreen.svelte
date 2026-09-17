@@ -10,11 +10,12 @@
   export let autoRedirect: boolean = true;
   export let redirectDelayMs: number = 4000;
 
-  const DEFAULT_SLIDE_IMAGES: [string, string] = ['/images/splash-screen-1.jpg', '/images/splash-screen-2.jpg'];
-  // Admin-editable (see /admin/splash) — starts on the bundled defaults so
-  // the very first screen of the app never waits on a network request, then
-  // swaps in whatever the admin has uploaded once that fetch resolves.
-  let slideImages = DEFAULT_SLIDE_IMAGES;
+  // Slides are admin-editable (see /admin/splash) and live only in the
+  // database now — no bundled fallback images ship with the app, so this
+  // starts empty and the screen shows a plain branded loading state until
+  // the real slide images arrive.
+  let slideImages: [string | null, string | null] = [null, null];
+  let slidesLoaded = false;
 
   async function loadSlideImages() {
     try {
@@ -28,15 +29,17 @@
         `/splash?_=${Date.now()}`,
         { skipAuth: true, cache: 'no-store' }
       );
-      const next: [string, string] = [...DEFAULT_SLIDE_IMAGES];
+      const next: [string | null, string | null] = [null, null];
       for (const slide of remote) {
         const resolved = resolveImageUrl(slide.imageUrl);
         if (resolved && (slide.slot === 1 || slide.slot === 2)) next[slide.slot - 1] = resolved;
       }
       slideImages = next;
     } catch {
-      // Bundled defaults already showing — a slow or failed fetch here must
-      // never hold up or blank out the first thing a user sees.
+      // Leaves slideImages empty — the branded loading state stays up
+      // rather than showing a broken image.
+    } finally {
+      slidesLoaded = true;
     }
   }
 
@@ -96,13 +99,22 @@
 </script>
 
 <div class="relative flex min-h-dvh w-full flex-col justify-between overflow-hidden bg-black text-white select-none">
+  {#if !slidesLoaded}
+    <!-- Branded loading state — no bundled fallback images ship with the
+         app anymore, slides only exist in the database, so this covers
+         the moment before that fetch resolves. -->
+    <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-black via-[#0b0b14] to-black">
+      <IosSpinner size={28} color="#0135C6" />
+    </div>
+  {/if}
+
   <!-- Background Images with Crossfade -->
   {#each slides as slide, index}
     <div
       class="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
       style="
-        background-image: url('{slide.image}');
-        opacity: {currentSlide === index ? 1 : 0};
+        {slide.image ? `background-image: url('${slide.image}');` : `background: linear-gradient(135deg, ${slide.color}55, #000 80%);`}
+        opacity: {slidesLoaded && currentSlide === index ? 1 : 0};
         transform: scale({currentSlide === index ? 1.03 : 1});
         transition: opacity 1s ease-in-out, transform 4s ease-out;
       "
