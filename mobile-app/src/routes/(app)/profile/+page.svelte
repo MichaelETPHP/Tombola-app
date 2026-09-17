@@ -119,7 +119,7 @@
       auth.update((state) => ({ ...state, user: res.user }));
       setLanguage(preferredLanguage);
       hapticMedium();
-      showBanner($_('profile.updatedBanner'));
+      showBanner($_('profile.updatedBanner'), { type: 'success' });
       editOpen = false;
     } catch (err) {
       error = err instanceof ApiError ? $_('profile.updateError') : $_('login.networkError');
@@ -148,7 +148,7 @@
     // Navigate first so the root-level banner appears on the login screen,
     // matching the existing successful-login notification sequence.
     await goto('/login', { replaceState: true });
-    showBanner($_('profile.logoutSuccessBanner'));
+    showBanner($_('profile.logoutSuccessBanner'), { type: 'success' });
   }
 </script>
 

@@ -84,7 +84,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       // a newer login elsewhere. Surface that plainly rather than leaving
       // the user stranded on a broken page wondering why requests fail.
       if (refreshResult.code === 'AUTH_SESSION_REVOKED') {
-        showBanner(get(_)('apiErrors.sessionRevoked'), 3000);
+        showBanner(get(_)('apiErrors.sessionRevoked'), { duration: 3000 });
         goto('/login', { replaceState: true });
       }
       throw new ApiError(401, get(_)('apiErrors.sessionExpired'));
