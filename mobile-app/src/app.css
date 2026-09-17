@@ -128,6 +128,17 @@
     overflow-x: hidden;
   }
 
+  /* Every scrollIntoView/scrollTo call in this app already passes its own
+     explicit `behavior`, which always wins over this — so this only
+     upgrades the rare *unlabeled* programmatic scroll (browser autoscroll
+     on focus, etc.) from an instant jump to the same eased glide the rest
+     of the app already uses on purpose. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
   /* Telegram owns the outer WebView. Once the signed Mini App bridge marks
      this document, stop scroll chaining at the page edges so a content drag
      cannot become a Telegram minimize gesture. The SDK also disables the

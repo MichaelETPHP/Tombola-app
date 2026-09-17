@@ -37,7 +37,7 @@
       href={hrefFor(item)}
       aria-current={active ? 'page' : undefined}
       on:click={() => {
-        if (!active) hapticLight();
+        void hapticLight();
       }}
       class="nav-link tappable flex h-full flex-col items-center justify-center text-inherit no-underline {active ? 'is-active' : ''}"
     >
