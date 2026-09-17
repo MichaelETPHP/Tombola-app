@@ -474,6 +474,13 @@
     "developedBy": "Developed by",
     "shareText": "Join 251 Lottery on Telegram to discover live raffles and prizes.",
     "linkCopiedBanner": "251 Lottery link copied",
+    "numberCopiedBanner": "Number copied — paste it into your Phone app to call",
+    "companyTitle": "Who we are",
+    "companyBody": "251 Lottery is an Ethiopian raffle platform built by 251 Technology. Every draw is provably fair — the result can be independently verified after the fact, with nothing decided behind closed doors. Payments run through licensed local gateways (Telebirr, M-PESA, Chapa), and every prize claim is checked by a real person before it's fulfilled.",
+    "legalTitle": "Legal",
+    "legalBody": "How we handle your data, and the rules for using 251 Lottery.",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
     "faq": {
       "enter": { "q": "How do I enter a raffle?", "a": "Open a live raffle, choose your ticket quantity, accept the conditions and complete payment. Your confirmed ticket numbers will then appear under My Tickets." },
       "howMany": { "q": "How many tickets can I buy?", "a": "Each raffle shows its own ticket limit before purchase. Choose any quantity from one up to the maximum displayed on that raffle." },
