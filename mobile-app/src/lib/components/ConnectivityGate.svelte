@@ -102,7 +102,7 @@
             {#if isInitialCheck}
               <Wifi size={29} strokeWidth={2} class="text-primary" />
             {:else}
-              <WifiOff size={29} strokeWidth={2} class="text-primary" />
+              <WifiOff size={29} strokeWidth={2} class="text-[#D8434C]" />
             {/if}
           </span>
         </div>
