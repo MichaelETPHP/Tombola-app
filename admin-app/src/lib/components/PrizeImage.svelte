@@ -14,6 +14,12 @@
   let className = '';
   export { className as class };
 
+  // Always cover, never contain: every usage of this component is a fixed-
+  // size preview slot (a list row, a 4:3 cover box, a 64x64 thumbnail) —
+  // an admin-uploaded photo can be any shape, and 'contain' left visible
+  // letterbox padding around it instead of actually filling the slot the
+  // admin is previewing it in.
+
   // 'local' -> 'production' -> 'failed'. Most images only exist on
   // whichever server actually processed the upload (see api/lib/uploads.ts
   // — each environment has its own disk/volume, not shared storage), so a
@@ -45,7 +51,7 @@
       src={resolvedSrc}
       {alt}
       loading={eager ? 'eager' : 'lazy'}
-      class="h-full w-full object-contain transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"
+      class="h-full w-full object-cover transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"
       on:error={handleError}
       on:load={() => (loaded = true)}
     />

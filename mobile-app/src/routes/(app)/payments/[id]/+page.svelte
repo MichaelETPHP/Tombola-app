@@ -62,7 +62,7 @@
       if (res.payment.status === 'completed' && !bannerShown) {
         bannerShown = true;
         showReceipt = true;
-        showBanner($_('payments.ticketsReadyBanner'));
+        showBanner($_('payments.ticketsReadyBanner'), { type: 'success' });
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {

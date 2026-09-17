@@ -7,7 +7,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { toEthiopianDate, toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
   import {
-    ArrowLeft, Clock3, Copy, Loader2, MessageSquareText, Phone,
+    ArrowLeft, Clock3, Copy, CreditCard, LogIn, LogOut, Loader2, MessageSquareText, Phone,
     RefreshCw, Send, ShieldAlert, Smartphone, Ticket, Trophy,
   } from 'lucide-svelte';
 
@@ -68,9 +68,24 @@
 
   interface LoginEvent {
     id: string;
-    method: 'phone_otp' | 'telegram';
+    eventType: 'login' | 'logout';
+    method: 'phone_otp' | 'telegram' | null;
     ipAddress: string | null;
     userAgent: string | null;
+    createdAt: string;
+  }
+
+  interface UserPayment {
+    id: string;
+    raffleId: string;
+    raffleTitle: string;
+    categoryCode: string;
+    amount: number;
+    ticketCount: number;
+    ticketNumbers: number[];
+    status: 'pending' | 'completed' | 'failed' | 'refunded';
+    reviewRequired: boolean;
+    gateway: string;
     createdAt: string;
   }
 
@@ -102,6 +117,9 @@
 
   let loginEvents: LoginEvent[] = [];
   let loginsLoading = true;
+
+  let payments: UserPayment[] = [];
+  let paymentsLoading = true;
 
   let confirmingSuspend = false;
   let updatingSuspend = false;
@@ -170,12 +188,25 @@
     }
   }
 
+  async function loadPayments() {
+    paymentsLoading = true;
+    try {
+      const res = await api.get<{ payments: UserPayment[] }>(`/admin/users/${userId}/payments?limit=50`);
+      payments = res.payments;
+    } catch {
+      payments = [];
+    } finally {
+      paymentsLoading = false;
+    }
+  }
+
   function refreshAll() {
     void loadProfile();
     void loadTickets();
     void loadPayouts();
     void loadSms();
     void loadLogins();
+    void loadPayments();
   }
 
   onMount(refreshAll);
@@ -314,6 +345,39 @@
           {/if}
         </section>
 
+        <!-- ── Payment activity ── -->
+        <section class="rounded-card border border-border bg-card p-5">
+          <div class="mb-1 flex items-center justify-between">
+            <h2 class="flex items-center gap-2 text-sm font-bold text-ink"><CreditCard size={15} class="text-primary" /> Payment activity</h2>
+            <button type="button" class="admin-press text-faint hover:text-ink" on:click={loadPayments}><RefreshCw size={13} class={paymentsLoading ? 'animate-spin' : ''} /></button>
+          </div>
+          <p class="mb-3 text-[11px] text-faint">Every checkout attempt, including ones that never became a ticket — this is where to look when a customer says they paid but nothing happened.</p>
+          {#if paymentsLoading}
+            <div class="space-y-2">{#each Array(3) as _}<div class="h-12 animate-pulse rounded-button bg-bg"></div>{/each}</div>
+          {:else if payments.length === 0}
+            <p class="py-6 text-center text-xs text-faint">No checkout attempts recorded yet.</p>
+          {:else}
+            <div class="divide-y divide-border">
+              {#each payments as p (p.id)}
+                <div class="flex items-center justify-between gap-3 py-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-bold text-ink">{p.raffleTitle}</p>
+                    <p class="mt-0.5 text-[11px] text-muted">{p.ticketCount} ticket{p.ticketCount === 1 ? '' : 's'} · {formatEtb(p.amount)} ETB · {p.gateway}</p>
+                  </div>
+                  <div class="flex shrink-0 flex-col items-end gap-1">
+                    {#if p.reviewRequired}
+                      <span class="flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger"><ShieldAlert size={11} /> Needs review</span>
+                    {:else}
+                      <StatusBadge status={p.status} />
+                    {/if}
+                    <span class="text-[11px] text-faint">{toEthiopianDateTime(p.createdAt)}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </section>
+
         <!-- ── Prizes & payouts ── -->
         <section class="rounded-card border border-border bg-card p-5">
           <div class="mb-3 flex items-center justify-between">
@@ -346,7 +410,7 @@
             <h2 class="flex items-center gap-2 text-sm font-bold text-ink"><Smartphone size={15} class="text-primary" /> Login activity</h2>
             <button type="button" class="admin-press text-faint hover:text-ink" on:click={loadLogins}><RefreshCw size={13} class={loginsLoading ? 'animate-spin' : ''} /></button>
           </div>
-          <p class="mb-3 text-[11px] text-faint">Only tracks logins from the day this feature shipped onward — earlier activity was never recorded.</p>
+          <p class="mb-3 text-[11px] text-faint">Only tracks logins and logouts from the day this feature shipped onward — earlier activity was never recorded.</p>
           {#if loginsLoading}
             <div class="space-y-2">{#each Array(3) as _}<div class="h-10 animate-pulse rounded-button bg-bg"></div>{/each}</div>
           {:else if loginEvents.length === 0}
@@ -356,9 +420,14 @@
               {#each loginEvents as ev (ev.id)}
                 <div class="flex items-center justify-between gap-3 py-2.5 text-xs">
                   <div class="flex items-center gap-2">
-                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold {ev.method === 'telegram' ? 'bg-info-bg text-info' : 'bg-primary-bg text-primary-dark'}">
-                      {ev.method === 'telegram' ? 'Telegram' : 'Phone OTP'}
+                    <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {ev.eventType === 'logout' ? 'bg-border text-muted' : 'bg-success-bg text-success'}">
+                      {#if ev.eventType === 'logout'}<LogOut size={10} /> Logout{:else}<LogIn size={10} /> Login{/if}
                     </span>
+                    {#if ev.method}
+                      <span class="rounded-full px-2 py-0.5 text-[10px] font-bold {ev.method === 'telegram' ? 'bg-info-bg text-info' : 'bg-primary-bg text-primary-dark'}">
+                        {ev.method === 'telegram' ? 'Telegram' : 'Phone OTP'}
+                      </span>
+                    {/if}
                     {#if ev.ipAddress}<span class="font-mono text-[11px] text-faint">{ev.ipAddress}</span>{/if}
                   </div>
                   <span class="text-[11px] text-muted" title={ev.userAgent ?? ''}>{toEthiopianDateTime(ev.createdAt)}</span>

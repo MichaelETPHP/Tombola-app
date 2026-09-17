@@ -53,6 +53,28 @@ export async function takeProfilePhoto() {
   });
 }
 
+/** Opens the native camera for a prize-claim ID photo — higher resolution
+ * than a profile photo since this needs to stay legible for admin review. */
+export async function captureIdDocument() {
+  const current = await Camera.checkPermissions();
+  let permission = current.camera;
+  if (permission === 'prompt' || permission === 'prompt-with-rationale') {
+    permission = (await Camera.requestPermissions({ permissions: ['camera'] })).camera;
+  }
+  ensurePermission('Camera', permission);
+
+  return Camera.takePhoto({
+    quality: 88,
+    targetWidth: 1600,
+    targetHeight: 1600,
+    correctOrientation: true,
+    encodingType: EncodingType.JPEG,
+    saveToGallery: false,
+    editable: 'no',
+    webUseInput: true,
+  });
+}
+
 /** Opens the system photo picker without reading the user's whole library. */
 export async function choosePhotos(limit = 1) {
   return Camera.chooseFromGallery({

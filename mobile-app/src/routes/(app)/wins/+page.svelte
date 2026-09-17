@@ -7,7 +7,8 @@
   import { auth } from '$lib/stores/auth.store.js';
   import ListItemSkeleton from '$lib/components/ListItemSkeleton.svelte';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
-  import { Trophy } from 'lucide-svelte';
+  import { formatEtb } from '$lib/utils/currency.js';
+  import { Trophy, ChevronRight } from 'lucide-svelte';
   import { payouts as payoutsStore, type Payout } from '$lib/stores/wins.store.js';
 
   const pullRefresh = getPullRefreshContext();
@@ -76,17 +77,34 @@
     {:else}
       <div class="flex flex-col gap-3">
         {#each payouts as payout (payout.id)}
-          <div class="flex items-center gap-4 rounded-card bg-card p-4 shadow-card">
-            <Trophy size={24} class="text-gold" />
-            <div class="flex flex-col gap-0.5">
-              <span class="text-sm font-bold text-ink">{statusLabels[payout.status]}</span>
+          {@const prizeLine = [payout.prizeName, payout.prizeTier ? `Tier ${payout.prizeTier}` : null].filter(Boolean).join(' · ')}
+          {@const clickable = payout.status === 'pending_claim'}
+          <svelte:element
+            this={clickable ? 'a' : 'div'}
+            href={clickable ? `/wins/${payout.id}/claim` : undefined}
+            class="tappable flex items-center gap-4 rounded-card bg-card p-4 text-inherit no-underline shadow-card"
+            aria-label={clickable ? $_('wins.viewAria', { values: { prize: payout.raffleTitle, status: statusLabels[payout.status] } }) : undefined}
+          >
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gold-bg"><Trophy size={20} class="text-gold" /></span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-bold text-ink">{payout.raffleTitle}</p>
+              {#if prizeLine}<p class="mt-0.5 truncate text-xs text-muted">{prizeLine}</p>{/if}
+              <div class="mt-1 flex items-center gap-2">
+                <span class="text-xs font-bold text-primary-dark">{$_('wins.netValue', { values: { amount: formatEtb(payout.netValue) } })}</span>
+                <span class="text-xs font-semibold text-ink">{statusLabels[payout.status]}</span>
+              </div>
               {#if payout.status === 'pending_claim'}
-                <span class="text-xs text-coral-start">
+                <span class="mt-0.5 block text-xs text-coral-start">
                   {$_('wins.claimBy', { values: { date: new Date(payout.claimDeadline).toLocaleDateString($language ?? undefined) } })}
                 </span>
               {/if}
             </div>
-          </div>
+            {#if clickable}
+              <span class="flex shrink-0 items-center gap-1 rounded-full bg-action-bg px-3 py-2 text-[11px] font-extrabold text-primary-dark">
+                {$_('wins.claimNow')} <ChevronRight size={13} />
+              </span>
+            {/if}
+          </svelte:element>
         {/each}
       </div>
     {/if}

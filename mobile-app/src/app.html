@@ -80,18 +80,10 @@
     </script>
     <script>
       // Public SMS draw links are deliberately instant: suppress the web
-      // boot artwork and its preload before the first paint. Other routes
-      // retain the high-priority splash preload.
+      // boot artwork before the first paint.
       const directDrawEntry = /^\/(draw|represent)\/[A-Za-z0-9_-]+\/?$/.test(location.pathname);
       if (directDrawEntry) {
         document.documentElement.classList.add('direct-draw-entry');
-      } else {
-        const splashPreload = document.createElement('link');
-        splashPreload.rel = 'preload';
-        splashPreload.href = '/images/splash-screen-1.jpg';
-        splashPreload.as = 'image';
-        splashPreload.fetchPriority = 'high';
-        document.head.appendChild(splashPreload);
       }
     </script>
     <title>251 Lottery</title>
@@ -115,8 +107,10 @@
          screen rather than two different ones. Removed by the root layout
          once the app is actually ready to show content.
 
-         A locally bundled image and bottom scrim bridge the native-to-web
-         handoff without waiting on an external request. */
+         Deliberately just a gradient, not an image: the real slide images
+         now live only in the database (admin-editable, see SplashScreen.svelte),
+         and this screen paints before any network request or JS can run —
+         it can never depend on either. */
       #boot-splash {
         position: fixed;
         inset: 0;
@@ -135,15 +129,6 @@
         display: none !important;
         animation: none !important;
       }
-      .boot-splash__slide {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        opacity: 1;
-      }
-
       @keyframes boot-splash-auto-hide {
         to {
           opacity: 0;
@@ -196,7 +181,6 @@
   <body data-sveltekit-preload-data="tap" data-sveltekit-preload-code="tap">
     <div style="display: contents">%sveltekit.body%</div>
     <div id="boot-splash" aria-hidden="true">
-      <img src="/images/splash-screen-1.jpg" alt="" class="boot-splash__slide" fetchpriority="high" />
       <div class="boot-splash__scrim"></div>
       <span class="boot-splash__spinner"></span>
     </div>

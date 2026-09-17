@@ -170,7 +170,7 @@
             .chapa-payment-icon { width: 34px; height: 34px; object-fit: contain; margin-bottom: 5px; }
             .chapa-payment-name { font-size: 10px; font-weight: 700; color: #555b6e; }
             .chapa-selected { background: #DCE6FB; border-color: #0129A3; box-shadow: inset 0 0 0 1px #0129A3; }
-            .chapa-pay-button { min-height: 54px; border: 0; border-radius: 16px; background: #0135C6; color: #080E49; font-size: 15px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.72); transition: transform 140ms ease-out, background-color 160ms ease; }
+            .chapa-pay-button { min-height: 54px; border: 0; border-radius: 16px; background: #0135C6; color: #ffffff; font-size: 15px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.72); transition: transform 140ms ease-out, background-color 160ms ease; }
             .chapa-pay-button:hover { background: #0135C6; }
             .chapa-pay-button:active { transform: scale(.98); }
             .chapa-pay-button:disabled { opacity: .58; cursor: wait; }

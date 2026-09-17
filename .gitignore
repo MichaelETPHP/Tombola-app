@@ -26,6 +26,10 @@ node_modules/
 *.bat
 *.txt
 
+# Local sample/test data (contact imports, etc.) — never meant for the repo
+*.csv
+*.xlsx
+
 # Build output
 dist/
 build/

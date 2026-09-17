@@ -120,7 +120,10 @@ export async function logoutAdmin(): Promise<void> {
   }
 }
 
-async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
+/** Shared auth-header-and-401-refresh-retry mechanics, returning the raw
+ * Response so both apiFetch (JSON) and api.getBlob (binary, e.g. a
+ * winner's ID document) can decode it their own way. */
+async function apiFetchRaw(path: string, options: FetchOptions = {}): Promise<Response> {
   const { skipAuth = false, ...init } = options;
   if (!skipAuth && signingOut) throw new ApiError(401, JSON.stringify({ error: 'Signing out.' }));
   const headers = new Headers(init.headers);
@@ -128,7 +131,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const sentToken = get(auth).accessToken;
   if (!skipAuth && sentToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${sentToken}`);
   const response = await request(path, { ...init, headers });
-  if (response.status !== 401 || skipAuth) return readResponse<T>(response);
+  if (response.status !== 401 || skipAuth) return response;
 
   const error = new ApiError(401, await response.text());
   // A bad current password is a form error, not a reason to refresh the session.
@@ -139,7 +142,11 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   headers.set('Authorization', `Bearer ${get(auth).accessToken}`);
   const retry = await request(path, { ...init, headers });
   if (retry.status === 401 && get(auth).accessToken === headers.get('Authorization')?.slice(7)) clearAuth();
-  return readResponse<T>(retry);
+  return retry;
+}
+
+async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
+  return readResponse<T>(await apiFetchRaw(path, options));
 }
 
 export const api = {
@@ -154,4 +161,11 @@ export const api = {
     ...options, method: 'DELETE', body: body === undefined ? undefined : JSON.stringify(body),
   }),
   upload: <T>(path: string, body: FormData, options?: FetchOptions) => apiFetch<T>(path, { ...options, method: 'POST', body }),
+  /** For a binary, non-JSON response — e.g. a winner's ID document, which
+   * (unlike a raffle image) is never reachable through a plain public URL. */
+  getBlob: async (path: string, options?: FetchOptions): Promise<Blob> => {
+    const response = await apiFetchRaw(path, { ...options, method: 'GET' });
+    if (!response.ok) throw new ApiError(response.status, await response.text());
+    return response.blob();
+  },
 };

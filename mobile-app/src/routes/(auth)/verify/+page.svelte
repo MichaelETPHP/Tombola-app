@@ -123,7 +123,7 @@
       // rendered. <Banner /> lives in the root layout, so it persists
       // across the navigation and shows correctly on top of the new page.
       await goto(destination, { replaceState: true });
-      showBanner($_('login.loginSuccessBanner'));
+      showBanner($_('login.loginSuccessBanner'), { type: 'success' });
     } catch (err) {
       error = err instanceof ApiError ? $_('verify.invalidCode') : $_('login.networkError');
       // A demo deployment can immediately offer its known test code again;

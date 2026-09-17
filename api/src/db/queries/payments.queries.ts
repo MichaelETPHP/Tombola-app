@@ -23,6 +23,10 @@ export interface DbPayment {
   checkoutStartedAt: Date | null;
   idempotencyKey: string | null;
   reviewRequired: boolean;
+  /** Chapa's own transaction reference — distinct from gatewayRef (ours). */
+  chapaReference: string | null;
+  /** e.g. "telebirr", "cbebirr", "mpesa" — which method the customer paid with. */
+  paymentMethod: string | null;
 }
 
 export type PaymentReservationResult =
@@ -140,10 +144,34 @@ export async function reservePayment(data: {
     await tx`INSERT INTO ticket_number_claims (raffle_id, ticket_number, payment_id)
       SELECT ${data.raffleId}, unnest(${selectedNumbers}::int[]), ${payment.id}`;
     return { ok: true as const, payment, raffle };
+  }).catch((error) => {
+    // The raffle row lock above already serializes every reservation attempt
+    // for this raffle, so two buyers should never even reach this insert for
+    // the same number — the conflicts check just above catches that first,
+    // with the specific numbers to retry. This is the backstop underneath
+    // that backstop: ticket_number_claims' PRIMARY KEY(raffle_id,
+    // ticket_number) is the actual hard guarantee against a double-booked
+    // number, for any future code path that might weaken the locking above.
+    // Without this, a constraint hit here would surface as a raw 500
+    // instead of the same clean "pick again" response the normal path gives.
+    if ((error as { code?: string }).code === '23505') {
+      throw new AppError(409, 'Some numbers are no longer available. Choose replacements and continue.', {
+        code: 'NUMBER_UNAVAILABLE',
+      });
+    }
+    throw error;
   });
 }
 
-export async function completePaymentAndIssueTickets(gatewayRef: string): Promise<'completed' | 'already_processed' | 'not_found' | 'review'> {
+export interface ChapaPaymentMeta {
+  chapaReference?: string | null;
+  paymentMethod?: string | null;
+}
+
+export async function completePaymentAndIssueTickets(
+  gatewayRef: string,
+  meta?: ChapaPaymentMeta
+): Promise<'completed' | 'already_processed' | 'not_found' | 'review'> {
   return sql.begin(async (tx) => {
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE gateway_ref = ${gatewayRef}`;
     if (!snapshot) return 'not_found' as const;
@@ -157,10 +185,16 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     const claims = await tx<{ ticketNumber: number }[]>`SELECT ticket_number FROM ticket_number_claims WHERE payment_id = ${payment.id} AND NOT sold`;
     // A released or closed order may still receive a late verified charge.
     // Keep it visible for an audited refund; never silently replace numbers.
+    // Chapa's own reference/method are recorded even here — a payment sent
+    // to manual review is exactly the case where support most needs to be
+    // able to look the transaction up on Chapa's own dashboard.
     if (payment.status !== 'pending' || !['open', 'locked'].includes(raffle.status) ||
         !sameSelection(claims.map((c) => c.ticketNumber), payment.selectedNumbers ?? []) || claims.length !== payment.ticketCount ||
         (!payment.checkoutStartedAt && payment.reservationExpiresAt && payment.reservationExpiresAt <= new Date())) {
-      await tx`UPDATE payments SET review_required = true WHERE id = ${payment.id}`;
+      await tx`UPDATE payments SET review_required = true,
+        chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+        payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+        WHERE id = ${payment.id}`;
       await tx`INSERT INTO audit_log (actor_type, action, entity_type, entity_id, metadata)
         VALUES ('system', 'payment.requires_review', 'payment', ${payment.id}, ${tx.json({ reason: 'Verified charge could not fulfill the reserved numbers' })})`;
       return 'review' as const;
@@ -176,7 +210,10 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     );
     await tx`INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id, display_number)
       SELECT ${payment.raffleId}, ${payment.userId}, unnest(${payment.selectedNumbers!}::int[]), ${payment.id}, unnest(${displayNumbers}::text[])`;
-    await tx`UPDATE payments SET status = 'completed' WHERE id = ${payment.id}`;
+    await tx`UPDATE payments SET status = 'completed',
+      chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+      payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+      WHERE id = ${payment.id}`;
     return 'completed' as const;
   });
 }
@@ -229,6 +266,63 @@ export async function findStalePendingChapaPayments(olderThanMs: number): Promis
  */
 export async function markPaymentReviewRequired(id: string): Promise<void> {
   await sql`UPDATE payments SET review_required = true WHERE id = ${id}`;
+}
+
+export interface DbPaymentReview {
+  id: string;
+  raffleId: string;
+  raffleTitle: string;
+  userId: string;
+  userPhone: string;
+  userFullName: string | null;
+  amount: number;
+  ticketCount: number;
+  selectedNumbers: number[] | null;
+  status: PaymentStatus;
+  gateway: PaymentGateway;
+  gatewayRef: string | null;
+  createdAt: Date;
+}
+
+/**
+ * Payments Chapa verified as paid but that could never issue their reserved
+ * numbers (see completePaymentAndIssueTickets) — a real charge with nothing
+ * to show for it until an admin resolves it. This existed as a silent
+ * database flag with no admin-facing view at all before this query.
+ */
+export async function listPaymentsNeedingReview(limit: number, offset: number): Promise<DbPaymentReview[]> {
+  return sql<DbPaymentReview[]>`
+    SELECT
+      p.id, p.raffle_id, r.title AS raffle_title,
+      p.user_id, u.phone_number AS user_phone, u.full_name AS user_full_name,
+      p.amount, p.ticket_count, p.selected_numbers, p.status, p.gateway, p.gateway_ref, p.created_at
+    FROM payments p
+    JOIN raffles r ON r.id = p.raffle_id
+    JOIN users u ON u.id = p.user_id
+    WHERE p.review_required
+    ORDER BY p.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+}
+
+/**
+ * Admin resolution after handling a stuck review outside this system
+ * (typically refunding the customer through Chapa's own dashboard). Only
+ * ever touches a row still actually marked for review, so resolving twice
+ * — two admins, or a stale tab — is a harmless no-op the second time.
+ */
+export async function resolvePaymentReview(id: string, adminId: string, reference: string | null): Promise<DbPayment | null> {
+  return sql.begin(async (tx) => {
+    const [payment] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id} AND review_required FOR UPDATE`;
+    if (!payment) return null;
+    const [updated] = await tx<DbPayment[]>`
+      UPDATE payments SET status = 'refunded', review_required = false, updated_at = NOW()
+      WHERE id = ${id} RETURNING *
+    `;
+    await tx`INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES ('admin', ${adminId}, 'payment.review_resolved', 'payment', ${id}, ${tx.json({ reference })})`;
+    return updated;
+  });
 }
 
 /**
@@ -295,12 +389,20 @@ export async function cancelPendingPayment(id: string): Promise<DbPayment | null
   return transitionPendingPayment(id, 'failed');
 }
 
-async function transitionPendingPayment(id: string, status: PaymentStatus, onlyUnstarted = false): Promise<DbPayment | null> {
+async function transitionPendingPayment(
+  id: string,
+  status: PaymentStatus,
+  onlyUnstarted = false,
+  meta?: ChapaPaymentMeta
+): Promise<DbPayment | null> {
   return sql.begin(async (tx) => {
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id}`;
     if (!snapshot) return null;
     await tx`SELECT id FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE`;
-    const [payment] = await tx<DbPayment[]>`UPDATE payments SET status = ${status} WHERE id = ${id}
+    const [payment] = await tx<DbPayment[]>`UPDATE payments SET status = ${status},
+      chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+      payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+      WHERE id = ${id}
       AND status = 'pending' AND NOT review_required AND (${!onlyUnstarted} OR checkout_started_at IS NULL) RETURNING *`;
     if (payment && (status === 'failed' || status === 'refunded')) {
       await tx`DELETE FROM ticket_number_claims WHERE payment_id = ${id} AND NOT sold`;
@@ -309,8 +411,15 @@ async function transitionPendingPayment(id: string, status: PaymentStatus, onlyU
   });
 }
 
-export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<DbPayment | null> {
-  return transitionPendingPayment(id, status);
+/**
+ * A payment failing (Chapa declined/cancelled it) still deserves the same
+ * "hold onto the reference" treatment as a success — see completePayment-
+ * AndIssueTickets' comment. A user-initiated local cancel (cancelPending-
+ * Payment below) passes no meta at all: it happens before Chapa has any
+ * record of the transaction, so there's genuinely nothing to record yet.
+ */
+export async function updatePaymentStatus(id: string, status: PaymentStatus, meta?: ChapaPaymentMeta): Promise<DbPayment | null> {
+  return transitionPendingPayment(id, status, false, meta);
 }
 
 export async function expireUnstartedPayments(): Promise<void> {
@@ -335,6 +444,8 @@ export interface DbPaymentWithDetails {
   gateway: PaymentGateway;
   createdAt: Date;
   reviewRequired: boolean;
+  chapaReference: string | null;
+  paymentMethod: string | null;
 }
 
 /**
@@ -359,6 +470,8 @@ export async function listUserPayments(
       p.status,
       p.review_required,
       p.gateway,
+      p.chapa_reference,
+      p.payment_method,
       p.created_at,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number) FILTER (WHERE t.ticket_number IS NOT NULL),

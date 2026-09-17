@@ -159,7 +159,7 @@
         // root layout and persists across navigation, so it renders on top
         // of the destination page instead of flashing on this one first.
         await goto(returnTo.startsWith('/raffles') ? returnTo : '/home', { replaceState: true });
-        showBanner($_('login.loginSuccessBanner'));
+        showBanner($_('login.loginSuccessBanner'), { type: 'success' });
         return;
       }
 
@@ -184,7 +184,7 @@
         if (completion.status === 'authenticated') {
           setAuth(completion.accessToken, completion.user);
           await goto(returnTo.startsWith('/raffles') ? returnTo : '/home', { replaceState: true });
-          showBanner($_('login.loginSuccessBanner'));
+          showBanner($_('login.loginSuccessBanner'), { type: 'success' });
           return;
         }
       }
@@ -218,7 +218,7 @@
         class="h-16 w-16 rounded-[20px] object-cover shadow-card"
       />
     {:else}
-      <img src="/icons/icon-512.png" alt="251 Lottery" class="h-16 w-16 rounded-[20px] shadow-card" />
+      <img src="/logo-new.png" alt="251 Lottery" class="h-16 w-16 rounded-[20px] object-cover shadow-card" />
     {/if}
     <h1 class="font-display text-[26px] font-semibold text-ink">251 Lottery</h1>
     <p class="max-w-[300px] text-sm leading-relaxed text-muted">

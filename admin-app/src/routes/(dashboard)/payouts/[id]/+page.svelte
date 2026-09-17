@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, ApiError, API_BASE } from '$lib/api/client.js';
-  import { safeDocumentUrl } from '$lib/utils/safeUrl.js';
+  import { api, ApiError } from '$lib/api/client.js';
   import { toast } from '$lib/stores/toast.store.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { updatePayoutStatusSchema, type Payout } from '$lib/schemas/index.js';
@@ -14,7 +13,30 @@
   let updating = false;
   let notFound = false;
   let loadError = '';
-  $: documentUrl = safeDocumentUrl(payout?.idDocumentUrl, API_BASE);
+  let openingDocument = false;
+  // Revoked on the next open/unmount rather than kept forever — this is a
+  // sensitive personal photo, no reason to hold it in memory longer than
+  // the tab it was opened in needs it.
+  let openedDocumentUrl: string | null = null;
+
+  async function viewIdDocument() {
+    if (!payout || openingDocument) return;
+    openingDocument = true;
+    try {
+      const blob = await api.getBlob(`/admin/payouts/${payout.id}/id-document`);
+      if (openedDocumentUrl) URL.revokeObjectURL(openedDocumentUrl);
+      openedDocumentUrl = URL.createObjectURL(blob);
+      window.open(openedDocumentUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not load the ID document.', 'Load Failed');
+    } finally {
+      openingDocument = false;
+    }
+  }
+
+  onDestroy(() => {
+    if (openedDocumentUrl) URL.revokeObjectURL(openedDocumentUrl);
+  });
 
   async function load() {
     loading = true;
@@ -123,10 +145,10 @@
           {/if}
 
           <div class="mt-5">
-            {#if documentUrl}
-              <a class="admin-press inline-flex min-h-11 items-center gap-2 rounded-button border border-border bg-bg px-4 text-sm font-bold text-ink no-underline" href={documentUrl} target="_blank" rel="noopener noreferrer">
-                View submitted ID document <ArrowUpRight size={16} />
-              </a>
+            {#if payout.idDocumentUrl}
+              <button type="button" disabled={openingDocument} class="admin-press inline-flex min-h-11 items-center gap-2 rounded-button border border-border bg-bg px-4 text-sm font-bold text-ink disabled:opacity-60" on:click={viewIdDocument}>
+                {openingDocument ? 'Loading…' : 'View submitted ID document'} <ArrowUpRight size={16} />
+              </button>
             {:else}
               <p class="text-[13px] text-faint">No ID document submitted yet.</p>
             {/if}

@@ -2,22 +2,57 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ } from 'svelte-i18n';
+  import { api } from '$lib/api/client.js';
+  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
   import IosSpinner from './IosSpinner.svelte';
   import { Sparkles, ArrowRight, Dices, Trophy, ShieldCheck } from 'lucide-svelte';
 
   export let autoRedirect: boolean = true;
   export let redirectDelayMs: number = 4000;
 
+  // Slides are admin-editable (see /admin/splash) and live only in the
+  // database now — no bundled fallback images ship with the app, so this
+  // starts empty and the screen shows a plain branded loading state until
+  // the real slide images arrive.
+  let slideImages: [string | null, string | null] = [null, null];
+  let slidesLoaded = false;
+
+  async function loadSlideImages() {
+    try {
+      // Telegram's in-app WebView is known to cache fetched resources more
+      // aggressively than a normal browser, sometimes ignoring standard
+      // cache-control semantics entirely — cache: 'no-store' alone isn't
+      // reliable there. A query string that's different on every load is
+      // the one thing no cache (WebView, CDN, proxy) can serve stale for,
+      // since that exact URL was never seen before.
+      const { slides: remote } = await api.get<{ slides: { slot: number; imageUrl: string }[] }>(
+        `/splash?_=${Date.now()}`,
+        { skipAuth: true, cache: 'no-store' }
+      );
+      const next: [string | null, string | null] = [null, null];
+      for (const slide of remote) {
+        const resolved = resolveImageUrl(slide.imageUrl);
+        if (resolved && (slide.slot === 1 || slide.slot === 2)) next[slide.slot - 1] = resolved;
+      }
+      slideImages = next;
+    } catch {
+      // Leaves slideImages empty — the branded loading state stays up
+      // rather than showing a broken image.
+    } finally {
+      slidesLoaded = true;
+    }
+  }
+
   $: slides = [
     {
-      image: '/images/splash-screen-1.jpg',
+      image: slideImages[0],
       title: $_('splash.slide1.title'),
       subtitle: $_('splash.slide1.subtitle'),
       tag: $_('splash.slide1.tag'),
       color: '#7C3AED',
     },
     {
-      image: '/images/splash-screen-2.jpg',
+      image: slideImages[1],
       title: $_('splash.slide2.title'),
       subtitle: $_('splash.slide2.subtitle'),
       tag: $_('splash.slide2.tag'),
@@ -41,6 +76,8 @@
   }
 
   onMount(() => {
+    void loadSlideImages();
+
     // Auto-swap slides every half of total delay
     intervalId = setInterval(() => {
       currentSlide = (currentSlide + 1) % slides.length;
@@ -62,13 +99,22 @@
 </script>
 
 <div class="relative flex min-h-dvh w-full flex-col justify-between overflow-hidden bg-black text-white select-none">
+  {#if !slidesLoaded}
+    <!-- Branded loading state — no bundled fallback images ship with the
+         app anymore, slides only exist in the database, so this covers
+         the moment before that fetch resolves. -->
+    <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-black via-[#0b0b14] to-black">
+      <IosSpinner size={28} color="#0135C6" />
+    </div>
+  {/if}
+
   <!-- Background Images with Crossfade -->
   {#each slides as slide, index}
     <div
       class="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
       style="
-        background-image: url('{slide.image}');
-        opacity: {currentSlide === index ? 1 : 0};
+        {slide.image ? `background-image: url('${slide.image}');` : `background: linear-gradient(135deg, ${slide.color}55, #000 80%);`}
+        opacity: {slidesLoaded && currentSlide === index ? 1 : 0};
         transform: scale({currentSlide === index ? 1.03 : 1});
         transition: opacity 1s ease-in-out, transform 4s ease-out;
       "

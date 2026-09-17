@@ -250,7 +250,7 @@
 {:else}
   <article class="raffle-screen">
     <section class="raffle-cover relative min-h-0 overflow-hidden rounded-[26px] bg-[#DCE6FB] shadow-[0_12px_30px_rgba(1,41,163,0.10)]">
-      <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager />
+      <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="cover" eager />
       <div class="prize-glass-flash pointer-events-none absolute inset-y-0 left-0 w-[38%] {pageVisible ? '' : 'is-paused'}" aria-hidden="true"></div>
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#080E49]/45 to-transparent"></div>
       <button type="button" aria-label={$_('raffle.backAria')} on:click={goBack} class="tappable pressable absolute left-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"><ChevronLeft size={20} /></button>

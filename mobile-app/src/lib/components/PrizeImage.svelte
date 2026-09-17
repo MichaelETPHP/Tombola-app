@@ -6,7 +6,15 @@
   export let title: string;
   export let prizeName: string;
   export let size: 'sm' | 'lg' = 'sm';
-  export let fit: 'cover' | 'contain' = 'contain';
+  // 'cover' fills whatever card it's placed in edge to edge regardless of
+  // the uploaded photo's own dimensions — the right default everywhere
+  // this app shows a raffle photo, since admins upload photos of every
+  // shape and the browsing cards (banner, list row, detail hero) each
+  // have their own fixed aspect ratio. 'contain' stays available for a
+  // dedicated full-image view where showing the *entire*, uncropped photo
+  // is the actual point (see the prize lightbox on the raffle detail
+  // page, which renders its image directly rather than via this component).
+  export let fit: 'cover' | 'contain' = 'cover';
   export let eager = false;
 
   // 'local' -> 'production' -> 'failed'. Most images only exist on

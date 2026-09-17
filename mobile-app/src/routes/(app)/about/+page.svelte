@@ -4,8 +4,12 @@
   import { _ } from 'svelte-i18n';
   import {
     ArrowLeft,
+    Building2,
     ChevronDown,
+    ChevronRight,
     Code2,
+    FileText,
+    Lock,
     Phone,
     Share2,
   } from 'lucide-svelte';
@@ -15,9 +19,27 @@
   import { openExternal } from '$lib/native/browser.js';
   import { copyText, shareYeneEtaContent } from '$lib/native/capabilities.js';
   import { showBanner } from '$lib/stores/banner.store.js';
+  import { getTelegramMiniApp } from '$lib/telegram.js';
 
   const BOT_LINK = 'https://t.me/yeneEtabot/yeneeta';
   const TIKTOK_URL = 'https://www.tiktok.com/@yeneeta';
+  const SUPPORT_PHONE = '+251951043859';
+
+  /**
+   * Telegram's in-app WebView doesn't reliably hand a tel: link off to the
+   * OS dialer — the same class of platform limitation as its haptics (see
+   * native/haptics.ts): the tap does nothing, with no error to react to.
+   * Copying the number is the one thing that always works there, so that's
+   * the whole fallback outside Telegram, the plain tel: link below is left
+   * to do its normal thing (often even offering a "call with…" chooser).
+   */
+  async function callSupport(event: MouseEvent) {
+    hapticLight();
+    if (!getTelegramMiniApp()) return;
+    event.preventDefault();
+    await copyText(SUPPORT_PHONE);
+    showBanner($_('about.numberCopiedBanner'));
+  }
 
   $: faqs = [
     { question: $_('about.faq.enter.q'), answer: $_('about.faq.enter.a') },
@@ -102,14 +124,24 @@
     </p>
   </section>
 
+  <section class="flex items-start gap-3 rounded-card bg-card p-4 shadow-card-light">
+    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark">
+      <Building2 size={19} />
+    </span>
+    <div class="min-w-0 flex-1">
+      <h2 class="text-[15px] font-extrabold text-ink">{$_('about.companyTitle')}</h2>
+      <p class="mt-1.5 text-[12px] leading-relaxed text-muted">{$_('about.companyBody')}</p>
+    </div>
+  </section>
+
   <section class="flex flex-col gap-3">
     <div>
       <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('about.support')}</h2>
       <p class="mt-1 text-[10px] font-medium text-muted">{$_('about.supportBody')}</p>
     </div>
     <a
-      href="tel:+251951043859"
-      on:click={hapticLight}
+      href="tel:{SUPPORT_PHONE}"
+      on:click={callSupport}
       class="tappable pressable flex min-h-[72px] items-center gap-3.5 rounded-card bg-card p-4 text-inherit no-underline shadow-card-light"
       aria-label={$_('about.callAria')}
     >
@@ -220,9 +252,28 @@
     </div>
   </section>
 
+  <section class="flex flex-col gap-3">
+    <div>
+      <h2 class="text-[17px] font-extrabold tracking-[-0.02em] text-ink">{$_('about.legalTitle')}</h2>
+      <p class="mt-1 text-[10px] font-medium text-muted">{$_('about.legalBody')}</p>
+    </div>
+    <div class="legal-list overflow-hidden rounded-[18px] bg-card shadow-card-light">
+      <a href="/legal/privacy" class="tappable flex min-h-[54px] items-center gap-3 px-4 text-inherit no-underline">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><Lock size={16} /></span>
+        <span class="flex-1 text-[13px] font-bold text-ink">{$_('about.privacyPolicy')}</span>
+        <ChevronRight size={16} class="text-muted" />
+      </a>
+      <a href="/legal/terms" class="tappable flex min-h-[54px] items-center gap-3 border-t border-ink/5 px-4 text-inherit no-underline">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-action-bg text-primary-dark"><FileText size={16} /></span>
+        <span class="flex-1 text-[13px] font-bold text-ink">{$_('about.termsOfService')}</span>
+        <ChevronRight size={16} class="text-muted" />
+      </a>
+    </div>
+  </section>
+
   <footer class="mb-2 flex items-center justify-center gap-2 text-center text-[10px] font-semibold text-muted">
     <Code2 size={13} class="text-primary-dark" />
-    <span>{$_('about.developedBy')} <strong class="font-extrabold text-ink">Michael & Masresha</strong></span>
+    <span>{$_('about.developedBy')} <strong class="font-extrabold text-ink">251 Technology</strong></span>
   </footer>
 </div>
 

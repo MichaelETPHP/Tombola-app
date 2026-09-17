@@ -11,8 +11,11 @@ interface RateLimitOptions {
   max: number;
   /** Window duration in seconds */
   windowSeconds: number;
-  /** Custom key extractor (defaults to IP + path) */
-  keyExtractor?: (c: Parameters<MiddlewareHandler<AppEnv>>[0]) => string;
+  /** Custom key extractor (defaults to IP + path). May read the request
+   *  body (e.g. to key by phone number), so it's allowed to be async. */
+  keyExtractor?: (
+    c: Parameters<MiddlewareHandler<AppEnv>>[0]
+  ) => string | Promise<string>;
 }
 
 /**
@@ -57,7 +60,7 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppEnv> 
   }, 60_000);
 
   return async (c, next) => {
-    const key = keyExtractor ? keyExtractor(c) : `${clientIp(c)}:${c.req.path}`;
+    const key = keyExtractor ? await keyExtractor(c) : `${clientIp(c)}:${c.req.path}`;
 
     const now = Date.now();
     const windowMs = windowSeconds * 1000;

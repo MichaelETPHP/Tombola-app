@@ -21,26 +21,50 @@ export function recordLoginEvent(
   void (async () => {
     try {
       await sql`
-        INSERT INTO user_login_events (user_id, method, ip_address, user_agent)
-        VALUES (${userId}, ${method}, ${ip}, ${userAgent})
+        INSERT INTO user_login_events (user_id, event_type, method, ip_address, user_agent)
+        VALUES (${userId}, 'login', ${method}, ${ip}, ${userAgent})
       `;
-      if (Math.random() < 0.02) {
-        await sql`
-          DELETE FROM user_login_events
-          WHERE id NOT IN (
-            SELECT id FROM user_login_events ORDER BY created_at DESC LIMIT ${MAX_LOG_ROWS_PER_USER_TABLE}
-          )
-        `;
-      }
+      await trimOldEvents();
     } catch (error) {
       logger.error('Failed to record login event', error instanceof Error ? error.message : error);
     }
   })();
 }
 
+/**
+ * Records one logout — same fire-and-forget reasoning as recordLoginEvent.
+ * No `method` (there's no such thing as a "logout method"); it exists so
+ * the user-detail page can show a real session timeline instead of just a
+ * list of arrivals.
+ */
+export function recordLogoutEvent(userId: string): void {
+  void (async () => {
+    try {
+      await sql`
+        INSERT INTO user_login_events (user_id, event_type)
+        VALUES (${userId}, 'logout')
+      `;
+      await trimOldEvents();
+    } catch (error) {
+      logger.error('Failed to record logout event', error instanceof Error ? error.message : error);
+    }
+  })();
+}
+
+async function trimOldEvents(): Promise<void> {
+  if (Math.random() >= 0.02) return;
+  await sql`
+    DELETE FROM user_login_events
+    WHERE id NOT IN (
+      SELECT id FROM user_login_events ORDER BY created_at DESC LIMIT ${MAX_LOG_ROWS_PER_USER_TABLE}
+    )
+  `;
+}
+
 export interface LoginEventEntry {
   id: string;
-  method: LoginMethod;
+  eventType: 'login' | 'logout';
+  method: LoginMethod | null;
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -53,8 +77,8 @@ export interface LoginEventsPage {
 
 /** Paginated read for the admin user-detail page's login activity section. */
 export async function listLoginEvents(userId: string, limit: number, before?: string): Promise<LoginEventsPage> {
-  const rows = await sql<{ id: string; method: LoginMethod; ipAddress: string | null; userAgent: string | null; createdAt: string }[]>`
-    SELECT id, method, ip_address AS "ipAddress", user_agent AS "userAgent", created_at AS "createdAt"
+  const rows = await sql<LoginEventEntry[]>`
+    SELECT id, event_type AS "eventType", method, ip_address AS "ipAddress", user_agent AS "userAgent", created_at AS "createdAt"
     FROM user_login_events
     WHERE user_id = ${userId}
       AND (${before ?? null}::timestamptz IS NULL OR created_at < ${before ?? null})
@@ -68,7 +92,7 @@ export async function listLoginEvents(userId: string, limit: number, before?: st
 /** Most recent login timestamp for a user, for the detail page's header stat. */
 export async function findLastLoginAt(userId: string): Promise<string | null> {
   const [row] = await sql<{ createdAt: string | null }[]>`
-    SELECT MAX(created_at) AS "createdAt" FROM user_login_events WHERE user_id = ${userId}
+    SELECT MAX(created_at) AS "createdAt" FROM user_login_events WHERE user_id = ${userId} AND event_type = 'login'
   `;
   return row?.createdAt ?? null;
 }

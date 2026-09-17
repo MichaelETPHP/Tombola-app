@@ -10,6 +10,8 @@ export interface PaymentHistoryItem {
   ticketCodes: string[];
   status: 'pending' | 'completed' | 'failed' | 'refunded';
   gateway: string;
+  chapaReference: string | null;
+  paymentMethod: string | null;
   createdAt: string;
 }
 

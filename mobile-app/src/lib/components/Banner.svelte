@@ -13,7 +13,7 @@
     <div
       class="pointer-events-auto flex items-center gap-2.5 rounded-full bg-ink/95 py-2.5 pl-3 pr-4 text-white shadow-nav backdrop-blur-sm"
     >
-      <CircleCheckBig size={20} class="shrink-0 text-primary" />
+      <CircleCheckBig size={20} class="shrink-0 {$banner.type === 'success' ? 'text-online' : 'text-primary'}" />
       <span class="text-[13px] font-semibold">{$banner.message}</span>
     </div>
   </div>

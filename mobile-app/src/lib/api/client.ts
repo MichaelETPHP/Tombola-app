@@ -38,7 +38,9 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const headers = new Headers(fetchOptions.headers);
   headers.set('Accept-Language', get(language) ?? 'en');
 
-  if (!headers.has('Content-Type') && fetchOptions.body) {
+  // A FormData body (file uploads) needs the browser to set its own
+  // multipart boundary — forcing application/json here would break it.
+  if (!headers.has('Content-Type') && fetchOptions.body && !(fetchOptions.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -82,7 +84,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       // a newer login elsewhere. Surface that plainly rather than leaving
       // the user stranded on a broken page wondering why requests fail.
       if (refreshResult.code === 'AUTH_SESSION_REVOKED') {
-        showBanner(get(_)('apiErrors.sessionRevoked'), 3000);
+        showBanner(get(_)('apiErrors.sessionRevoked'), { duration: 3000 });
         goto('/login', { replaceState: true });
       }
       throw new ApiError(401, get(_)('apiErrors.sessionExpired'));
@@ -154,4 +156,7 @@ export const api = {
 
   delete: <T>(path: string, options?: FetchOptions) =>
     apiFetch<T>(path, { ...options, method: 'DELETE' }),
+
+  upload: <T>(path: string, body: FormData, options?: FetchOptions) =>
+    apiFetch<T>(path, { ...options, method: 'POST', body }),
 };

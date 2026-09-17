@@ -24,7 +24,7 @@
   aria-label={$_('raffleCard.viewAria', { values: { title: raffle.title } })}
 >
   <div class="relative h-[96px] w-[96px] shrink-0 overflow-hidden rounded-[14px] bg-[#DCE6FB]">
-    <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="sm" fit="contain" {eager} />
+    <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="sm" fit="cover" {eager} />
   </div>
 
   <div class="flex min-w-0 flex-1 flex-col justify-center gap-1 py-0.5">

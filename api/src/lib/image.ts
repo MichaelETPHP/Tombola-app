@@ -68,3 +68,17 @@ export async function processIdDocument(input: Buffer | Uint8Array): Promise<Pro
     quality: 90,
   });
 }
+
+/**
+ * Process a splash-screen slide — full-bleed portrait art, so this keeps
+ * more headroom than a prize photo (bounded to a tall phone-screen size
+ * rather than square-ish) and a touch more quality since it fills the
+ * entire first screen a buyer ever sees.
+ */
+export async function processSplashImage(input: Buffer | Uint8Array): Promise<ProcessedImage> {
+  return processImage(input, {
+    maxWidth: 900,
+    maxHeight: 1600,
+    quality: 85,
+  });
+}
