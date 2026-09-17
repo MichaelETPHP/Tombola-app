@@ -44,6 +44,7 @@ export const colors = {
   actionIconColor: '#0135C6',
 
   online: '#1FAA59',
+  red: '#CC1421',
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────
