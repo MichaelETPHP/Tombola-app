@@ -8,13 +8,13 @@
   font-display: swap;
 }
 
-/* ─── YeneEta Admin — Theme Tokens ──────────────────────────────────── */
+/* ─── 251 Lottery Admin — Theme Tokens ──────────────────────────────── */
 @theme {
   --font-sans: 'Hoover', 'Segoe UI', sans-serif;
 
-  --color-primary: #107c68;
-  --color-primary-dark: #107c68;
-  --color-primary-bg: #e2f5ef;
+  --color-primary: #0135c6;
+  --color-primary-dark: #0129a3;
+  --color-primary-bg: #dce6fb;
 
   --color-danger: #dc2626;
   --color-danger-bg: #fee2e2;
@@ -25,17 +25,17 @@
   --color-info: #2563eb;
   --color-info-bg: #dbeafe;
 
-  --color-bg: #f3f7f5;
+  --color-bg: #f4f6fa;
   --color-card: #ffffff;
-  --color-border: #dde7e3;
+  --color-border: #e2e5ee;
 
-  --color-ink: #17201e;
-  --color-muted: #66736f;
-  --color-faint: #66736f;
+  --color-ink: #1a1d29;
+  --color-muted: #8a8fa3;
+  --color-faint: #8a8fa3;
 
-  --color-sidebar: #17201e;
-  --color-sidebar-text: #b8c5c1;
-  --color-sidebar-active: #24312e;
+  --color-sidebar: #080e49;
+  --color-sidebar-text: #a9b3dd;
+  --color-sidebar-active: #151f59;
   --color-sidebar-active-text: #ffffff;
 
   --radius-card: 16px;
@@ -81,7 +81,7 @@
 
   ::selection {
     color: var(--color-ink);
-    background: #bce9dc;
+    background: #cfe0fb;
   }
 
   * {

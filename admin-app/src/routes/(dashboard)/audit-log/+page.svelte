@@ -117,7 +117,7 @@
   aria-label="Refresh audit trail from the database"
   disabled={loading}
   on:click={load}
-  class="admin-press fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/40 bg-white/60 text-ink shadow-[0_10px_30px_-8px_rgba(23,32,30,0.35)] backdrop-blur-md transition-transform hover:scale-105 disabled:opacity-60"
+  class="admin-press fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/40 bg-white/60 text-ink shadow-[0_10px_30px_-8px_rgba(8,14,73,0.35)] backdrop-blur-md transition-transform hover:scale-105 disabled:opacity-60"
 >
   <RefreshCw size={18} class={loading ? 'animate-spin' : ''} />
 </button>

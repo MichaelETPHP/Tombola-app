@@ -23,7 +23,7 @@
   disabled={refreshing}
   aria-label="Refresh page"
   title="Refresh page"
-  class="admin-press fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-ink shadow-[0_8px_24px_rgba(23,32,30,0.18)] transition-colors hover:border-primary/40 hover:text-primary-dark disabled:cursor-wait"
+  class="admin-press fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-ink shadow-[0_8px_24px_rgba(8,14,73,0.18)] transition-colors hover:border-primary/40 hover:text-primary-dark disabled:cursor-wait"
 >
   <RefreshCw size={19} class={refreshing ? 'animate-spin' : ''} />
 </button>

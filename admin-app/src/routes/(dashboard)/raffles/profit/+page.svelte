@@ -139,7 +139,7 @@
   {:else}
     {#if refreshError}<div role="status" class="rounded-button bg-warning-bg px-4 py-3 text-sm text-warning">Updates paused. Showing the last successful figures. {refreshError}</div>{/if}
     <div class="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-      <section class="relative overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-34px_rgba(23,32,30,0.72)] md:p-8">
+      <section class="relative overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-34px_rgba(8,14,73,0.72)] md:p-8">
         <div class="relative flex min-h-[200px] flex-col justify-between gap-8">
           <div class="flex items-start justify-between gap-4">
             <div>

@@ -160,7 +160,7 @@
   </div>
 
   <aside class="space-y-5">
-    <section class="overflow-hidden rounded-card bg-sidebar text-white shadow-[0_22px_48px_-32px_rgba(23,32,30,0.75)]" aria-live="polite">
+    <section class="overflow-hidden rounded-card bg-sidebar text-white shadow-[0_22px_48px_-32px_rgba(8,14,73,0.75)]" aria-live="polite">
       <div class="flex items-start justify-between gap-4 border-b border-white/10 p-5">
         <div>
           <h2 class="text-base font-bold tracking-[-0.02em]">Profit preview</h2>
@@ -231,6 +231,6 @@
     </section>
 
     {#if errorMessage}<p class="rounded-button bg-danger-bg p-3 text-xs font-medium text-danger" role="alert">{errorMessage}</p>{/if}
-    <button type="submit" class="admin-press h-12 w-full rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(21,154,127,0.18)] disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>{submitting ? 'Creating raffle…' : 'Create raffle'}</button>
+    <button type="submit" class="admin-press h-12 w-full rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(1,53,198,0.18)] disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting}>{submitting ? 'Creating raffle…' : 'Create raffle'}</button>
   </aside>
 </form>

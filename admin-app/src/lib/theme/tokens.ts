@@ -1,15 +1,15 @@
 /**
  * Design System Tokens — Admin Dashboard.
- * A calmer, professional palette distinct from the consumer mobile app —
- * this is a working tool, not a marketing surface. Components should
- * import from here instead of hardcoding values.
+ * Shares the same brand blue/navy identity as the mobile app, so the two
+ * feel like one product from the same company rather than two different
+ * tools. Components should import from here instead of hardcoding values.
  */
 
 // ── Brand Colors ─────────────────────────────────────────
 export const colors = {
-  primary: '#107C68',
-  primaryDark: '#107C68',
-  primaryBg: '#E2F5EF',
+  primary: '#0135C6',
+  primaryDark: '#0129A3',
+  primaryBg: '#DCE6FB',
 
   danger: '#DC2626',
   dangerBg: '#FEE2E2',
@@ -23,17 +23,17 @@ export const colors = {
   info: '#2563EB',
   infoBg: '#DBEAFE',
 
-  bg: '#F3F7F5',
+  bg: '#F4F6FA',
   cardBg: '#FFFFFF',
-  border: '#DDE7E3',
+  border: '#E2E5EE',
 
-  textPrimary: '#17201E',
-  textSecondary: '#66736F',
-  textMuted: '#66736F',
+  textPrimary: '#1A1D29',
+  textSecondary: '#8A8FA3',
+  textMuted: '#8A8FA3',
 
-  sidebarBg: '#17201E',
-  sidebarText: '#B8C5C1',
-  sidebarActiveBg: '#24312E',
+  sidebarBg: '#080E49',
+  sidebarText: '#A9B3DD',
+  sidebarActiveBg: '#151F59',
   sidebarActiveText: '#FFFFFF',
 } as const;
 

@@ -125,7 +125,7 @@
 
       {#if error}<p class="mt-4 rounded-button border border-danger/15 bg-danger-bg px-3.5 py-3 text-xs font-medium text-danger" role="alert">{error}</p>{/if}
 
-      <button type="submit" disabled={loading} class="admin-press mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(21,154,127,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+      <button type="submit" disabled={loading} class="admin-press mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(1,53,198,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
         {loading ? 'Signing in…' : 'Enter control center'}
         {#if loading}<Loader2 size={17} class="animate-spin" />{:else}<ArrowRight size={17} />{/if}
       </button>
