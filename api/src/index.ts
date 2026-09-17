@@ -7,7 +7,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { rafflesRoutes, adminRafflesRoutes } from './modules/raffles/raffles.routes.js';
 import { ticketsRoutes, myTicketsRoutes } from './modules/tickets/tickets.routes.js';
-import { paymentsRoutes } from './modules/payments/payments.routes.js';
+import { paymentsRoutes, adminPaymentsRoutes } from './modules/payments/payments.routes.js';
 import { drawsRoutes } from './modules/draws/draws.routes.js';
 import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -164,6 +164,7 @@ app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
 app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
+app.route('/admin/payments', adminPaymentsRoutes);
 app.route('/admin/contacts', adminContactsRoutes);
 app.route('/admin/splash', adminSplashRoutes);
 

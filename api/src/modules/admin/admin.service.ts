@@ -1,6 +1,7 @@
 import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds, findUserById } from '../../db/queries/users.queries.js';
 import { listUserTickets } from '../../db/queries/tickets.queries.js';
 import { findPayoutsByUserIdDetailed } from '../../db/queries/payouts.queries.js';
+import { listUserPayments } from '../../db/queries/payments.queries.js';
 import { listLoginEvents, findLastLoginAt } from '../../lib/login-events.js';
 import { getSmsLogsPage } from './sms-admin.service.js';
 import { listAuditLog as dbListAuditLog } from '../../db/queries/audit.queries.js';
@@ -599,6 +600,17 @@ export async function getUserSmsLogs(userId: string, filter: { limit: number; be
 /** Every recorded login for this user — see lib/login-events.ts for why this only starts from when it shipped. */
 export async function getUserLogins(userId: string, limit: number, before?: string) {
   return listLoginEvents(userId, limit, before);
+}
+
+/**
+ * Every checkout this user has ever started — completed, failed, expired,
+ * cancelled, and stuck-needing-review alike, not just the successful ones
+ * "Raffle participation" shows. This is the answer to "the user says they
+ * clicked Pay and nothing happened": the exact attempt, its status and
+ * timestamp are right here even when it never turned into a ticket.
+ */
+export async function getUserPayments(userId: string, limit: number, offset: number) {
+  return listUserPayments(userId, limit, offset);
 }
 
 /**

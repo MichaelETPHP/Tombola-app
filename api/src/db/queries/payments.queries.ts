@@ -247,6 +247,63 @@ export async function markPaymentReviewRequired(id: string): Promise<void> {
   await sql`UPDATE payments SET review_required = true WHERE id = ${id}`;
 }
 
+export interface DbPaymentReview {
+  id: string;
+  raffleId: string;
+  raffleTitle: string;
+  userId: string;
+  userPhone: string;
+  userFullName: string | null;
+  amount: number;
+  ticketCount: number;
+  selectedNumbers: number[] | null;
+  status: PaymentStatus;
+  gateway: PaymentGateway;
+  gatewayRef: string | null;
+  createdAt: Date;
+}
+
+/**
+ * Payments Chapa verified as paid but that could never issue their reserved
+ * numbers (see completePaymentAndIssueTickets) — a real charge with nothing
+ * to show for it until an admin resolves it. This existed as a silent
+ * database flag with no admin-facing view at all before this query.
+ */
+export async function listPaymentsNeedingReview(limit: number, offset: number): Promise<DbPaymentReview[]> {
+  return sql<DbPaymentReview[]>`
+    SELECT
+      p.id, p.raffle_id, r.title AS raffle_title,
+      p.user_id, u.phone_number AS user_phone, u.full_name AS user_full_name,
+      p.amount, p.ticket_count, p.selected_numbers, p.status, p.gateway, p.gateway_ref, p.created_at
+    FROM payments p
+    JOIN raffles r ON r.id = p.raffle_id
+    JOIN users u ON u.id = p.user_id
+    WHERE p.review_required
+    ORDER BY p.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+}
+
+/**
+ * Admin resolution after handling a stuck review outside this system
+ * (typically refunding the customer through Chapa's own dashboard). Only
+ * ever touches a row still actually marked for review, so resolving twice
+ * — two admins, or a stale tab — is a harmless no-op the second time.
+ */
+export async function resolvePaymentReview(id: string, adminId: string, reference: string | null): Promise<DbPayment | null> {
+  return sql.begin(async (tx) => {
+    const [payment] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id} AND review_required FOR UPDATE`;
+    if (!payment) return null;
+    const [updated] = await tx<DbPayment[]>`
+      UPDATE payments SET status = 'refunded', review_required = false, updated_at = NOW()
+      WHERE id = ${id} RETURNING *
+    `;
+    await tx`INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+      VALUES ('admin', ${adminId}, 'payment.review_resolved', 'payment', ${id}, ${tx.json({ reference })})`;
+    return updated;
+  });
+}
+
 /**
  * Find a payment by ID.
  */

@@ -4,6 +4,8 @@ import {
   findPaymentByTxRef,
   findPaymentReceiptById,
   listUserPayments,
+  listPaymentsNeedingReview,
+  resolvePaymentReview as dbResolvePaymentReview,
   updatePaymentStatus,
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
@@ -190,4 +192,24 @@ export async function verifyPaymentForUser(id: string, userId: string) {
     await verifyAndReconcileChapaPayment(payment.gatewayRef);
   }
   return getPaymentStatus(id, userId);
+}
+
+/**
+ * Payments verified as paid by the gateway but that couldn't issue their
+ * reserved numbers — a real charge with nothing resolved yet. See
+ * completePaymentAndIssueTickets for how a payment lands here, and
+ * listPaymentsNeedingReview's own comment for why this queue exists at all.
+ */
+export async function getPaymentsNeedingReview(limit: number, offset: number) {
+  return listPaymentsNeedingReview(limit, offset);
+}
+
+/**
+ * Admin confirms this charge was handled outside the system (typically:
+ * refunded through Chapa's own dashboard) and clears it from the queue.
+ * Returns null if it was already resolved by someone else — the route
+ * turns that into a 404 rather than silently double-processing it.
+ */
+export async function resolvePaymentReview(id: string, adminId: string, reference: string | null) {
+  return dbResolvePaymentReview(id, adminId, reference);
 }

@@ -55,6 +55,10 @@ export const statusColors = {
   completed: { fg: colors.textSecondary, bg: colors.border },
   cancelled: { fg: colors.danger, bg: colors.dangerBg },
 
+  // Payment status (admin user-detail page's "Payment activity" section)
+  pending: { fg: colors.info, bg: colors.infoBg },
+  refunded: { fg: colors.warning, bg: colors.warningBg },
+
   pending_claim: { fg: colors.warning, bg: colors.warningBg },
   id_submitted: { fg: colors.info, bg: colors.infoBg },
   verified: { fg: colors.primary, bg: colors.primaryBg },

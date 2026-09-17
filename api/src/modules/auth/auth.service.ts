@@ -25,7 +25,7 @@ import {
   type SharedContact,
 } from '../../lib/telegram.js';
 import { sendOtp, sendWelcomeSms } from '../../lib/sms.js';
-import { recordLoginEvent, type LoginMethod } from '../../lib/login-events.js';
+import { recordLoginEvent, recordLogoutEvent, type LoginMethod } from '../../lib/login-events.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
@@ -293,8 +293,10 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
     return;
   }
   // A database failure must reach the caller; it is not a successful revocation.
-  if (payload.role === 'user') await bumpSessionVersion(payload.sub);
-  else if (Number.isSafeInteger(payload.sessionVersion)) {
+  if (payload.role === 'user') {
+    await bumpSessionVersion(payload.sub);
+    recordLogoutEvent(payload.sub);
+  } else if (Number.isSafeInteger(payload.sessionVersion)) {
     await revokeAdminSessions(payload.sub, payload.sessionVersion!);
   }
 }

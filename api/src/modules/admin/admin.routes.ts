@@ -35,6 +35,7 @@ import {
   getUserPayouts,
   getUserSmsLogs,
   getUserLogins,
+  getUserPayments,
   adminSendSmsToUser,
   getAdminProfile,
   updateOwnAdminProfile,
@@ -436,6 +437,21 @@ adminRoutes.get('/users/:id/logins', async (c) => {
   const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
   const page = await getUserLogins(z.string().uuid().parse(c.req.param('id')), limit, before);
   return c.json(page);
+});
+
+/**
+ * GET /admin/users/:id/payments
+ * Every checkout this user has ever started, not just the ones that
+ * became tickets — completed, failed, expired, cancelled, and stuck-
+ * needing-review alike. See admin.service.ts's getUserPayments.
+ */
+adminRoutes.get('/users/:id/payments', async (c) => {
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const offsetParam = Number(c.req.query('offset'));
+  const offset = Number.isFinite(offsetParam) ? Math.max(0, offsetParam) : 0;
+  const payments = await getUserPayments(z.string().uuid().parse(c.req.param('id')), limit, offset);
+  return c.json({ payments });
 });
 
 /**

@@ -10,10 +10,14 @@ import {
   verifyAndReconcileChapaPayment,
   verifyPaymentForUser,
   cancelPaymentForUser,
+  getPaymentsNeedingReview,
+  resolvePaymentReview,
 } from './payments.service.js';
 import { verifyChapaWebhookSignature, verifyMockPaymentSecret } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
+import { requireRole } from '../../middleware/require-role.middleware.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
+import { AppError } from '../../middleware/error-handler.middleware.js';
 import { logger } from '../../lib/logger.js';
 import { env } from '../../config/env.js';
 import type { AppEnv } from '../../types/hono.js';
@@ -139,4 +143,35 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
 
   // Always return 200 to acknowledge receipt
   return c.json({ received: true }, 200);
+});
+
+/**
+ * Admin payment routes — mounted under /admin/payments. Separate from the
+ * payouts admin routes: a payout is what happens after a winner is drawn,
+ * this is the checkout/charge side — specifically the queue of payments
+ * Chapa verified as paid that never turned into a ticket (see
+ * completePaymentAndIssueTickets), which had zero admin visibility before
+ * this existed.
+ */
+export const adminPaymentsRoutes = new Hono<AppEnv>();
+
+adminPaymentsRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
+
+/** GET /admin/payments/review-queue */
+adminPaymentsRoutes.get('/review-queue', async (c) => {
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const offsetParam = Number(c.req.query('offset'));
+  const offset = Number.isFinite(offsetParam) ? Math.max(0, offsetParam) : 0;
+  const payments = await getPaymentsNeedingReview(limit, offset);
+  return c.json({ payments });
+});
+
+/** POST /admin/payments/:id/resolve-review */
+adminPaymentsRoutes.post('/:id/resolve-review', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reference = typeof body.reference === 'string' && body.reference.trim() ? body.reference.trim() : null;
+  const payment = await resolvePaymentReview(c.req.param('id'), c.get('admin')!.id, reference);
+  if (!payment) throw new AppError(404, 'This payment is not awaiting review — it may have already been resolved.');
+  return c.json({ payment });
 });
