@@ -22,6 +22,11 @@ function parseSlot(raw: string): number {
 export const splashRoutes = new Hono<AppEnv>();
 
 splashRoutes.get('/', async (c) => {
+  // An admin can replace a slide at any moment — this response must never
+  // be cached by a proxy/CDN sitting in front of the API, on top of the
+  // client's own cache-busting (Telegram's WebView is known to cache more
+  // aggressively than a normal browser).
+  c.header('Cache-Control', 'no-store');
   const slides = await getSplashSlides();
   return c.json({ slides });
 });

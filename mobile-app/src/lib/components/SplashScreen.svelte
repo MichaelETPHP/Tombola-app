@@ -18,7 +18,16 @@
 
   async function loadSlideImages() {
     try {
-      const { slides: remote } = await api.get<{ slides: { slot: number; imageUrl: string }[] }>('/splash', { skipAuth: true });
+      // Telegram's in-app WebView is known to cache fetched resources more
+      // aggressively than a normal browser, sometimes ignoring standard
+      // cache-control semantics entirely — cache: 'no-store' alone isn't
+      // reliable there. A query string that's different on every load is
+      // the one thing no cache (WebView, CDN, proxy) can serve stale for,
+      // since that exact URL was never seen before.
+      const { slides: remote } = await api.get<{ slides: { slot: number; imageUrl: string }[] }>(
+        `/splash?_=${Date.now()}`,
+        { skipAuth: true, cache: 'no-store' }
+      );
       const next: [string, string] = [...DEFAULT_SLIDE_IMAGES];
       for (const slide of remote) {
         const resolved = resolveImageUrl(slide.imageUrl);
