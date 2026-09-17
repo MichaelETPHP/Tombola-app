@@ -52,13 +52,36 @@ function setRefreshCookie(c: Parameters<typeof setCookie>[0], refreshToken: stri
 }
 
 /**
+ * Keys the OTP-send rate limit by the (normalized) phone number being
+ * texted, on top of the existing per-IP limit below. The per-IP limit
+ * alone can't stop "SMS bombing" — rotating IPs (trivial: airplane mode,
+ * a VPN, a proxy list) resets that bucket to zero while the same victim
+ * phone number keeps getting texted. This bucket doesn't move when the
+ * IP changes, only when the target number does.
+ */
+async function otpPhoneKey(c: Parameters<typeof clientIp>[0]): Promise<string> {
+  try {
+    const body = await c.req.json();
+    const { phone } = requestOtpSchema.parse(body);
+    return `otp-phone:${phone}`;
+  } catch {
+    // Malformed body — the handler's own schema validation will reject it
+    // either way; fall back to the requester's IP so this path can't be
+    // used to dodge rate limiting entirely by sending garbage.
+    return `otp-phone-invalid:${clientIp(c)}`;
+  }
+}
+
+/**
  * POST /auth/otp/request
  * Send an OTP to the provided phone number.
- * Rate limited: 5 requests per 5 minutes per IP.
+ * Rate limited: 5 requests per 5 minutes per IP, AND 3 requests per 15
+ * minutes per phone number (see otpPhoneKey above).
  */
 authRoutes.post(
   '/otp/request',
   rateLimit({ max: 5, windowSeconds: 300 }),
+  rateLimit({ max: 3, windowSeconds: 900, keyExtractor: otpPhoneKey }),
   async (c) => {
     const body = await c.req.json();
     const { phone } = requestOtpSchema.parse(body);
