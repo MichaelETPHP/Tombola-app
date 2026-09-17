@@ -138,7 +138,7 @@
       type="button"
       disabled={sharing}
       on:click={shareBot}
-      class="share-button tappable pressable mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#080E49] disabled:opacity-60"
+      class="share-button tappable pressable mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-white disabled:opacity-60"
     >
       <Share2 size={17} />
       {sharing ? $_('about.openingShare') : $_('about.shareTelegramLink')}

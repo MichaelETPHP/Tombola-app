@@ -186,7 +186,7 @@
         <span
           in:scale={{ duration: 160, start: 0.7, opacity: 0, easing: cubicOut }}
           class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold transition-colors duration-150 {armed
-            ? 'bg-primary text-[#080E49]'
+            ? 'bg-primary text-white'
             : 'bg-bg-start text-primary-dark'}"
         >
           {count}

@@ -95,7 +95,7 @@
                 <div class="h-full rounded-full bg-primary-dark transition-[width] duration-500 ease-[var(--ease-out)]" style="width: {soldPercentage(raffle)}%"></div>
               </div>
 
-              <span class="featured-cta inline-flex h-[52px] w-full items-center justify-between rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#080E49] shadow-[0_10px_22px_-14px_rgba(1,41,163,0.72),inset_0_1px_0_rgba(255,255,255,0.72)]">
+              <span class="featured-cta inline-flex h-[52px] w-full items-center justify-between rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-white shadow-[0_10px_22px_-14px_rgba(1,41,163,0.72),inset_0_1px_0_rgba(255,255,255,0.72)]">
                 {$_('banner.chooseTickets', { values: { n: raffle.maxTicketsPerUser } })}
                 <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#080E49] text-white"><ArrowRight size={17} strokeWidth={2.4} /></span>
               </span>

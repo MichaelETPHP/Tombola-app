@@ -63,7 +63,7 @@
       <p class="text-xs leading-relaxed text-muted">{$_('home.loadErrorBody')}</p>
       <button
         type="button"
-        class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-[#080E49]"
+        class="tappable pressable inline-flex h-11 items-center gap-2 rounded-button bg-primary px-4 text-xs font-bold text-white"
         on:click={loadRaffles}
       >
         {$_('home.tryAgain')} <ArrowRight size={15} />
