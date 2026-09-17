@@ -442,6 +442,15 @@
     "aboutBody": "ድጋፍ፣ ተደጋጋሚ ጥያቄዎች እና ኦፊሴላዊ ቻናሎች",
     "paymentHistory": "የክፍያ ታሪክ",
     "noPurchases": "እስካሁን ግዢ የለም።",
+    "paymentReference": "የቻፓ መለያ ቁጥር",
+    "paymentMethod": {
+      "telebirr": "ቴሌብር",
+      "cbebirr": "ሲቢኢ ብር",
+      "mpesa": "ኤም-ፔሳ",
+      "ebirr": "ኢብር",
+      "amole": "አሞሌ",
+      "hellocash": "ሄሎካሽ"
+    },
     "paymentPagesAria": "የክፍያ ታሪክ ገጾች",
     "previousPageAria": "ቀዳሚ ገጽ",
     "pageOf": "ገጽ {n} ከ{total}",

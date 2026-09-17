@@ -23,6 +23,10 @@ export interface DbPayment {
   checkoutStartedAt: Date | null;
   idempotencyKey: string | null;
   reviewRequired: boolean;
+  /** Chapa's own transaction reference — distinct from gatewayRef (ours). */
+  chapaReference: string | null;
+  /** e.g. "telebirr", "cbebirr", "mpesa" — which method the customer paid with. */
+  paymentMethod: string | null;
 }
 
 export type PaymentReservationResult =
@@ -159,7 +163,15 @@ export async function reservePayment(data: {
   });
 }
 
-export async function completePaymentAndIssueTickets(gatewayRef: string): Promise<'completed' | 'already_processed' | 'not_found' | 'review'> {
+export interface ChapaPaymentMeta {
+  chapaReference?: string | null;
+  paymentMethod?: string | null;
+}
+
+export async function completePaymentAndIssueTickets(
+  gatewayRef: string,
+  meta?: ChapaPaymentMeta
+): Promise<'completed' | 'already_processed' | 'not_found' | 'review'> {
   return sql.begin(async (tx) => {
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE gateway_ref = ${gatewayRef}`;
     if (!snapshot) return 'not_found' as const;
@@ -173,10 +185,16 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     const claims = await tx<{ ticketNumber: number }[]>`SELECT ticket_number FROM ticket_number_claims WHERE payment_id = ${payment.id} AND NOT sold`;
     // A released or closed order may still receive a late verified charge.
     // Keep it visible for an audited refund; never silently replace numbers.
+    // Chapa's own reference/method are recorded even here — a payment sent
+    // to manual review is exactly the case where support most needs to be
+    // able to look the transaction up on Chapa's own dashboard.
     if (payment.status !== 'pending' || !['open', 'locked'].includes(raffle.status) ||
         !sameSelection(claims.map((c) => c.ticketNumber), payment.selectedNumbers ?? []) || claims.length !== payment.ticketCount ||
         (!payment.checkoutStartedAt && payment.reservationExpiresAt && payment.reservationExpiresAt <= new Date())) {
-      await tx`UPDATE payments SET review_required = true WHERE id = ${payment.id}`;
+      await tx`UPDATE payments SET review_required = true,
+        chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+        payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+        WHERE id = ${payment.id}`;
       await tx`INSERT INTO audit_log (actor_type, action, entity_type, entity_id, metadata)
         VALUES ('system', 'payment.requires_review', 'payment', ${payment.id}, ${tx.json({ reason: 'Verified charge could not fulfill the reserved numbers' })})`;
       return 'review' as const;
@@ -192,7 +210,10 @@ export async function completePaymentAndIssueTickets(gatewayRef: string): Promis
     );
     await tx`INSERT INTO tickets (raffle_id, user_id, ticket_number, payment_id, display_number)
       SELECT ${payment.raffleId}, ${payment.userId}, unnest(${payment.selectedNumbers!}::int[]), ${payment.id}, unnest(${displayNumbers}::text[])`;
-    await tx`UPDATE payments SET status = 'completed' WHERE id = ${payment.id}`;
+    await tx`UPDATE payments SET status = 'completed',
+      chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+      payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+      WHERE id = ${payment.id}`;
     return 'completed' as const;
   });
 }
@@ -368,12 +389,20 @@ export async function cancelPendingPayment(id: string): Promise<DbPayment | null
   return transitionPendingPayment(id, 'failed');
 }
 
-async function transitionPendingPayment(id: string, status: PaymentStatus, onlyUnstarted = false): Promise<DbPayment | null> {
+async function transitionPendingPayment(
+  id: string,
+  status: PaymentStatus,
+  onlyUnstarted = false,
+  meta?: ChapaPaymentMeta
+): Promise<DbPayment | null> {
   return sql.begin(async (tx) => {
     const [snapshot] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id}`;
     if (!snapshot) return null;
     await tx`SELECT id FROM raffles WHERE id = ${snapshot.raffleId} FOR UPDATE`;
-    const [payment] = await tx<DbPayment[]>`UPDATE payments SET status = ${status} WHERE id = ${id}
+    const [payment] = await tx<DbPayment[]>`UPDATE payments SET status = ${status},
+      chapa_reference = COALESCE(${meta?.chapaReference ?? null}, chapa_reference),
+      payment_method = COALESCE(${meta?.paymentMethod ?? null}, payment_method)
+      WHERE id = ${id}
       AND status = 'pending' AND NOT review_required AND (${!onlyUnstarted} OR checkout_started_at IS NULL) RETURNING *`;
     if (payment && (status === 'failed' || status === 'refunded')) {
       await tx`DELETE FROM ticket_number_claims WHERE payment_id = ${id} AND NOT sold`;
@@ -382,8 +411,15 @@ async function transitionPendingPayment(id: string, status: PaymentStatus, onlyU
   });
 }
 
-export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<DbPayment | null> {
-  return transitionPendingPayment(id, status);
+/**
+ * A payment failing (Chapa declined/cancelled it) still deserves the same
+ * "hold onto the reference" treatment as a success — see completePayment-
+ * AndIssueTickets' comment. A user-initiated local cancel (cancelPending-
+ * Payment below) passes no meta at all: it happens before Chapa has any
+ * record of the transaction, so there's genuinely nothing to record yet.
+ */
+export async function updatePaymentStatus(id: string, status: PaymentStatus, meta?: ChapaPaymentMeta): Promise<DbPayment | null> {
+  return transitionPendingPayment(id, status, false, meta);
 }
 
 export async function expireUnstartedPayments(): Promise<void> {
@@ -408,6 +444,8 @@ export interface DbPaymentWithDetails {
   gateway: PaymentGateway;
   createdAt: Date;
   reviewRequired: boolean;
+  chapaReference: string | null;
+  paymentMethod: string | null;
 }
 
 /**
@@ -432,6 +470,8 @@ export async function listUserPayments(
       p.status,
       p.review_required,
       p.gateway,
+      p.chapa_reference,
+      p.payment_method,
       p.created_at,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number) FILTER (WHERE t.ticket_number IS NOT NULL),

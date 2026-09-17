@@ -43,7 +43,12 @@ export interface ChapaVerifyResponse {
     amount?: string | number;
     currency?: string;
     mode?: string;
+    /** Chapa's own transaction reference (e.g. "AP634JFwEbxd") — distinct
+     * from tx_ref, which is the reference *we* generated and sent them. */
     reference?: string;
+    /** Which specific mobile-money method the customer paid with, e.g.
+     * "telebirr", "cbebirr", "mpesa". */
+    payment_method?: string;
     [key: string]: unknown;
   };
 }

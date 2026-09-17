@@ -18,6 +18,7 @@
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
   import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
+  import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
 
   const pullRefresh = getPullRefreshContext();
 
@@ -34,6 +35,13 @@
     failed: 'bg-pink-bg text-pink',
     refunded: 'bg-dot-inactive text-muted',
   };
+
+  const knownPaymentMethods = ['telebirr', 'cbebirr', 'mpesa', 'ebirr', 'amole', 'hellocash'];
+  function paymentMethodLabel(method: string | null): string | null {
+    if (!method) return null;
+    const key = method.toLowerCase();
+    return knownPaymentMethods.includes(key) ? $_(`profile.paymentMethod.${key}`) : method;
+  }
 
   let fullName = $auth.user?.fullName ?? '';
   let preferredLanguage: AppLanguage = $auth.user?.preferredLanguage ?? ($language === 'am' ? 'am' : 'en');
@@ -341,7 +349,7 @@
                 </span>
               </div>
               <div class="flex items-center justify-between text-xs text-muted">
-                <span>{new Date(payment.createdAt).toLocaleDateString($language ?? undefined)}</span>
+                <span>{toEthiopianDateTime(payment.createdAt)}</span>
                 <span class="font-semibold text-ink">{formatEtb(payment.amount)} ETB</span>
               </div>
               {#if payment.ticketCodes.length > 0}
@@ -351,6 +359,16 @@
                       {code}
                     </span>
                   {/each}
+                </div>
+              {/if}
+              {#if payment.chapaReference || payment.paymentMethod}
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dot-inactive/60 pt-2 text-[11px] text-muted">
+                  {#if payment.paymentMethod}
+                    <span>{paymentMethodLabel(payment.paymentMethod)}</span>
+                  {/if}
+                  {#if payment.chapaReference}
+                    <span class="font-mono">{$_('profile.paymentReference')}: {payment.chapaReference}</span>
+                  {/if}
                 </div>
               {/if}
             </a>

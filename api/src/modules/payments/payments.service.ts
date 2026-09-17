@@ -7,6 +7,7 @@ import {
   listPaymentsNeedingReview,
   resolvePaymentReview as dbResolvePaymentReview,
   updatePaymentStatus,
+  type ChapaPaymentMeta,
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
@@ -16,8 +17,8 @@ import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
 /** Atomically confirms a payment and assigns its ticket numbers. */
-export async function processPaymentSuccess(txRef: string): Promise<void> {
-  const result = await completePaymentAndIssueTickets(txRef);
+export async function processPaymentSuccess(txRef: string, meta?: ChapaPaymentMeta): Promise<void> {
+  const result = await completePaymentAndIssueTickets(txRef, meta);
   if (result === 'not_found') {
     logger.warn(`Webhook received for unknown tx_ref: ${txRef}`);
     throw new AppError(404, 'Payment not found');
@@ -80,6 +81,8 @@ export async function getPaymentStatus(id: string, userId: string) {
     amount: payment.amount,
     gateway: payment.gateway,
     txRef: payment.gatewayRef,
+    chapaReference: payment.chapaReference,
+    paymentMethod: payment.paymentMethod,
     status: payment.reviewRequired ? 'review' : payment.status,
     createdAt: payment.createdAt,
   };
@@ -114,18 +117,20 @@ export async function getMyPayments(userId: string, limit = 50, offset = 0) {
     ticketCodes: payment.ticketDisplayNumbers.map((d) => `${payment.categoryCode}-${d}`),
     status: payment.reviewRequired ? 'review' : payment.status,
     gateway: payment.gateway,
+    chapaReference: payment.chapaReference,
+    paymentMethod: payment.paymentMethod,
     createdAt: payment.createdAt,
   }));
 }
 
-export async function processPaymentFailure(txRef: string): Promise<void> {
+export async function processPaymentFailure(txRef: string, meta?: ChapaPaymentMeta): Promise<void> {
   const payment = await findPaymentByTxRef(txRef);
   if (!payment) {
     logger.warn(`Failure webhook for unknown tx_ref: ${txRef}`);
     return;
   }
   if (payment.status !== 'pending') return;
-  await updatePaymentStatus(payment.id, 'failed');
+  await updatePaymentStatus(payment.id, 'failed', meta);
   logger.info(`Payment failed: ${txRef}`);
 }
 
@@ -177,11 +182,16 @@ export async function verifyAndReconcileChapaPayment(txRef: string): Promise<voi
     throw new AppError(409, 'Verified payment details do not match the order');
   }
 
+  const meta: ChapaPaymentMeta = {
+    chapaReference: data.reference ?? null,
+    paymentMethod: data.payment_method ?? null,
+  };
+
   const status = data.status?.toLowerCase();
   if (status === 'success') {
-    await processPaymentSuccess(txRef);
+    await processPaymentSuccess(txRef, meta);
   } else if (status && ['failed', 'cancelled', 'failed/cancelled'].includes(status)) {
-    await processPaymentFailure(txRef);
+    await processPaymentFailure(txRef, meta);
   }
 }
 

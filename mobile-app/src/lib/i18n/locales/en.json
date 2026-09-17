@@ -442,6 +442,15 @@
     "aboutBody": "Support, FAQs and official channels",
     "paymentHistory": "Payment history",
     "noPurchases": "No purchases yet.",
+    "paymentReference": "Chapa ref",
+    "paymentMethod": {
+      "telebirr": "Telebirr",
+      "cbebirr": "CBE Birr",
+      "mpesa": "M-PESA",
+      "ebirr": "Ebirr",
+      "amole": "Amole",
+      "hellocash": "HelloCash"
+    },
     "paymentPagesAria": "Payment history pages",
     "previousPageAria": "Previous page",
     "pageOf": "Page {n} of {total}",
