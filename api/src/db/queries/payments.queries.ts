@@ -140,6 +140,22 @@ export async function reservePayment(data: {
     await tx`INSERT INTO ticket_number_claims (raffle_id, ticket_number, payment_id)
       SELECT ${data.raffleId}, unnest(${selectedNumbers}::int[]), ${payment.id}`;
     return { ok: true as const, payment, raffle };
+  }).catch((error) => {
+    // The raffle row lock above already serializes every reservation attempt
+    // for this raffle, so two buyers should never even reach this insert for
+    // the same number — the conflicts check just above catches that first,
+    // with the specific numbers to retry. This is the backstop underneath
+    // that backstop: ticket_number_claims' PRIMARY KEY(raffle_id,
+    // ticket_number) is the actual hard guarantee against a double-booked
+    // number, for any future code path that might weaken the locking above.
+    // Without this, a constraint hit here would surface as a raw 500
+    // instead of the same clean "pick again" response the normal path gives.
+    if ((error as { code?: string }).code === '23505') {
+      throw new AppError(409, 'Some numbers are no longer available. Choose replacements and continue.', {
+        code: 'NUMBER_UNAVAILABLE',
+      });
+    }
+    throw error;
   });
 }
 
