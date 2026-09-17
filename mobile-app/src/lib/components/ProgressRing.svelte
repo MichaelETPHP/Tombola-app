@@ -5,7 +5,7 @@
   export let value = 0;
   export let size = 56;
   export let thickness: number = dimensions.progressRingThickness;
-  export let color = '#00D3A0';
+  export let color = '#0135C6';
   export let trackColor = '#D9DCE3';
   export let label = '';
   /** When true, briefly pulses the ring glow whenever value changes */

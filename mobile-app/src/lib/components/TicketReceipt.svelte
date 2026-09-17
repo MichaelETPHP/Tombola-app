@@ -36,14 +36,14 @@
     {#if expiresAt}
       <div class="flex justify-between">
         <dt class="text-[#8a8578]">{expired ? $_('ticketReceipt.expired') : $_('ticketReceipt.expires')}</dt>
-        <dd class="font-bold {expired ? 'text-[#c74d4d]' : ''}">{fmt(expiresAt)}</dd>
+        <dd class="font-bold {expired ? 'text-[#D8434C]' : ''}">{fmt(expiresAt)}</dd>
       </div>
     {/if}
   </dl>
 
   <div class="ticket-receipt-rule my-3"></div>
 
-  <p class="text-center text-[9px] font-black uppercase tracking-[0.12em] {expired ? 'text-[#8a8578]' : 'text-[#00a884]'}">
+  <p class="text-center text-[9px] font-black uppercase tracking-[0.12em] {expired ? 'text-[#8a8578]' : 'text-[#0135C6]'}">
     {expired ? $_('ticketReceipt.drawClosed') : $_('ticketReceipt.validEntry')}
   </p>
 </div>

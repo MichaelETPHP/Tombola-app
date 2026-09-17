@@ -34,7 +34,7 @@
   }
 </script>
 
-<div class="h-full w-full overflow-hidden bg-[#d9f5e9] {pending ? 'animate-pulse' : ''}">
+<div class="h-full w-full overflow-hidden bg-[#DAE6FA] {pending ? 'animate-pulse' : ''}">
   {#if resolvedSrc && stage !== 'failed'}
     <img
       src={resolvedSrc}

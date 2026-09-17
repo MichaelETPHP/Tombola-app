@@ -11,6 +11,7 @@ import { paymentsRoutes } from './modules/payments/payments.routes.js';
 import { drawsRoutes } from './modules/draws/draws.routes.js';
 import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { adminContactsRoutes } from './modules/contacts/contacts.routes.js';
 import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/rooms.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { diagnosticsRoutes } from './modules/diagnostics/diagnostics.routes.js';
@@ -126,7 +127,7 @@ app.get('/health/db', async (c) => {
 });
 
 app.get('/', (c) => c.json({
-  name: 'YeneEta API',
+  name: '251 Lottery API',
   version: '1.0.0',
   status: 'ready',
   languages: ['en', 'am'],
@@ -161,6 +162,7 @@ app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
 app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
+app.route('/admin/contacts', adminContactsRoutes);
 
 app.notFound((c) => c.json({
   error: c.get('t')('common.notFound'),
@@ -215,7 +217,7 @@ process.on('unhandledRejection', (reason) => {
 
 // ─── Start Server ─────────────────────────────────────────────────
 
-logger.info(`🎰 YeneEta API starting on port ${env.PORT}`);
+logger.info(`🎰 251 Lottery API starting on port ${env.PORT}`);
 logger.info(`   Environment: ${env.NODE_ENV}`);
 logger.info(`   CORS origins: ${env.CORS_ORIGINS.join(', ')}`);
 

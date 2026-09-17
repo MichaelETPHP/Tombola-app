@@ -16,7 +16,7 @@ const allowLocalDevelopmentHttp = process.env.CAPACITOR_ALLOW_HTTP === 'true';
 
 const config: CapacitorConfig = {
   appId: 'com.tombola.app',
-  appName: 'YeneEta',
+  appName: '251 Lottery',
   webDir: 'build',
   android: {
     // Required only for a debug build calling a LAN API over http://.
@@ -36,7 +36,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       // Dismissed by the root layout after authentication is restored.
       launchAutoHide: false,
-      backgroundColor: '#E3F9EF',
+      backgroundColor: '#E1E9FC',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER',
       showSpinner: false,
@@ -45,7 +45,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'LIGHT',
-      backgroundColor: '#00D3A0',
+      backgroundColor: '#0135C6',
     },
     Keyboard: {
       resize: 'body',

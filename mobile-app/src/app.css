@@ -21,8 +21,8 @@
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  --color-primary: #00d3a0;
-  --color-primary-dark: #00b589;
+  --color-primary: #0135C6;
+  --color-primary-dark: #0129A3;
   --color-coral-start: #ff6b6b;
   --color-coral-end: #ff8674;
 
@@ -41,19 +41,22 @@
   --color-nav-inactive: #a6abbd;
   --color-dot-inactive: #d9dce3;
 
-  --color-action-bg: #dff7ee;
-  --color-action-icon: #00c896;
+  --color-action-bg: #DCE6FB;
+  --color-action-icon: #0135C6;
 
-  --color-bg-start: #e3f9ef;
-  --color-bg-end: #b9eeda;
+  --color-online: #1FAA59;
+  --color-red: #CC1421;
+
+  --color-bg-start: #E1E9FC;
+  --color-bg-end: #C3D7F5;
 
   --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.06);
   --shadow-card-light: 0 4px 12px rgba(0, 0, 0, 0.04);
   --shadow-nav: 0 10px 24px rgba(0, 0, 0, 0.08);
 
-  --radius-card: 24px;
-  --radius-button: 16px;
-  --radius-action: 20px;
+  --radius-card: 28px;
+  --radius-button: 18px;
+  --radius-action: 22px;
   --radius-nav: 32px;
 }
 
@@ -124,6 +127,17 @@
   html {
     height: 100%;
     overflow-x: hidden;
+  }
+
+  /* Every scrollIntoView/scrollTo call in this app already passes its own
+     explicit `behavior`, which always wins over this — so this only
+     upgrades the rare *unlabeled* programmatic scroll (browser autoscroll
+     on focus, etc.) from an instant jump to the same eased glide the rest
+     of the app already uses on purpose. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   /* Telegram owns the outer WebView. Once the signed Mini App bridge marks

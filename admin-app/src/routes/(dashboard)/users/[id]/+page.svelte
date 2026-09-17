@@ -221,7 +221,7 @@
   }
 </script>
 
-<svelte:head><title>Customer Profile | YeneEta Admin</title></svelte:head>
+<svelte:head><title>Customer Profile | 251 Lottery Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <a href="/users" class="inline-flex w-fit items-center gap-2 text-xs font-bold text-muted no-underline hover:text-ink">

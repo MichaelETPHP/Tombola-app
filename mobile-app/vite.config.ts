@@ -4,11 +4,11 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, type Plugin } from 'vite';
 
 const pwaManifest = {
-  name: 'YeneEta',
-  short_name: 'YeneEta',
-  description: "YeneEta — Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.",
-  theme_color: '#00D3A0',
-  background_color: '#E3F9EF',
+  name: '251 Lottery',
+  short_name: '251 Lottery',
+  description: "251 Lottery — Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.",
+  theme_color: '#0135C6',
+  background_color: '#E1E9FC',
   display: 'standalone' as const,
   orientation: 'portrait' as const,
   start_url: '/',

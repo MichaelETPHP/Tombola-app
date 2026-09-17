@@ -139,14 +139,14 @@
   {:else if payment.status === 'completed'}
     <section class="flex flex-1 flex-col pt-4" transition:fly={{ y: 10, duration: 240, easing: cubicOut }}>
       <div class="text-center">
-        <span class="success-mark mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#0c9f7d]" aria-hidden="true">
+        <span class="success-mark mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#0135C6]" aria-hidden="true">
           <svg viewBox="0 0 52 52" width="32" height="32">
             <path class="success-check-mark" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" d="M14 27l7 7 16-16" />
           </svg>
         </span>
         <p class="mt-4 text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-dark">{$_('payments.confirmedLabel')}</p>
         <h1 class="mt-1 text-[22px] font-extrabold tracking-[-0.03em] text-ink">{$_('payments.inDrawTitle')}</h1>
-        <p class="success-good-luck mt-2 text-sm font-extrabold text-[#0c9f7d]">{$_('payments.goodLuckBilingual')}</p>
+        <p class="success-good-luck mt-2 text-sm font-extrabold text-[#0135C6]">{$_('payments.goodLuckBilingual')}</p>
         <p class="mx-auto mt-1 max-w-[300px] text-xs leading-5 text-muted">{$_('payments.independentChanceBody')}</p>
       </div>
 
@@ -168,7 +168,7 @@
       </div>
 
       <div class="mt-auto space-y-2.5 pt-4">
-        <button type="button" class="pressable h-12 w-full rounded-button bg-primary text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(0,181,137,0.18)]" on:click={() => goto('/tickets')}>{$_('payments.viewAllTickets')}</button>
+        <button type="button" class="pressable h-12 w-full rounded-button bg-primary text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(1,41,163,0.18)]" on:click={() => goto('/tickets')}>{$_('payments.viewAllTickets')}</button>
         <button type="button" class="pressable h-11 w-full text-xs font-bold text-muted" on:click={goToRaffle}>{$_('payments.backToRaffleButton')}</button>
       </div>
     </section>
@@ -206,7 +206,7 @@
     </section>
   {/if}
   {#if payment?.status === 'pending'}
-    <button type="button" class="mt-3 min-h-12 shrink-0 rounded-xl bg-white/70 px-4 text-sm font-semibold text-[#85434a]" disabled={cancelling} on:click={cancelReservation}>{cancelling ? $_('payments.releasingNumbers') : $_('numbers.cancelRelease')}</button>
+    <button type="button" class="mt-3 min-h-12 shrink-0 rounded-xl bg-white/70 px-4 text-sm font-semibold text-[#8C2530]" disabled={cancelling} on:click={cancelReservation}>{cancelling ? $_('payments.releasingNumbers') : $_('numbers.cancelRelease')}</button>
   {/if}
 </div>
 
@@ -224,7 +224,7 @@
 
 <style>
   .payment-page { height: calc(100dvh - max(44px, var(--safe-top)) - 120px); min-height: 0; overflow: hidden; }
-  .success-mark { animation: success-pop 420ms var(--ease-out) both; box-shadow: 0 14px 28px -12px rgba(12,159,125,0.55); }
+  .success-mark { animation: success-pop 420ms var(--ease-out) both; box-shadow: 0 14px 28px -12px rgba(1,53,198,0.55); }
   .success-check-mark { stroke-dasharray: 36; stroke-dashoffset: 36; animation: success-draw 360ms var(--ease-out) 280ms both; }
   .success-good-luck { animation: success-good-luck-in 320ms var(--ease-out) 520ms both; }
   .ticket-number { animation: ticket-in 300ms var(--ease-out) both; }

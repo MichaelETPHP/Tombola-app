@@ -82,7 +82,7 @@
   <!-- Top Bar: Brand + Slide Indicators + iOS Spinner -->
   <header class="safe-area-top relative z-20 flex items-center justify-between px-6">
     <div class="flex items-center gap-2.5 rounded-full bg-black/40 px-3.5 py-1.5 backdrop-blur-md border border-white/10">
-      <div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-black">
+      <div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
         <Dices size={14} class="stroke-[2.5]" />
       </div>
       <span class="font-bold tracking-wider text-xs uppercase text-white">YENEETA</span>
@@ -90,7 +90,7 @@
 
     <!-- Small iPhone Spinning Icon Loader -->
     <div class="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-md border border-white/10">
-      <IosSpinner size={16} color="#00D3A0" />
+      <IosSpinner size={16} color="#0135C6" />
       <span class="text-[11px] font-medium text-white/80">{$_('splash.loading')}</span>
     </div>
   </header>
@@ -163,10 +163,10 @@
       <button
         type="button"
         on:click={handleStart}
-        class="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary font-bold text-base text-black shadow-lg shadow-primary/30 transition-transform active:scale-[0.98]"
+        class="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary font-bold text-base text-white shadow-lg shadow-primary/30 transition-transform active:scale-[0.98]"
       >
         {#if isNavigating}
-          <IosSpinner size={18} color="#000000" />
+          <IosSpinner size={18} color="#ffffff" />
           <span>{$_('splash.openingApp')}</span>
         {:else}
           <span>{$_('splash.explore')}</span>

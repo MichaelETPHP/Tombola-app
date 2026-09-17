@@ -40,7 +40,7 @@ export interface BulkSmsResponse {
  * pass Ethiopian local format (0916182957), so normalize that one specific,
  * known shape here rather than pushing this concern onto every caller.
  */
-function toE164(phone: string): string {
+export function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (phone.trim().startsWith('+')) return `+${digits}`;
   if (digits.startsWith('0') && digits.length === 10) return `+251${digits.slice(1)}`;
@@ -156,22 +156,26 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
 }
 
 /** A phone that survives `toE164` normalization still matching Ethiopian E.164 shape. */
-function isValidE164(phone: string): boolean {
+export function isValidE164(phone: string): boolean {
   return /^\+251[0-9]{9}$/.test(phone);
 }
 
 /**
- * Send one message to many recipients in a single gateway request — the
+ * The actual gateway call, shared by every bulk-SMS entry point — the
  * 3rdparty API accepts a `phoneNumbers` array natively (confirmed: one
  * request with N numbers returns one message id with a per-recipient
  * `recipients[]` breakdown), so this is one HTTP call regardless of batch
- * size, not a loop of N calls.
+ * size, not a loop of N calls. Deliberately does no logging itself: callers
+ * decide whether that belongs in the admin log as one row per recipient
+ * (sendBulkSms, below) or one summary row for the whole broadcast
+ * (sendBulkSmsWithSummaryLog) — the gateway mechanics are identical either
+ * way, only what gets written to integration_logs differs.
  *
  * Malformed/unnormalizable numbers are excluded from the request entirely
  * (reported back as failed with a clear reason) rather than letting one
  * bad row reject the whole batch.
  */
-export async function sendBulkSms(phones: string[], message: string): Promise<BulkSmsResponse> {
+async function sendBulkSmsCore(phones: string[], message: string): Promise<BulkSmsResponse> {
   const normalized = phones.map((phone) => ({ original: phone, e164: toE164(phone) }));
   const valid = normalized.filter((p) => isValidE164(p.e164));
   const invalid: BulkSmsRecipientResult[] = normalized
@@ -212,14 +216,6 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
     if (!response.ok || !data || !('id' in data)) {
       const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
       logger.error(`Bulk SMS send failed (${response.status}): ${errorMessage}`);
-      // The whole batch request itself failed (not a per-recipient
-      // rejection) — every intended recipient gets its own log row anyway,
-      // same as the success path, so the log viewer's "who got this
-      // broadcast" view doesn't have a gap for the one failure mode that
-      // isn't per-recipient.
-      for (const p of valid) {
-        logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, httpStatus: response.status, error: errorMessage });
-      }
       return {
         success: false,
         error: errorMessage,
@@ -232,28 +228,56 @@ export async function sendBulkSms(phones: string[], message: string): Promise<Bu
       success: r.state !== 'Failed',
       error: r.state === 'Failed' ? (r.error ?? 'Rejected by gateway') : undefined,
     }));
-
-    // One log row per recipient — this is what lets the admin SMS log show
-    // "was THIS specific phone number delivered" rather than only a
-    // batch-level success/fail count.
-    for (const r of sentResults) {
-      logIntegrationEvent('sms', r.success ? 'success' : 'error', 'bulk_send', {
-        to: r.phoneNumber, message, messageId: data.id, error: r.error,
-      });
-    }
     return { success: true, messageId: data.id, recipients: [...sentResults, ...invalid] };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`Bulk SMS send exception: ${errorMessage}`);
-    for (const p of valid) {
-      logIntegrationEvent('sms', 'error', 'bulk_send', { to: p.e164, message, error: errorMessage });
-    }
     return {
       success: false,
       error: errorMessage,
       recipients: [...valid.map((p) => ({ phoneNumber: p.e164, success: false, error: errorMessage })), ...invalid],
     };
   }
+}
+
+/**
+ * Send one message to many recipients, logging one admin-log row PER
+ * RECIPIENT — this is what lets the SMS log show "was THIS specific phone
+ * number delivered," used by every bulk-SMS feature that broadcasts to
+ * registered users. See sendBulkSmsWithSummaryLog for the alternative
+ * (one aggregate row for the whole batch).
+ */
+export async function sendBulkSms(phones: string[], message: string): Promise<BulkSmsResponse> {
+  const result = await sendBulkSmsCore(phones, message);
+  for (const r of result.recipients) {
+    logIntegrationEvent('sms', r.success ? 'success' : 'error', 'bulk_send', {
+      to: r.phoneNumber, message, messageId: result.messageId, error: r.error,
+    });
+  }
+  return result;
+}
+
+/**
+ * Same gateway call as sendBulkSms, but logs exactly ONE row summarizing
+ * the whole broadcast (recipient count, delivered/failed counts) instead
+ * of one row per recipient — for a mailing-list-style send (e.g. imported
+ * contacts) where a per-recipient breakdown isn't wanted in the admin log,
+ * just a report of how many people got the message.
+ */
+export async function sendBulkSmsWithSummaryLog(phones: string[], message: string, event: string): Promise<BulkSmsResponse> {
+  const result = await sendBulkSmsCore(phones, message);
+  const sentCount = result.recipients.filter((r) => r.success).length;
+  const failedCount = result.recipients.length - sentCount;
+  logIntegrationEvent('sms', failedCount === 0 ? 'success' : 'error', event, {
+    to: `${result.recipients.length} contact${result.recipients.length !== 1 ? 's' : ''}`,
+    message,
+    messageId: result.messageId,
+    totalRecipients: result.recipients.length,
+    sentCount,
+    failedCount,
+    error: failedCount > 0 ? `${failedCount} of ${result.recipients.length} failed` : undefined,
+  });
+  return result;
 }
 
 /**
@@ -272,8 +296,8 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
     to: phone,
     event: 'otp',
     message: locale === 'am'
-      ? `የYeneEta ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
-      : `Your YeneEta verification code is ${code}. It is valid for 5 minutes.`,
+      ? `የ251 Lottery ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
+      : `Your 251 Lottery verification code is ${code}. It is valid for 5 minutes.`,
   });
 }
 
@@ -290,6 +314,16 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
 
 const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
 
+// The gateway relays through a real Android phone's own SIM (see
+// SMS_SENDER_LABEL above), so recipients always see a plain phone number,
+// never a branded sender name — there's no code-level way around that (a
+// real Alphanumeric Sender ID needs a different, telecom-registered
+// provider entirely). This is the practical, zero-cost stand-in: ask the
+// recipient to save the number themselves. Deliberately sent only once,
+// on sendWelcomeSms — the first message this number will ever send someone
+// — not repeated on every later message.
+const SAVE_NUMBER_LINE = 'Save this number as 251 Lottery · ይህን ቁጥር 251 Lottery ብለው ያስቀምጡ';
+
 /**
  * Sent once, the moment a brand-new account is created via Telegram
  * (contact-share completing the webhook link, or the OIDC flow) — never
@@ -302,9 +336,10 @@ const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
  */
 export async function sendWelcomeSms(phone: string): Promise<SmsGatewayResponse> {
   const message = [
-    `🎉 Welcome to YeneEta!`,
+    `🎉 Welcome to 251 Lottery!`,
     `Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.`,
     `እንኳን ደህና መጡ · Welcome aboard!`,
+    SAVE_NUMBER_LINE,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'welcome' });
 }
@@ -368,11 +403,11 @@ export async function sendRepresentativeInvitation(
     timeStyle: 'short',
     timeZone: 'Africa/Addis_Ababa',
   });
-  return sendSms({
-    to: phone,
-    event: 'representative_invitation',
-    message: `YeneEta: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link} — Expires ${format.format(details.expiresAt)}.`,
-  });
+  const message = [
+    `251 Lottery: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link}`,
+    `Expires ${format.format(details.expiresAt)}.`,
+  ].join('\n');
+  return sendSms({ to: phone, event: 'representative_invitation', message });
 }
 
 /** Send one prize tier's single-use draw invitation with its context. */
@@ -393,7 +428,7 @@ export async function sendDrawInvitation(
     timeZone: 'Africa/Addis_Ababa',
   });
   const message = [
-    `YeneEta draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}".`,
+    `251 Lottery draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}".`,
     `Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw.`,
     `Link expires ${format.format(details.expiresAt)}.`,
     `Good luck! · መልካም እድል!`,

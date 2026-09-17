@@ -9,8 +9,8 @@
 
 // ── Brand Colors ─────────────────────────────────────────
 export const colors = {
-  primary: '#00D3A0',
-  primaryDark: '#00B589',
+  primary: '#0135C6',
+  primaryDark: '#0129A3',
 
   coralStart: '#FF6B6B',
   coralEnd: '#FF8674',
@@ -32,16 +32,19 @@ export const colors = {
   textSecondary: '#8A8FA3',
 
   navInactive: '#A6ABBD',
-  navActiveBg: '#00D3A0',
+  navActiveBg: '#0135C6',
   navActiveText: '#FFFFFF',
 
   dotInactive: '#D9DCE3',
 
-  bgGradientStart: '#E3F9EF',
-  bgGradientEnd: '#B9EEDA',
+  bgGradientStart: '#E1E9FC',
+  bgGradientEnd: '#C3D7F5',
 
-  actionIconBg: '#DFF7EE',
-  actionIconColor: '#00C896',
+  actionIconBg: '#DCE6FB',
+  actionIconColor: '#0135C6',
+
+  online: '#1FAA59',
+  red: '#CC1421',
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────
@@ -57,9 +60,9 @@ export const spacing = {
 
 // ── Corner Radii ─────────────────────────────────────────
 export const radii = {
-  card: 24,
-  button: 16,
-  action: 20,
+  card: 28,
+  button: 18,
+  action: 22,
   nav: 32,
   iconCircle: 18, // half of 36px circle
   actionCircle: 22, // half of 44px circle

@@ -108,7 +108,7 @@
   });
 </script>
 
-<svelte:head><title>Profit | YeneEta Admin</title></svelte:head>
+<svelte:head><title>Profit | 251 Lottery Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <header class="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
@@ -139,7 +139,7 @@
   {:else}
     {#if refreshError}<div role="status" class="rounded-button bg-warning-bg px-4 py-3 text-sm text-warning">Updates paused. Showing the last successful figures. {refreshError}</div>{/if}
     <div class="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-      <section class="relative overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-34px_rgba(23,32,30,0.72)] md:p-8">
+      <section class="relative overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-34px_rgba(8,14,73,0.72)] md:p-8">
         <div class="relative flex min-h-[200px] flex-col justify-between gap-8">
           <div class="flex items-start justify-between gap-4">
             <div>

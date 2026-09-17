@@ -429,11 +429,11 @@
      the whole page scroll again. Being fixed makes this page immune to the
      parent layout entirely: it always exactly fills the screen, so only
      .picker-scroll (never the page itself) can ever need to scroll. */
-  .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; background: #f6f9f7; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
+  .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; background: #F5F7FC; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
   :global(html.telegram-mini-app) .number-picker { padding-top: var(--telegram-content-start); }
   .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 210px; }
-  :global(html:has(.number-picker)) { background: #f6f9f7; }
-  :global(html:has(.number-picker) body) { background: #f6f9f7; }
+  :global(html:has(.number-picker)) { background: #F5F7FC; }
+  :global(html:has(.number-picker) body) { background: #F5F7FC; }
   :global(html:has(.number-picker) .bottom-nav) { display: none; }
   :global(html:has(.number-picker) .native-bottom-nav-clearance) { padding-bottom: 0; }
   .picker-header { display: flex; align-items: center; gap: 12px; padding-bottom: 24px; }
@@ -442,40 +442,40 @@
   .picker-header .icon-button { background: white; border: 1px solid var(--picker-border); } .header-ticket { padding: 12px; }
   .icon-button-labeled { width: auto; min-height: 36px; gap: 5px; padding: 0 12px; border-radius: 999px; background: white; border: 1px solid var(--picker-border); font-size: 11px; font-weight: 700; }
   h1 { font-size: clamp(19px, 5vw, 22px); line-height: 1.25; font-weight: 800; letter-spacing: -.03em; } .picker-intro > p { font-size: 13px; line-height: 1.6; margin-top: 12px; color: var(--picker-muted); max-width: 300px; }
-  .number-search { display: flex; gap: 10px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid var(--picker-border); border-radius: 14px; background: white; } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: #08765a; } input::placeholder { color: var(--picker-muted); font-size: 14px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; }
-  .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .grid-heading p { margin-top: 3px; color: var(--picker-muted); font-size: 10px; line-height: 1.45; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid #778f84; } .selected-dot { background: #08765a; color: white; } .taken-dot { background: #f9e5e6; color: #a84b57; }
+  .number-search { display: flex; gap: 10px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid var(--picker-border); border-radius: 14px; background: white; } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: #0129A3; } input::placeholder { color: var(--picker-muted); font-size: 14px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; }
+  .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .grid-heading p { margin-top: 3px; color: var(--picker-muted); font-size: 10px; line-height: 1.45; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid #778f84; } .selected-dot { background: #0129A3; color: white; } .taken-dot { background: #FBE7E8; color: #B23A45; }
   .selection-tools { position: relative; margin-top: 18px; margin-bottom: 24px; }
-  .search-feedback { margin-top: 7px; font-size: 11px; font-weight: 650; color: #a84b57; }
-  .search-suggestions { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(300px, 38vh); overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; background: #fff; border: 1px solid var(--picker-border); border-radius: 14px; box-shadow: 0 14px 34px -12px rgba(25,60,51,.28); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .search-feedback { margin-top: 7px; font-size: 11px; font-weight: 650; color: #B23A45; }
+  .search-suggestions { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(300px, 38vh); overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; background: #fff; border: 1px solid var(--picker-border); border-radius: 14px; box-shadow: 0 14px 34px -12px rgba(8,14,73,.28); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
   .search-suggestions button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; }
-  .search-suggestions button:not(:disabled):active { background: #eef5f0; }
+  .search-suggestions button:not(:disabled):active { background: #EDF2FA; }
   .search-suggestions button.unavailable { color: var(--picker-muted); text-decoration: line-through; opacity: .7; cursor: default; }
-  .suggestion-tag { font-size: 10px; font-weight: 700; color: #08765a; background: #d4f4e6; padding: 2px 7px; border-radius: 999px; }
-  .suggestion-tag.taken { color: #a84b57; background: #f9e5e6; }
-  .suggestion-tag.yours { color: #08765a; background: #d4f4e6; }
+  .suggestion-tag { font-size: 10px; font-weight: 700; color: #0129A3; background: #D6E1F9; padding: 2px 7px; border-radius: 999px; }
+  .suggestion-tag.taken { color: #B23A45; background: #FBE7E8; }
+  .suggestion-tag.yours { color: #0129A3; background: #D6E1F9; }
   .resume-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .resume-actions button:last-child { color: #85434a; }
-  .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #e8efeb 20%, #f6f9f7 45%, #e8efeb 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
+  .resume-actions button:last-child { color: #8C2530; }
+  .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #E7ECFA 20%, #F5F7FC 45%, #E7ECFA 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
   @keyframes grid-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 12px 16px max(12px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(25,60,51,.08); }
+  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; max-width: 592px; margin: auto; padding: 12px 16px max(12px, var(--safe-bottom), env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -6px 26px rgba(8,14,73,.08); }
   .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
   .price-per-ticket { margin-top: 1px; font-size: 10px; color: var(--picker-muted); }
-  .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 36px; border-radius: 10px; background: #e7f5ee; color: #064e3b; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #fff0f1; color: #8d2136; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
-  .footer-action { display: flex; align-items: center; gap: 14px; } .footer-action > div { min-width: 78px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #193c33; color: white; font-size: 13px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
-  .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #e0f1e9; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #fff0f1; color: #8d2136; } .picker-notice { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
+  .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 5px; min-height: 36px; border-radius: 10px; background: #E6EDFA; color: #080E49; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: #FDE8E9; color: #A10F1B; } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
+  .footer-action { display: flex; align-items: center; gap: 14px; } .footer-action > div { min-width: 78px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #080E49; color: white; font-size: 13px; font-weight: 700; } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
+  .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #DFEBFA; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #FDE8E9; color: #A10F1B; } .picker-notice { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
   /* The one notice that means "stop, you can't do that" (ticket-limit
      reached) gets the same loud red treatment as .allowance-limit below —
      every other notice here is routine status, not a warning. */
-  .picker-notice.notice-warning { padding: 10px 12px; margin-bottom: 4px; border-radius: 10px; background: #fff0f1; color: #b3122b; font-weight: 700; }
+  .picker-notice.notice-warning { padding: 10px 12px; margin-bottom: 4px; border-radius: 10px; background: #FDE8E9; color: #CC1421; font-weight: 700; }
 
   /* Reached-allowance notice — deliberately the loudest state this picker
      can show (bold red, not the neutral green info tint every other
      message here uses): it's the one message that means "you cannot
      proceed here at all," not just an FYI, so it needs to read as a stop
      sign at a glance rather than blend in with routine notices. */
-  .allowance-limit { background: #fff0f1; color: #b3122b; align-items: flex-start; }
-  .allowance-limit-text { margin: 0; font-weight: 800; color: #b3122b; }
+  .allowance-limit { background: #FDE8E9; color: #CC1421; align-items: flex-start; }
+  .allowance-limit-text { margin: 0; font-weight: 800; color: #CC1421; }
   .allowance-limit-cta {
     display: inline-flex;
     align-items: center;
@@ -484,7 +484,7 @@
     min-height: 40px;
     padding: 0 14px;
     border-radius: 999px;
-    background: #b3122b;
+    background: #CC1421;
     color: #fff;
     font-size: 12px;
     font-weight: 800;
@@ -492,7 +492,7 @@
     transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
   }
   .allowance-limit-cta:active { transform: scale(0.96); }
-  button:disabled { cursor: default; } .continue-button:disabled { background: #e4ebe7; color: #627168; } .continue-button.is-purchasing:disabled { background: #193c33; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #08765a; outline-offset: 3px; } ::selection { background: #b9ead5; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+  button:disabled { cursor: default; } .continue-button:disabled { background: #E7EBFA; color: #627168; } .continue-button.is-purchasing:disabled { background: #080E49; color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid #0129A3; outline-offset: 3px; } ::selection { background: #C3D8F0; color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 359px) { .selection-footer { padding-inline: 16px; } }
   @media (prefers-reduced-motion: reduce) { .grid-skeleton { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>

@@ -3,7 +3,6 @@
   import type { Raffle } from '../stores/raffles.store.js';
   import PrizeImage from './PrizeImage.svelte';
   import { formatEtb } from '../utils/currency.js';
-  import { ArrowRight, Clock3, Ticket } from 'lucide-svelte';
 
   export let raffles: Raffle[] = [];
 
@@ -35,17 +34,6 @@
     trackEl.scrollTo({ left: centeredLeft, behavior: 'smooth' });
   }
 
-  function remaining(raffle: Raffle) {
-    return Math.max(0, raffle.ticketCap - raffle.ticketsSold);
-  }
-
-  function soldPercentage(raffle: Raffle) {
-    return raffle.ticketCap > 0 ? Math.min(100, (raffle.ticketsSold / raffle.ticketCap) * 100) : 0;
-  }
-
-  function daysRemaining(raffle: Raffle) {
-    return Math.max(0, Math.ceil((new Date(raffle.currentDeadline).getTime() - Date.now()) / 86_400_000));
-  }
 </script>
 
 {#if raffles.length > 0}
@@ -60,46 +48,22 @@
         <a
           href="/raffles/{raffle.id}"
           data-carousel-slide
-          class="featured-ticket pressable relative flex min-h-[346px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
+          class="featured-ticket pressable relative flex shrink-0 snap-center flex-col overflow-hidden rounded-[24px] bg-card text-inherit no-underline {raffles.length === 1 ? 'w-full' : 'w-[calc(100%_-_2.75rem)]'}"
           aria-label={$_('banner.enterAria', { values: { title: raffle.title } })}
         >
-          <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#dff7ee]">
+          <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#DCE6FB]">
             <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager={index === 0} />
-
-            <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
-              <span class="live-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.08em] text-white">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true"></span>
-                {$_('banner.openNow')}
-              </span>
-              <span class="price-badge rounded-full px-3 py-1.5 text-[10px] font-extrabold text-white">
-                {formatEtb(raffle.ticketPrice)} ETB <span class="font-medium text-white/75">{$_('banner.perTicket')}</span>
-              </span>
-            </div>
           </div>
 
-          <div class="flex min-h-0 flex-1 flex-col px-4 pb-3.5 pt-3">
-            <div class="flex min-w-0 items-start justify-between gap-3">
-              <div class="min-w-0">
-                <h2 class="line-clamp-2 font-sans text-[17px] font-extrabold leading-[1.15] tracking-[-0.025em] text-ink">{raffle.title}</h2>
-                <p class="mt-1 truncate text-[11px] font-medium text-[#626878]">{$_('banner.win', { values: { prize: raffle.prizeName } })}</p>
-              </div>
-              <span class="shrink-0 rounded-full bg-gold-bg px-2.5 py-1 text-[9px] font-extrabold text-[#815000]">{$_('raffleCard.left', { values: { n: remaining(raffle) } })}</span>
-            </div>
-
-            <div class="mt-auto">
-              <div class="mb-2 flex items-center justify-between gap-3 text-[10px] font-semibold text-[#626878]">
-                <span class="flex items-center gap-1"><Ticket size={11} /> {$_('banner.claimed', { values: { pct: Math.round(soldPercentage(raffle)) } })}</span>
-                <span class="flex items-center gap-1"><Clock3 size={11} /> {$_('banner.daysLeft', { values: { n: daysRemaining(raffle) } })}</span>
-              </div>
-              <div class="mb-3 h-1.5 overflow-hidden rounded-full bg-dot-inactive/80" aria-hidden="true">
-                <div class="h-full rounded-full bg-primary-dark transition-[width] duration-500 ease-[var(--ease-out)]" style="width: {soldPercentage(raffle)}%"></div>
-              </div>
-
-              <span class="featured-cta inline-flex h-[52px] w-full items-center justify-between rounded-[16px] bg-primary px-4 text-[13px] font-extrabold text-[#10211d] shadow-[0_10px_22px_-14px_rgba(0,105,80,0.72),inset_0_1px_0_rgba(255,255,255,0.72)]">
-                {$_('banner.chooseTickets', { values: { n: raffle.maxTicketsPerUser } })}
-                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#10211d] text-white"><ArrowRight size={17} strokeWidth={2.4} /></span>
-              </span>
-            </div>
+          <div class="featured-info relative flex flex-col gap-1 px-4 py-4">
+            <p class="relative z-10 line-clamp-1 text-[12px] font-semibold text-white/75">{raffle.title}</p>
+            <p class="relative z-10 text-[26px] font-extrabold leading-none tracking-[-0.02em] text-white">
+              {formatEtb(raffle.ticketPrice)} <span class="text-[13px] font-semibold text-white/70">ETB {$_('banner.perTicket')}</span>
+            </p>
+            <p class="relative z-10 mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-white/70">
+              <span class="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true"></span>
+              {$_('banner.openNow')}
+            </p>
           </div>
         </a>
       {/each}
@@ -128,7 +92,7 @@
 
   .featured-ticket {
     border: 1px solid rgba(255, 255, 255, 0.88);
-    box-shadow: 0 18px 40px -25px rgba(17, 54, 44, 0.42), 0 5px 14px -10px rgba(17, 54, 44, 0.18);
+    box-shadow: 0 18px 40px -25px rgba(8, 14, 73, 0.42), 0 5px 14px -10px rgba(8, 14, 73, 0.18);
     transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
   }
 
@@ -138,16 +102,39 @@
 
   .featured-ticket:active {
     transform: translateY(1px) scale(0.985);
-    box-shadow: 0 8px 22px -17px rgba(17, 54, 44, 0.38);
+    box-shadow: 0 8px 22px -17px rgba(8, 14, 73, 0.38);
   }
 
-  .live-badge,
-  .price-badge {
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    background: rgba(16, 33, 29, 0.78);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(14px) saturate(1.12);
-    -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  /* The one authored flourish on this card: two soft light blooms bleeding
+     in from the right, echoing the prize photo's warmth against the brand
+     gradient without competing with the price for attention. */
+  .featured-info {
+    overflow: hidden;
+    background: linear-gradient(135deg, #0135c6 0%, #114ad4 55%, #2f66e6 100%);
+  }
+
+  .featured-info::before,
+  .featured-info::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .featured-info::before {
+    top: -46px;
+    right: -22px;
+    width: 130px;
+    height: 130px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 72%);
+  }
+
+  .featured-info::after {
+    bottom: -58px;
+    right: 34px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.14), transparent 72%);
   }
 
   @media (prefers-reduced-motion: reduce) {

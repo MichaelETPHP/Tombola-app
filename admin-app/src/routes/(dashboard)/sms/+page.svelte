@@ -40,7 +40,11 @@
     ticket_confirmation: 'Ticket purchase',
     trigger_link: 'Draw trigger link',
     draw_invitation: 'Draw invitation',
+    draw_winner: 'Winner announcement',
+    representative_invitation: 'Representative invitation',
+    welcome: 'Welcome message',
     bulk_send: 'Admin broadcast',
+    contacts_broadcast: 'Contacts broadcast',
     send: 'Message',
   };
 
@@ -103,7 +107,7 @@
   onMount(refreshAll);
 </script>
 
-<svelte:head><title>SMS log · YeneEta Admin</title></svelte:head>
+<svelte:head><title>SMS log · 251 Lottery Admin</title></svelte:head>
 
 {#if $auth.admin?.role !== 'owner'}
   <div class="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-card border border-border bg-card p-8 text-center">

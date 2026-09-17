@@ -37,7 +37,7 @@
     "primaryNavAria": "ዋና አሰሳ"
   },
   "numbers": {
-    "pageTitle": "ቁጥርዎን ይምረጡ · YeneEta",
+    "pageTitle": "ቁጥርዎን ይምረጡ · 251 Lottery",
     "backAria": "ወደ ዕጣው ተመለስ",
     "defaultRaffleTitle": "የእርስዎ ዕጣ",
     "chooseTickets": "ትኬት ይምረጡ",
@@ -129,8 +129,8 @@
     "signInBeforePayment": "ከመክፈልዎ በፊት በኤስኤምኤስ ይግቡ",
     "securedAtCheckout": "ምርጫዎችዎ በክፍያ ጊዜ ደህንነታቸው የተጠበቀ ነው",
     "shareAria": "ይህን ዕጣ ያጋሩ",
-    "shareText": "\"{title}\" የተባለውን በYeneEta ይመልከቱ — ግልጽና ፍትሃዊ በሆነ ዕጣ አስደናቂ ሽልማቶችን ያሸንፉ!",
-    "linkCopiedBanner": "የYeneEta ማገናኛ ተቀድቷል",
+    "shareText": "\"{title}\" የተባለውን በ251 Lottery ይመልከቱ — ግልጽና ፍትሃዊ በሆነ ዕጣ አስደናቂ ሽልማቶችን ያሸንፉ!",
+    "linkCopiedBanner": "የ251 Lottery ማገናኛ ተቀድቷል",
     "demoNotice": "ይህ ለማሳያ ብቻ የቀረበ ናሙና ዕጣ ነው — ትኬት መግዛት አይቻልም።",
     "pausedNotice": "ለዚህ ዕጣ የትኬት ሽያጭ ለጊዜው ቆሟል። ቆይተው ይመልከቱ።",
     "closedNotice": "ይህ ዕጣ {status} ነው። የትኬት ሽያጭ ተዘግቷል።",
@@ -268,7 +268,7 @@
     "winOdds": "{pct} የማሸነፍ እድል"
   },
   "checkout": {
-    "pageTitle": "ደህንነቱ የተጠበቀ ክፍያ · YeneEta",
+    "pageTitle": "ደህንነቱ የተጠበቀ ክፍያ · 251 Lottery",
     "cancelAria": "ክፍያውን ሰርዝና ተመለስ",
     "secureCheckout": "ደህንነቱ የተጠበቀ ክፍያ",
     "reservationLoadErrorTitle": "ማስያዣዎን መጫን አልተቻለም",
@@ -301,7 +301,7 @@
   },
   "payments": {
     "ticketsReadyBanner": "ትኬቶችዎ ተዘጋጅተዋል",
-    "pageTitle": "የክፍያ ደረሰኝ · YeneEta",
+    "pageTitle": "የክፍያ ደረሰኝ · 251 Lottery",
     "backAria": "ወደ ዕጣው ተመለስ",
     "headerLabel": "የክፍያ ደረሰኝ",
     "notFoundTitle": "ክፍያ አልተገኘም",
@@ -349,7 +349,7 @@
     "skipContinue": "ዝለል · አሁን ይቀጥሉ"
   },
   "tickets": {
-    "pageTitle": "ትኬቶቼ · YeneEta",
+    "pageTitle": "ትኬቶቼ · 251 Lottery",
     "backToProfileAria": "ወደ መገለጫ ተመለስ",
     "title": "ትኬቶቼ",
     "loadingAria": "ትኬቶች በመጫን ላይ",
@@ -372,7 +372,7 @@
     "claimBy": "እስከ {date} ይጠይቁ"
   },
   "ticketReceipt": {
-    "title": "የYeneEta ትኬት",
+    "title": "የ251 Lottery ትኬት",
     "ticketNo": "ትኬት ቁጥር {n}",
     "issued": "ተሰጥቷል",
     "expired": "ጊዜው አልፏል",
@@ -403,7 +403,7 @@
     "myRoomsBody": "ትኬት ከገዙባቸው ዕጣዎች ጋር ከገዢዎች ጋር ይወያዩ",
     "ticketsSubtitleEmpty": "የትኬት ቁጥሮችዎ እና ደረሰኞችዎ",
     "ticketsSubtitle": "{n} ትኬት በ{r} ዕጣ ውስጥ",
-    "aboutYeneEta": "ስለ YeneEta",
+    "aboutYeneEta": "ስለ 251 Lottery",
     "aboutBody": "ድጋፍ፣ ተደጋጋሚ ጥያቄዎች እና ኦፊሴላዊ ቻናሎች",
     "paymentHistory": "የክፍያ ታሪክ",
     "noPurchases": "እስካሁን ግዢ የለም።",
@@ -414,41 +414,41 @@
     "logOut": "ውጣ"
   },
   "about": {
-    "pageTitle": "ስለ እኛ · YeneEta",
+    "pageTitle": "ስለ እኛ · 251 Lottery",
     "backAria": "ወደ መገለጫ ተመለስ",
     "title": "ስለ እኛ",
-    "subtitle": "የYeneEta ድጋፍ እና መረጃ",
+    "subtitle": "የ251 Lottery ድጋፍ እና መረጃ",
     "brandBody": "የኔዕጣ ቀጥታ ዕጣዎችን፣ የትኬት ግዢን እና የውጤት ይፋ ማድረግን በአንድ ቀላል የሞባይል ተሞክሮ ውስጥ ያመጣል።",
     "support": "ድጋፍ",
-    "supportBody": "በቀጥታ ከYeneEta ቡድን ጋር ይነጋገሩ",
-    "callAria": "የYeneEta ድጋፍን በ +251 95 104 3859 ይደውሉ",
+    "supportBody": "በቀጥታ ከ251 Lottery ቡድን ጋር ይነጋገሩ",
+    "callAria": "የ251 Lottery ድጋፍን በ +251 95 104 3859 ይደውሉ",
     "supportPhone": "የድጋፍ ስልክ",
     "call": "ደውል",
-    "shareTitle": "YeneEta ያጋሩ",
+    "shareTitle": "251 Lottery ያጋሩ",
     "shareBody": "ወደ ዋናው የቴሌግራም ገጻችን በቀጥታ ሰውን ይጋብዙ።",
     "openingShare": "የማጋሪያ አማራጮችን በመክፈት ላይ…",
     "shareTelegramLink": "የቴሌግራም ማገናኛ አጋራ",
     "officialChannels": "ኦፊሴላዊ ቻናሎች",
-    "followAnnouncements": "ከYeneEta ማስታወቂያዎችን ይከታተሉ",
+    "followAnnouncements": "ከ251 Lottery ማስታወቂያዎችን ይከታተሉ",
     "facebookComingSoonAria": "ፌስቡክ፣ በቅርቡ ይመጣል",
     "comingSoon": "በቅርቡ ይመጣል",
-    "tiktokAria": "ኦፊሴላዊውን የYeneEta ቲክቶክ ክፈት",
+    "tiktokAria": "ኦፊሴላዊውን የ251 Lottery ቲክቶክ ክፈት",
     "youtubeComingSoonAria": "ዩቲዩብ፣ በቅርቡ ይመጣል",
     "commonQuestions": "ተደጋጋሚ ጥያቄዎች",
     "quickAnswers": "ከመግባትዎ በፊት ፈጣን መልሶች",
     "developedBy": "የተሰራው በ",
-    "shareText": "ቀጥታ ዕጣዎችን እና ሽልማቶችን ለማግኘት YeneEta ን በቴሌግራም ይቀላቀሉ።",
-    "linkCopiedBanner": "የYeneEta ማገናኛ ተቀድቷል",
+    "shareText": "ቀጥታ ዕጣዎችን እና ሽልማቶችን ለማግኘት 251 Lottery ን በቴሌግራም ይቀላቀሉ።",
+    "linkCopiedBanner": "የ251 Lottery ማገናኛ ተቀድቷል",
     "faq": {
       "enter": { "q": "ዕጣ እንዴት እገባለሁ?", "a": "ቀጥታ ዕጣ ይክፈቱ፣ የትኬት ብዛትዎን ይምረጡ፣ ሁኔታዎቹን ይቀበሉና ክፍያውን ያጠናቅቁ። የተረጋገጡ የትኬት ቁጥሮችዎ ከዚያ በኋላ ከትኬቶቼ ስር ይታያሉ።" },
       "howMany": { "q": "ስንት ትኬት መግዛት እችላለሁ?", "a": "እያንዳንዱ ዕጣ ከመግዛትዎ በፊት የራሱን የትኬት ገደብ ያሳያል። ከአንድ እስከ በዚያ ዕጣ ላይ እስከሚታየው ከፍተኛ ልክ ማንኛውንም ብዛት ይምረጡ።" },
       "whenNumbers": { "q": "የትኬት ቁጥሮቼን መቼ አገኛለሁ?", "a": "የትኬት ቁጥሮች ክፍያው ከተረጋገጠ በኋላ ይሰጣሉ። ከመገለጫ → ትኬቶቼ በማንኛውም ጊዜ ማየት ይችላሉ።" },
-      "winners": { "q": "አሸናፊዎች እንዴት ይገለጻሉ?", "a": "እያንዳንዱ የተከፈለበት ትኬት አንድ ተሳትፎ ይወክላል። የዕጣ መረጃ እና የተረጋገጡ ውጤቶች በYeneEta ውስጥ ይታተማሉ፣ ስለዚህ ዕጣውን ከመግባት እስከ ውጤት ድረስ መከታተል ይችላሉ።" },
+      "winners": { "q": "አሸናፊዎች እንዴት ይገለጻሉ?", "a": "እያንዳንዱ የተከፈለበት ትኬት አንድ ተሳትፎ ይወክላል። የዕጣ መረጃ እና የተረጋገጡ ውጤቶች በ251 Lottery ውስጥ ይታተማሉ፣ ስለዚህ ዕጣውን ከመግባት እስከ ውጤት ድረስ መከታተል ይችላሉ።" },
       "reviewPayment": { "q": "ክፍያ የት ማየት እችላለሁ?", "a": "የክፍያ ታሪክዎን እና ሁኔታዎን ለማየት መገለጫን ይክፈቱ። አሁንም እርዳታ ከፈለጉ በዚህ ገጽ ላይ ያለውን የድጋፍ ስልክ ቁጥር ይደውሉ።" }
     }
   },
   "rooms": {
-    "pageTitle": "የእኔ ክፍሎች · YeneEta",
+    "pageTitle": "የእኔ ክፍሎች · 251 Lottery",
     "title": "የእኔ ክፍሎች",
     "loadingAria": "ክፍሎች በመጫን ላይ",
     "emptyTitle": "እስካሁን ክፍል የለም",
@@ -476,7 +476,7 @@
     "sendError": "ይህን መላክ አልተቻለም — እንደገና ይሞክሩ።",
     "today": "ዛሬ",
     "yesterday": "ትናንት",
-    "yeneEtaTeam": "የYeneEta ቡድን",
+    "yeneEtaTeam": "የ251 Lottery ቡድን",
     "beFirstToSayHi": "እስካሁን መልእክት የለም — መጀመሪያ ሰላም ይበሉ",
     "newMessages": "{n} አዲስ መልዕክት",
     "readOnlyEnded": "ዕጣው ስለተጠናቀቀ ይህ ክፍል አሁን ለንባብ ብቻ ነው።",
@@ -484,8 +484,8 @@
     "sendAria": "ላክ"
   },
   "draw": {
-    "pageTitle": "ትክክለኛ ዕጣ · YeneEta",
-    "verifiedDraw": "የተረጋገጠ የYeneEta ዕጣ",
+    "pageTitle": "ትክክለኛ ዕጣ · 251 Lottery",
+    "verifiedDraw": "የተረጋገጠ የ251 Lottery ዕጣ",
     "loadingRaffle": "ዕጣ በመጫን ላይ",
     "unavailable": "ዕጣው አይገኝም",
     "tierPrize": "{ordinal} ደረጃ ሽልማት · {prize}",
@@ -503,8 +503,8 @@
     "connectionError": "ዕጣውን ማጠናቀቅ አልተቻለም። እባክዎ ግንኙነትዎን ያረጋግጡ።"
   },
   "representative": {
-    "pageTitle": "የዕጣ ምስክር ማረጋገጫ · YeneEta",
-    "eyebrow": "የYeneEta ዕጣ ምስክር",
+    "pageTitle": "የዕጣ ምስክር ማረጋገጫ · 251 Lottery",
+    "eyebrow": "የ251 Lottery ዕጣ ምስክር",
     "loadingRaffle": "ዕጣ በመጫን ላይ",
     "loading": "በመጫን ላይ…",
     "unavailable": "አገናኙ አይገኝም",
@@ -519,8 +519,8 @@
     "connectionError": "ይህን መጫን አልተቻለም። እባክዎ ግንኙነትዎን ያረጋግጡ።"
   },
   "mockCheckout": {
-    "pageTitle": "ደህንነቱ የተጠበቀ የሙከራ ክፍያ · YeneEta",
-    "defaultRaffleTitle": "የYeneEta ዕጣ",
+    "pageTitle": "ደህንነቱ የተጠበቀ የሙከራ ክፍያ · 251 Lottery",
+    "defaultRaffleTitle": "የ251 Lottery ዕጣ",
     "incompleteRequest": "የክፍያ ጥያቄው ያልተሟላ ነው። ወደ ዕጣው ተመልሰው እንደገና ይጀምሩ።",
     "gatewayUnreachable": "የሙከራ በሩ የኔዕጣን ማግኘት አልቻለም። ኤፒአይው እየሰራ መሆኑን ያረጋግጡና እንደገና ይሞክሩ።",
     "backAria": "ተመለስ",
@@ -533,7 +533,7 @@
     "paymentDeclined": "ክፍያ ተከልክሏል",
     "issuingTickets": "የኔዕጣ የትኬት ቁጥሮችዎን አሁን በመስጠት ላይ ነው።",
     "noTicketsIssued": "ለዚህ ሙከራ ምንም ትኬት አይሰጥም።",
-    "returningToApp": "ወደ YeneEta በመመለስ ላይ",
+    "returningToApp": "ወደ 251 Lottery በመመለስ ላይ",
     "amountToPay": "የሚከፈል መጠን",
     "yourEntry": "የእርስዎ ግቤት",
     "tickets": "ትኬቶች",

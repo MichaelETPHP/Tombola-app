@@ -16,7 +16,7 @@
   // be verified" like every other failure — genuinely confusing when the
   // password was actually right and you just tried a few times in a row.
   function loginErrorMessage(err: unknown): string {
-    if (!(err instanceof ApiError)) return 'Unable to reach YeneEta. Check your connection and try again.';
+    if (!(err instanceof ApiError)) return 'Unable to reach 251 Lottery. Check your connection and try again.';
     if (err.code === 'AUTH_SESSION_SETUP_FAILED') {
       return 'Your credentials were accepted, but the server could not establish a secure session. Please contact the platform administrator.';
     }
@@ -56,7 +56,7 @@
   }
 </script>
 
-<svelte:head><title>Super Admin sign in · YeneEta</title></svelte:head>
+<svelte:head><title>Super Admin sign in · 251 Lottery</title></svelte:head>
 
 <main class="grid min-h-[100dvh] bg-card lg:grid-cols-[minmax(420px,0.92fr)_minmax(520px,1.08fr)]">
   <section class="relative hidden overflow-hidden bg-sidebar p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
@@ -78,7 +78,7 @@
 
     <div class="relative flex items-center gap-3">
       <span class="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary text-white"><Dices size={22} strokeWidth={2.2} /></span>
-      <div><p class="text-base font-bold tracking-tight">YeneEta</p><p class="text-xs text-white/55">Platform operations</p></div>
+      <div><p class="text-base font-bold tracking-tight">251 Lottery</p><p class="text-xs text-white/55">Platform operations</p></div>
     </div>
 
     <div class="relative max-w-[520px]">
@@ -93,19 +93,19 @@
       </div>
     </div>
 
-    <p class="relative text-sm text-sidebar-text">For authorized YeneEta owners and moderators.</p>
+    <p class="relative text-sm text-sidebar-text">For authorized 251 Lottery owners and moderators.</p>
   </section>
 
   <section class="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-10 lg:min-h-0">
     <form class="admin-reveal w-full max-w-[440px]" on:submit|preventDefault={submit}>
       <div class="mb-10 flex items-center gap-3 lg:hidden">
         <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-sidebar text-primary"><Dices size={20} /></span>
-        <div><p class="font-bold text-ink">YeneEta</p><p class="text-xs text-faint">Platform operations</p></div>
+        <div><p class="font-bold text-ink">251 Lottery</p><p class="text-xs text-faint">Platform operations</p></div>
       </div>
 
       <span class="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-primary-bg text-primary"><LockKeyhole size={21} /></span>
       <h2 class="mt-2 text-[30px] font-bold tracking-[-0.035em] text-ink sm:text-[34px]">Welcome back</h2>
-      <p class="mt-2 text-sm leading-6 text-muted">Sign in to manage the YeneEta platform.</p>
+      <p class="mt-2 text-sm leading-6 text-muted">Sign in to manage the 251 Lottery platform.</p>
 
       <div class="mt-8 flex flex-col gap-5">
         <div class="flex flex-col gap-2">
@@ -125,7 +125,7 @@
 
       {#if error}<p class="mt-4 rounded-button border border-danger/15 bg-danger-bg px-3.5 py-3 text-xs font-medium text-danger" role="alert">{error}</p>{/if}
 
-      <button type="submit" disabled={loading} class="admin-press mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(21,154,127,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+      <button type="submit" disabled={loading} class="admin-press mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-bold text-white shadow-[0_10px_24px_rgba(1,53,198,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
         {loading ? 'Signing in…' : 'Enter control center'}
         {#if loading}<Loader2 size={17} class="animate-spin" />{:else}<ArrowRight size={17} />{/if}
       </button>

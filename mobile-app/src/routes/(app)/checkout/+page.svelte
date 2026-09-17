@@ -161,22 +161,22 @@
                children out side by side instead of leaving that to
                whatever positioning the input itself came with. */
             .chapa-phone-input-wrapper { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 14px; margin-bottom: 16px; border: 1px solid #d9dce3; border-radius: 14px; box-shadow: none; transition: border-color 160ms ease, box-shadow 160ms ease; }
-            .chapa-phone-input-wrapper:hover, .chapa-phone-input-wrapper:focus-within { border-color: #00b589; box-shadow: 0 0 0 3px rgba(0,181,137,.12); }
+            .chapa-phone-input-wrapper:hover, .chapa-phone-input-wrapper:focus-within { border-color: #0129A3; box-shadow: 0 0 0 3px rgba(1,41,163,.12); }
             .chapa-phone-prefix { flex: 0 0 auto; font-size: 15px; color: #555b6e; white-space: nowrap; }
             .chapa-phone-input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 16px; color: #1a1d29; }
             .chapa-payment-methods-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 12px 0 18px; }
-            .chapa-payment-method { box-sizing: border-box; width: 100%; height: 76px; padding: 8px 4px; border: 1px solid #e1e4ea; border-radius: 14px; box-shadow: none; transition: transform 120ms ease-out, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+            .chapa-payment-method { box-sizing: border-box; width: 100%; height: 76px; padding: 8px 4px; border: 1px solid #E1E5FA; border-radius: 14px; box-shadow: none; transition: transform 120ms ease-out, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
             .chapa-payment-method:active { transform: scale(.96); }
             .chapa-payment-icon { width: 34px; height: 34px; object-fit: contain; margin-bottom: 5px; }
             .chapa-payment-name { font-size: 10px; font-weight: 700; color: #555b6e; }
-            .chapa-selected { background: #dff7ee; border-color: #00b589; box-shadow: inset 0 0 0 1px #00b589; }
-            .chapa-pay-button { min-height: 54px; border: 0; border-radius: 16px; background: #00d3a0; color: #10211d; font-size: 15px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(0,105,80,.72), inset 0 1px 0 rgba(255,255,255,.72); transition: transform 140ms ease-out, background-color 160ms ease; }
-            .chapa-pay-button:hover { background: #00c496; }
+            .chapa-selected { background: #DCE6FB; border-color: #0129A3; box-shadow: inset 0 0 0 1px #0129A3; }
+            .chapa-pay-button { min-height: 54px; border: 0; border-radius: 16px; background: #0135C6; color: #080E49; font-size: 15px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.72); transition: transform 140ms ease-out, background-color 160ms ease; }
+            .chapa-pay-button:hover { background: #0135C6; }
             .chapa-pay-button:active { transform: scale(.98); }
             .chapa-pay-button:disabled { opacity: .58; cursor: wait; }
-            .chapa-error { margin: 8px 0 12px; color: #c33c57; font-size: 12px; line-height: 1.5; }
+            .chapa-error { margin: 8px 0 12px; color: #B23A45; font-size: 12px; line-height: 1.5; }
             .chapa-loading { margin-top: 14px; color: #555b6e; font-size: 12px; }
-            .chapa-spinner { border-top-color: #00b589; }
+            .chapa-spinner { border-top-color: #0129A3; }
             @media (max-width: 360px) { .chapa-payment-methods-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
           `,
         },
@@ -402,10 +402,10 @@
 </section>
 
 <style>
-  .reserved-numbers { padding: 0 16px 16px; color: #193c33; }
+  .reserved-numbers { padding: 0 16px 16px; color: #080E49; }
   .reserved-numbers p { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
   .reserved-numbers > div { display: flex; flex-wrap: wrap; gap: 8px; }
-  .reserved-numbers span { padding: 10px 12px; background: #e4f4eb; border-radius: 10px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .reserved-numbers span { padding: 10px 12px; background: #E3EEFA; border-radius: 10px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .reserved-numbers small { display: block; margin-top: 12px; font-size: 12px; color: #566960; }
   .chapa-inline-container { min-height: 360px; }
 
@@ -417,6 +417,6 @@
   .chapa-inline-container { height: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   :global(html:has(.checkout-page) .bottom-nav) { display: none; }
   :global(html:has(.checkout-page) .native-bottom-nav-clearance) { padding-bottom: max(20px, var(--safe-bottom)); }
-  :global(.checkout-page *:focus-visible) { outline: 3px solid rgba(0, 181, 137, .28); outline-offset: 2px; }
+  :global(.checkout-page *:focus-visible) { outline: 3px solid rgba(1, 41, 163, .28); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .checkout-page :global(.animate-spin) { animation-duration: 1.5s; } }
 </style>

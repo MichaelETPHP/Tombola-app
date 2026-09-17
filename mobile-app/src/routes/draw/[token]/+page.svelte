@@ -151,25 +151,25 @@
   <meta name="referrer" content="no-referrer" />
 </svelte:head>
 
-<main class="draw-page min-h-[100dvh] overflow-hidden bg-[#e9faf5] px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#142a25]">
+<main class="draw-page min-h-[100dvh] overflow-hidden bg-[#E7EEFC] px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#080E49]">
   <div class="mx-auto flex min-h-[calc(100dvh-48px)] max-w-md flex-col">
     <header class="flex items-start justify-between pt-2">
       <div class="min-w-0 pr-4">
-        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">{$_('draw.verifiedDraw')}</p>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0135C6]">{$_('draw.verifiedDraw')}</p>
         <h1 class="mt-1 truncate text-xl font-black tracking-[-0.03em]">{draw?.raffleName ?? $_('draw.loadingRaffle')}</h1>
       </div>
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0c9f7d] shadow-sm"><ShieldCheck size={21} /></span>
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0135C6] shadow-sm"><ShieldCheck size={21} /></span>
     </header>
 
     {#if error}
       <section class="my-auto text-center" in:fade={{ duration: 160 }}>
-        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm"><LockKeyhole size={27} /></span>
+        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#D8434C] shadow-sm"><LockKeyhole size={27} /></span>
         <h2 class="mt-5 text-xl font-black">{$_('draw.unavailable')}</h2>
         <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{error}</p>
       </section>
     {:else}
-      <section class="mt-8 border-y border-[#bddfd5] py-4">
-        <p class="text-center text-sm font-black text-[#0c9f7d]">{draw ? $_('draw.tierPrize', { values: { ordinal: $_('raffle.ordinal', { values: { tier: draw.tier } }), prize: draw.prizeName } }) : $_('draw.preparingPrize')}</p>
+      <section class="mt-8 border-y border-[#C9D6EF] py-4">
+        <p class="text-center text-sm font-black text-[#0135C6]">{draw ? $_('draw.tierPrize', { values: { ordinal: $_('raffle.ordinal', { values: { tier: draw.tier } }), prize: draw.prizeName } }) : $_('draw.preparingPrize')}</p>
         <div class="mt-3 flex items-center justify-center gap-5 text-[11px] font-bold text-[#60746f]">
           <span class="flex items-center gap-1.5"><Clock3 size={14} /> {drawTime(draw?.drawDateTime)}</span>
           <span class="flex items-center gap-1.5"><Users size={14} /> {$_('draw.participants', { values: { n: draw?.registeredUsers ?? 0 } })}</span>
@@ -177,18 +177,18 @@
       </section>
 
       <div class="my-auto flex flex-col items-center py-8">
-        <div class:reel-active={spinning} class:reel-done={!!result} class="reel relative flex h-64 w-64 flex-col items-center justify-center rounded-full border-[10px] border-white bg-white text-center shadow-[0_18px_50px_rgba(21,78,65,0.18)]">
+        <div class:reel-active={spinning} class:reel-done={!!result} class="reel relative flex h-64 w-64 flex-col items-center justify-center rounded-full border-[10px] border-white bg-white text-center shadow-[0_18px_50px_rgba(8,14,73,0.18)]">
           {#if result}
             <div class="px-5" in:fade={{ duration: 220 }}>
-              <CheckCircle2 size={28} class="mx-auto text-[#0c9f7d]" />
+              <CheckCircle2 size={28} class="mx-auto text-[#0135C6]" />
               <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60746f]">{$_('draw.winningTicket')}</p>
               <p class="mt-1 text-2xl font-black tracking-[-0.03em] tabular-nums">{result.winnerTicketCode}</p>
-              <p class="mt-3 text-xs font-bold text-[#0c9f7d]">{$_('draw.recordedSecurely')}</p>
+              <p class="mt-3 text-xs font-bold text-[#0135C6]">{$_('draw.recordedSecurely')}</p>
             </div>
           {:else}
             <div class="px-4">
               <p class="text-xl font-black tracking-[-0.025em] tabular-nums">{displayTicket}</p>
-              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0c9f7d]">{$_('draw.shuffleOf', { values: { pass } })}</p>
+              <p class="mt-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0135C6]">{$_('draw.shuffleOf', { values: { pass } })}</p>
             </div>
           {/if}
         </div>
@@ -200,8 +200,8 @@
 
 <style>
   .reel { transition: box-shadow 260ms ease, transform 260ms ease; }
-  .reel-active { animation: reel-pulse 700ms ease-in-out infinite; box-shadow: 0 0 0 6px rgba(12,159,125,.14), 0 18px 50px rgba(21,78,65,.18); }
-  .reel-done { box-shadow: 0 0 0 6px rgba(12,159,125,.22), 0 18px 50px rgba(21,78,65,.18); }
+  .reel-active { animation: reel-pulse 700ms ease-in-out infinite; box-shadow: 0 0 0 6px rgba(1,53,198,.14), 0 18px 50px rgba(8,14,73,.18); }
+  .reel-done { box-shadow: 0 0 0 6px rgba(1,53,198,.22), 0 18px 50px rgba(8,14,73,.18); }
   @keyframes reel-pulse { 50% { transform: scale(1.018); } }
   @media (prefers-reduced-motion: reduce) { .reel-active { animation: none; } }
 </style>

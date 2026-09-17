@@ -96,7 +96,7 @@ export type ShareTombolaOptions = ShareYeneEtaOptions;
 export async function shareYeneEtaContent(options: ShareYeneEtaOptions): Promise<void> {
   const supported = await Share.canShare();
   if (supported.value) {
-    await Share.share({ ...options, dialogTitle: 'Share from YeneEta' });
+    await Share.share({ ...options, dialogTitle: 'Share from 251 Lottery' });
     return;
   }
 

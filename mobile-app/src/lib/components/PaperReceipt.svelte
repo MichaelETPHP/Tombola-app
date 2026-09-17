@@ -53,7 +53,7 @@
   <div class="receipt-print w-full max-w-[300px]">
     <div class="receipt-paper relative bg-[#fbf8f0] px-5 pb-6 pt-7 text-[#2b2b26] shadow-[0_30px_60px_rgba(0,0,0,0.35)]">
       <div class="text-center">
-        <p class="text-[13px] font-black uppercase tracking-[0.28em]">YeneEta</p>
+        <p class="text-[13px] font-black uppercase tracking-[0.28em]">251 Lottery</p>
         <p class="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8a8578]">{$_('receipt.officialReceipt')}</p>
       </div>
 
@@ -82,7 +82,7 @@
 
       <div class="receipt-rule my-4"></div>
 
-      <p class="text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#00a884]">✓ {$_('receipt.confirmedGoodLuck')}</p>
+      <p class="text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#0135C6]">✓ {$_('receipt.confirmedGoodLuck')}</p>
     </div>
   </div>
 

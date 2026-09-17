@@ -249,7 +249,7 @@
   }
 </script>
 
-<svelte:head><title>{roomTitle || $_('rooms.roomFallback')} · YeneEta</title></svelte:head>
+<svelte:head><title>{roomTitle || $_('rooms.roomFallback')} · 251 Lottery</title></svelte:head>
 
 <div class="relative">
   <!-- Header -->
@@ -403,7 +403,7 @@
                       : 'rounded-card'} {message.senderType === 'admin'
                       ? 'bg-gradient-to-br from-gold-bg to-[#ffe6ab] text-ink'
                       : message.isMine
-                        ? 'bg-gradient-to-br from-primary to-primary-dark text-[#0d221c]'
+                        ? 'bg-gradient-to-br from-primary to-primary-dark text-[#080E49]'
                         : 'bg-card text-ink shadow-card-light'}"
                   >
                     <p class="whitespace-pre-wrap break-words text-[14px] leading-snug">{message.content}</p>
@@ -474,10 +474,10 @@
           type="submit"
           disabled={!draft.trim() || sending}
           aria-label={$_('rooms.sendAria')}
-          class="pressable tappable send-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-dark text-[#0d221c] disabled:opacity-40 {draft.trim() ? 'send-armed' : ''}"
+          class="pressable tappable send-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-dark text-[#080E49] disabled:opacity-40 {draft.trim() ? 'send-armed' : ''}"
         >
           {#if sending}
-            <IosSpinner size={16} color="#0d221c" />
+            <IosSpinner size={16} color="#080E49" />
           {:else}
             <Send size={17} />
           {/if}
@@ -503,10 +503,10 @@
   @keyframes live-pulse {
     0%,
     100% {
-      box-shadow: 0 0 0 0 rgba(0, 211, 160, 0.5);
+      box-shadow: 0 0 0 0 rgba(1, 53, 198, 0.5);
     }
     50% {
-      box-shadow: 0 0 0 4px rgba(0, 211, 160, 0);
+      box-shadow: 0 0 0 4px rgba(1, 53, 198, 0);
     }
   }
 
@@ -541,7 +541,7 @@
   }
 
   .send-armed {
-    box-shadow: 0 4px 14px rgba(0, 211, 160, 0.35);
+    box-shadow: 0 4px 14px rgba(1, 53, 198, 0.35);
   }
 
   @media (prefers-reduced-motion: reduce) {

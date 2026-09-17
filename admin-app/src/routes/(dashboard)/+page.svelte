@@ -48,7 +48,7 @@
   ];
 </script>
 
-<svelte:head><title>Control Center | YeneEta Admin</title></svelte:head>
+<svelte:head><title>Control Center | 251 Lottery Admin</title></svelte:head>
 
 <div class="flex flex-col gap-7">
   <header class="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
@@ -88,7 +88,7 @@
     </section>
   {:else}
     <div class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-      <section class="relative min-h-[260px] overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-32px_rgba(23,32,30,0.65)] md:p-8">
+      <section class="relative min-h-[260px] overflow-hidden rounded-card bg-sidebar p-6 text-white shadow-[0_24px_60px_-32px_rgba(8,14,73,0.65)] md:p-8">
         <div class="absolute -right-20 -top-24 h-64 w-64 rounded-full border border-white/10"></div>
         <div class="absolute -right-6 -top-8 h-40 w-40 rounded-full border border-white/10"></div>
         <div class="relative flex h-full flex-col justify-between gap-8">
@@ -116,7 +116,7 @@
         </div>
       </section>
 
-      <section class="flex min-h-[260px] flex-col rounded-card border border-border bg-card p-6 shadow-[0_18px_45px_-32px_rgba(16,124,104,0.4)]">
+      <section class="flex min-h-[260px] flex-col rounded-card border border-border bg-card p-6 shadow-[0_18px_45px_-32px_rgba(1,53,198,0.4)]">
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-warning">Needs attention</p>

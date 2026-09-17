@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { Bug, ChartNoAxesCombined, ChevronDown, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
+  import { Bug, ChartNoAxesCombined, ChevronDown, Contact, FileClock, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, ShieldCheck, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -18,6 +18,7 @@
   $: initials = ($auth.admin?.fullName ?? $auth.admin?.phone ?? 'YA').split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('');
   $: links = [
     { href: '/users', label: 'Registered users', icon: Users },
+    { href: '/contacts', label: 'Imported contacts', icon: Contact },
     { href: '/payouts', label: 'Payouts', icon: PackageCheck },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
     ...($auth.admin?.role === 'owner' ? [
@@ -90,9 +91,9 @@
 </script>
 
 {#snippet brand()}
-  <a href="/" class="flex items-center gap-3 no-underline" aria-label="YeneEta admin home">
+  <a href="/" class="flex items-center gap-3 no-underline" aria-label="251 Lottery admin home">
     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-primary text-white"><ShieldCheck size={20} /></span>
-    <div><p class="text-base font-bold text-white">YeneEta</p><p class="mt-0.5 text-xs text-sidebar-text">Administration</p></div>
+    <div><p class="text-base font-bold text-white">251 Lottery</p><p class="mt-0.5 text-xs text-sidebar-text">Administration</p></div>
   </a>
 {/snippet}
 
@@ -125,7 +126,7 @@
 {/snippet}
 
 <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:hidden">
-  <a href="/" class="flex items-center gap-2 text-base font-bold text-ink no-underline"><ShieldCheck size={23} class="text-primary-dark" /> YeneEta <span class="font-normal text-muted">Admin</span></a>
+  <a href="/" class="flex items-center gap-2 text-base font-bold text-ink no-underline"><ShieldCheck size={23} class="text-primary-dark" /> 251 Lottery <span class="font-normal text-muted">Admin</span></a>
   <button bind:this={menuButton} type="button" class="admin-press flex h-11 w-11 items-center justify-center rounded-button border border-border text-ink" aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={menuOpen} on:click={openMenu}><Menu size={20} /></button>
 </header>
 

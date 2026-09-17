@@ -303,7 +303,7 @@ adminRoutes.get('/crashes', requireRole('owner'), async (c) => {
   const limitParam = Number(c.req.query('limit'));
   const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 50;
 
-  if (platform && !['telegram', 'native', 'browser'].includes(platform)) {
+  if (platform && !['telegram', 'native', 'browser', 'api'].includes(platform)) {
     throw new AppError(400, 'Invalid platform filter');
   }
 

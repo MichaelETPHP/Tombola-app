@@ -20,7 +20,7 @@ export interface SmsLogsPage {
   nextBefore: string | null;
 }
 
-const SENDER_LABEL_FALLBACK = 'YeneEta SMS Gateway';
+const SENDER_LABEL_FALLBACK = '251 Lottery SMS Gateway';
 
 /**
  * Paginated, name-enriched read of the SMS slice of integration_logs for

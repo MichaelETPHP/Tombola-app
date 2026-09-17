@@ -32,6 +32,16 @@ interface TelegramWebApp {
   // try_instant_view must stay off: that mode is for read-only articles
   // and would break an interactive payment form.
   openLink?(url: string, options?: { try_instant_view?: boolean }): void;
+  // Telegram's own vibration bridge. This is the only thing that reliably
+  // buzzes inside a Mini App launch: that WebView has no Capacitor native
+  // runtime for @capacitor/haptics to talk to, and the plain browser
+  // Vibration API it would otherwise fall back to is unsupported outright
+  // on Telegram for iOS (and unreliable elsewhere) — see native/haptics.ts.
+  HapticFeedback?: {
+    impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'): void;
+    notificationOccurred(type: 'error' | 'success' | 'warning'): void;
+    selectionChanged(): void;
+  };
 }
 
 function syncTelegramContentSafeArea(webApp: TelegramWebApp): void {
@@ -105,8 +115,8 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
   safeBridgeCall('expand', () => webApp.expand());
   safeBridgeCall('disableVerticalSwipes', () => webApp.disableVerticalSwipes?.());
   safeBridgeCall('enableClosingConfirmation', () => webApp.enableClosingConfirmation?.());
-  safeBridgeCall('setHeaderColor', () => webApp.setHeaderColor?.('#00D3A0'));
-  safeBridgeCall('setBackgroundColor', () => webApp.setBackgroundColor?.('#E3F9EF'));
+  safeBridgeCall('setHeaderColor', () => webApp.setHeaderColor?.('#0135C6'));
+  safeBridgeCall('setBackgroundColor', () => webApp.setBackgroundColor?.('#E1E9FC'));
   safeBridgeCall('setBottomBarColor', () => webApp.setBottomBarColor?.('#FFFFFF'));
 
   // Fullscreen is available from Bot API 8.0. Keep the version guard as old

@@ -41,6 +41,12 @@ services:
       # cycle — production defaults to a real 60-minute window instead (see
       # docker-compose.yml).
       TRIGGER_TTL_MINUTES: ${DEV_TRIGGER_TTL_MINUTES:-5}
+      # Testing convenience — see contacts.service.ts. Set
+      # DEV_CONTACTS_TEST_PHONE_NUMBERS in Coolify (comma-separated) to
+      # your own test phone number(s) so Imported Contacts always treats
+      # them as selectable, even if they're already registered accounts.
+      # Never commit real numbers here — set this in Coolify's env panel.
+      CONTACTS_TEST_PHONE_NUMBERS: ${DEV_CONTACTS_TEST_PHONE_NUMBERS:-}
       CHAPA_SECRET_KEY: ${DEV_CHAPA_SECRET_KEY:-}
       CHAPA_WEBHOOK_SECRET: ${DEV_CHAPA_WEBHOOK_SECRET:-}
       CHAPA_MODE: ${DEV_CHAPA_MODE:-test}

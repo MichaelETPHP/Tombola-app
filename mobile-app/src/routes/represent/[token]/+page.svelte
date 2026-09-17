@@ -70,30 +70,36 @@
   <meta name="referrer" content="no-referrer" />
 </svelte:head>
 
-<main class="represent-page min-h-[100dvh] overflow-hidden bg-[#e9faf5] px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#142a25]">
+<main class="represent-page min-h-[100dvh] overflow-hidden bg-[#E7EEFC] px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(24px,env(safe-area-inset-top))] text-[#080E49]">
   <div class="mx-auto flex min-h-[calc(100dvh-48px)] max-w-md flex-col">
     <header class="flex items-start justify-between pt-2">
       <div class="min-w-0 pr-4">
-        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0c9f7d]">{$_('representative.eyebrow')}</p>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0135C6]">{$_('representative.eyebrow')}</p>
         <h1 class="mt-1 truncate text-xl font-black tracking-[-0.03em]">{context?.raffleName ?? $_('representative.loadingRaffle')}</h1>
       </div>
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0c9f7d] shadow-sm"><ShieldCheck size={21} /></span>
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0135C6] shadow-sm"><ShieldCheck size={21} /></span>
     </header>
 
     {#if error}
       <section class="my-auto text-center" in:fade={{ duration: 160 }}>
-        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm"><LockKeyhole size={27} /></span>
+        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#D8434C] shadow-sm"><LockKeyhole size={27} /></span>
         <h2 class="mt-5 text-xl font-black">{$_('representative.unavailable')}</h2>
         <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{error}</p>
       </section>
     {:else if loading}
-      <div class="my-auto flex flex-col items-center gap-3 py-8">
-        <div class="h-12 w-12 animate-spin rounded-full border-4 border-[#bddfd5] border-t-[#0c9f7d]"></div>
-        <p class="text-xs font-bold text-[#60746f]">{$_('representative.loading')}</p>
+      <section class="mt-8 border-y border-[#C9D6EF] py-4" aria-hidden="true">
+        <div class="skeleton mx-auto h-4 w-48 rounded-full"></div>
+        <div class="skeleton mx-auto mt-3 h-3 w-36 rounded-full"></div>
+      </section>
+      <div class="my-auto flex flex-col items-center gap-3 py-8 text-center" aria-hidden="true">
+        <div class="skeleton h-4 w-64 rounded-full"></div>
+        <div class="skeleton h-4 w-44 rounded-full"></div>
+        <div class="skeleton mt-3 h-14 w-56 rounded-2xl"></div>
       </div>
+      <span class="sr-only">{$_('representative.loading')}</span>
     {:else if context}
-      <section class="mt-8 border-y border-[#bddfd5] py-4">
-        <p class="text-center text-sm font-black text-[#0c9f7d]">
+      <section class="mt-8 border-y border-[#C9D6EF] py-4">
+        <p class="text-center text-sm font-black text-[#0135C6]">
           {$_('draw.tierPrize', { values: { ordinal: $_('raffle.ordinal', { values: { tier: context.tier } }), prize: context.prizeName } })}
         </p>
         {#if context.status !== 'approved' && context.expiresAt}
@@ -106,12 +112,12 @@
       <div class="my-auto flex flex-col items-center py-8 text-center">
         {#if approved}
           <div in:fade={{ duration: 220 }}>
-            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#0c9f7d] shadow-sm"><CheckCircle2 size={27} /></span>
+            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#0135C6] shadow-sm"><CheckCircle2 size={27} /></span>
             <h2 class="mt-5 text-xl font-black">{$_('representative.approvedTitle')}</h2>
             <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{$_('representative.approvedBody')}</p>
           </div>
         {:else if context.status === 'expired' || !context.canApprove}
-          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#d85353] shadow-sm"><LockKeyhole size={27} /></span>
+          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#D8434C] shadow-sm"><LockKeyhole size={27} /></span>
           <h2 class="mt-5 text-xl font-black">{$_('representative.unavailable')}</h2>
           <p class="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#60746f]">{$_('representative.usedOrExpired')}</p>
         {:else}
@@ -120,7 +126,7 @@
             type="button"
             disabled={approving}
             on:click={approve}
-            class="tappable pressable mt-6 flex h-14 min-w-56 items-center justify-center gap-2 rounded-2xl bg-[#0c9f7d] px-8 text-base font-black text-white shadow-[0_12px_30px_rgba(12,159,125,0.35)] disabled:opacity-60"
+            class="tappable pressable mt-6 flex h-14 min-w-56 items-center justify-center gap-2 rounded-2xl bg-[#0135C6] px-8 text-base font-black text-white shadow-[0_12px_30px_rgba(1,53,198,0.35)] disabled:opacity-60"
           >
             {approving ? $_('representative.approving') : $_('representative.approveButton')}
           </button>
