@@ -52,7 +52,7 @@
           aria-label={$_('banner.enterAria', { values: { title: raffle.title } })}
         >
           <div class="raffle-artwork relative w-full shrink-0 overflow-hidden bg-[#DCE6FB]">
-            <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="contain" eager={index === 0} />
+            <PrizeImage src={raffle.prizeImageUrl} title={raffle.title} prizeName={raffle.prizeName} size="lg" fit="cover" eager={index === 0} />
           </div>
 
           <div class="featured-info relative flex flex-col gap-1 px-4 py-4">
