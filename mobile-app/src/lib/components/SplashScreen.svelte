@@ -2,22 +2,45 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ } from 'svelte-i18n';
+  import { api } from '$lib/api/client.js';
+  import { resolveImageUrl } from '$lib/utils/imageUrl.js';
   import IosSpinner from './IosSpinner.svelte';
   import { Sparkles, ArrowRight, Dices, Trophy, ShieldCheck } from 'lucide-svelte';
 
   export let autoRedirect: boolean = true;
   export let redirectDelayMs: number = 4000;
 
+  const DEFAULT_SLIDE_IMAGES: [string, string] = ['/images/splash-screen-1.jpg', '/images/splash-screen-2.jpg'];
+  // Admin-editable (see /admin/splash) — starts on the bundled defaults so
+  // the very first screen of the app never waits on a network request, then
+  // swaps in whatever the admin has uploaded once that fetch resolves.
+  let slideImages = DEFAULT_SLIDE_IMAGES;
+
+  async function loadSlideImages() {
+    try {
+      const { slides: remote } = await api.get<{ slides: { slot: number; imageUrl: string }[] }>('/splash', { skipAuth: true });
+      const next: [string, string] = [...DEFAULT_SLIDE_IMAGES];
+      for (const slide of remote) {
+        const resolved = resolveImageUrl(slide.imageUrl);
+        if (resolved && (slide.slot === 1 || slide.slot === 2)) next[slide.slot - 1] = resolved;
+      }
+      slideImages = next;
+    } catch {
+      // Bundled defaults already showing — a slow or failed fetch here must
+      // never hold up or blank out the first thing a user sees.
+    }
+  }
+
   $: slides = [
     {
-      image: '/images/splash-screen-1.jpg',
+      image: slideImages[0],
       title: $_('splash.slide1.title'),
       subtitle: $_('splash.slide1.subtitle'),
       tag: $_('splash.slide1.tag'),
       color: '#7C3AED',
     },
     {
-      image: '/images/splash-screen-2.jpg',
+      image: slideImages[1],
       title: $_('splash.slide2.title'),
       subtitle: $_('splash.slide2.subtitle'),
       tag: $_('splash.slide2.tag'),
@@ -41,6 +64,8 @@
   }
 
   onMount(() => {
+    void loadSlideImages();
+
     // Auto-swap slides every half of total delay
     intervalId = setInterval(() => {
       currentSlide = (currentSlide + 1) % slides.length;

@@ -12,6 +12,7 @@ import { drawsRoutes } from './modules/draws/draws.routes.js';
 import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { adminContactsRoutes } from './modules/contacts/contacts.routes.js';
+import { splashRoutes, adminSplashRoutes } from './modules/splash/splash.routes.js';
 import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/rooms.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { diagnosticsRoutes } from './modules/diagnostics/diagnostics.routes.js';
@@ -146,6 +147,7 @@ app.route('/diagnostics', diagnosticsRoutes);
 app.route('/raffles', rafflesRoutes);
 app.route('/draws', drawsRoutes);
 app.route('/payments', paymentsRoutes);
+app.route('/splash', splashRoutes);
 
 // ─── Authenticated User Routes ────────────────────────────────────
 
@@ -163,6 +165,7 @@ app.route('/admin/raffles', adminRafflesRoutes);
 app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
 app.route('/admin/contacts', adminContactsRoutes);
+app.route('/admin/splash', adminSplashRoutes);
 
 app.notFound((c) => c.json({
   error: c.get('t')('common.notFound'),
