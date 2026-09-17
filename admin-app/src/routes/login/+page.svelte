@@ -3,7 +3,7 @@
   import { loginAdmin, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { adminLoginSchema } from '$lib/schemas/index.js';
-  import { ArrowRight, CheckCircle2, Dices, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck } from 'lucide-svelte';
+  import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck } from 'lucide-svelte';
 
   let phone = '';
   let password = '';
@@ -77,7 +77,7 @@
 
 
     <div class="relative flex items-center gap-3">
-      <span class="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary text-white"><Dices size={22} strokeWidth={2.2} /></span>
+      <img src="/logo-new.png" alt="" width="44" height="44" class="h-11 w-11 shrink-0 rounded-[14px] object-cover shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]" />
       <div><p class="text-base font-bold tracking-tight">251 Lottery</p><p class="text-xs text-white/55">Platform operations</p></div>
     </div>
 
@@ -99,7 +99,7 @@
   <section class="flex min-h-[100dvh] items-center justify-center px-5 py-10 sm:px-10 lg:min-h-0">
     <form class="admin-reveal w-full max-w-[440px]" on:submit|preventDefault={submit}>
       <div class="mb-10 flex items-center gap-3 lg:hidden">
-        <span class="flex h-10 w-10 items-center justify-center rounded-[13px] bg-sidebar text-primary"><Dices size={20} /></span>
+        <img src="/logo-new.png" alt="" width="40" height="40" class="h-10 w-10 shrink-0 rounded-[13px] object-cover" />
         <div><p class="font-bold text-ink">251 Lottery</p><p class="text-xs text-faint">Platform operations</p></div>
       </div>
 
