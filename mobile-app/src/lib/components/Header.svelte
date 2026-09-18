@@ -10,8 +10,7 @@
   import { openExternal } from '$lib/native/browser.js';
   import { dicebearAvatarUri } from '$lib/utils/avatar.js';
 
-  // TODO: replace with the real YeneEta TikTok profile URL.
-  const TIKTOK_URL = 'https://www.tiktok.com/@yeneeta';
+  const TIKTOK_URL = 'https://www.tiktok.com/@251lottery';
 
   let langOpen = false;
 
