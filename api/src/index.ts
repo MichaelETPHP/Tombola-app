@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
+import { websocket } from 'hono/bun';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error-handler.middleware.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { rafflesRoutes, adminRafflesRoutes } from './modules/raffles/raffles.routes.js';
+import { raffleTicketUpdatesRoutes } from './modules/raffles/raffle-ticket-updates.ws.js';
 import { ticketsRoutes, myTicketsRoutes } from './modules/tickets/tickets.routes.js';
 import { paymentsRoutes, adminPaymentsRoutes } from './modules/payments/payments.routes.js';
 import { drawsRoutes } from './modules/draws/draws.routes.js';
@@ -163,6 +165,7 @@ app.route('/payouts', payoutsRoutes);
 
 app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
+app.route('/admin/raffles', raffleTicketUpdatesRoutes);
 app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
 app.route('/admin/payments', adminPaymentsRoutes);
@@ -231,4 +234,7 @@ export default {
   port: env.PORT,
   hostname: '0.0.0.0',
   fetch: app.fetch,
+  // Required for the /admin/raffles/:id/ticket-updates WebSocket upgrade
+  // (hono/bun's upgradeWebSocket) to actually work under Bun.serve.
+  websocket,
 };

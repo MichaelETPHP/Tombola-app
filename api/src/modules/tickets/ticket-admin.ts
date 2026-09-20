@@ -63,6 +63,42 @@ export async function ticketInventory(raffleId: string, start: number, find?: st
   return { ...raffle, numbers, payments, start: pageStart, end: Math.min(pageStart + 59, raffle.ticketCap) };
 }
 
+export interface TicketBuyer {
+  displayNumber: string;
+  buyerName: string | null;
+  buyerPhone: string;
+  amount: number;
+  purchasedAt: string;
+  paymentStatus: string;
+}
+
+/**
+ * Who bought one specific sold ticket number — backs the admin ticket
+ * grid's click-a-number modal. Only ever called for a number the grid
+ * already marked 'sold', but still returns 404 rather than nulls if the
+ * claim turns out not to be sold (e.g. a held reservation clicked mid-race
+ * with this exact number selling a moment earlier or later).
+ */
+export async function findTicketBuyer(raffleId: string, ticketNumber: number): Promise<TicketBuyer> {
+  const [raffle] = await sql<{ ticketCap: number; numberBlockStart: number | null }[]>`
+    SELECT ticket_cap, number_block_start FROM raffles WHERE id = ${raffleId}`;
+  if (!raffle) throw new AppError(404, 'Raffle not found');
+  if (ticketNumber < 1 || ticketNumber > raffle.ticketCap) throw new AppError(404, 'Ticket not found');
+
+  const [row] = await sql<{
+    buyerName: string | null; buyerPhone: string; amount: number; purchasedAt: string; paymentStatus: string;
+  }[]>`
+    SELECT u.full_name AS buyer_name, u.phone_number AS buyer_phone, p.amount, p.created_at AS purchased_at, p.status AS payment_status
+    FROM ticket_number_claims c
+    JOIN payments p ON p.id = c.payment_id
+    JOIN users u ON u.id = p.user_id
+    WHERE c.raffle_id = ${raffleId} AND c.ticket_number = ${ticketNumber} AND c.sold`;
+  if (!row) throw new AppError(404, 'This ticket has not been sold.');
+
+  const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
+  return { ...row, displayNumber: formatDisplayNumber(raffle.numberBlockStart, cipherKey, ticketNumber) };
+}
+
 /** Records an externally completed refund. Does not call a refund gateway. */
 export async function recordReviewedRefund(paymentId: string, adminId: string, reference: string) {
   await sql.begin(async (tx) => {

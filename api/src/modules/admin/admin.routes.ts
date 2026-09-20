@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { ticketInventory, recordReviewedRefund } from '../tickets/ticket-admin.js';
+import { ticketInventory, recordReviewedRefund, findTicketBuyer } from '../tickets/ticket-admin.js';
 import { findPaymentById } from '../../db/queries/payments.queries.js';
 import { verifyAndReconcileChapaPayment } from '../payments/payments.service.js';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
@@ -112,6 +112,18 @@ adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
   const find = z.string().trim().regex(/^\d{6}$/).optional().parse(c.req.query('find'));
   return c.json(await ticketInventory(id, start, find));
 });
+
+/**
+ * GET /admin/raffles/:id/tickets/:number/buyer
+ * Who bought one specific ticket number — backs the ticket grid's
+ * click-a-sold-number modal.
+ */
+adminRoutes.get('/raffles/:id/tickets/:number/buyer', async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const number = z.coerce.number().int().min(1).parse(c.req.param('number'));
+  return c.json(await findTicketBuyer(id, number));
+});
+
 adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const payment = await findPaymentById(z.string().uuid().parse(c.req.param('id')));
   if (!payment?.gatewayRef || payment.gateway !== 'chapa') return c.json({ error: 'No supported gateway transaction found' }, 409);
