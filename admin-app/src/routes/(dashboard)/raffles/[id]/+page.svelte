@@ -190,7 +190,19 @@
 
   async function saveDetails() {
     if (!raffle) return;
-    saving = true; error = ''; success = '';
+    error = ''; success = '';
+    // The API rejects a ticket cap below the prize-covering minimum with a
+    // 400 — without this check, that rejection happened silently enough to
+    // be missed (an inline banner + a toast that's easy to scroll past),
+    // leaving the form still showing the typed value while the database
+    // kept the old one. Same rule as ticketCapTooLow's inline warning next
+    // to the field — this just refuses to even try the doomed request.
+    if (raffle.ticketsSold === 0 && ticketCapTooLow) {
+      error = `Maximum ticket quota is below the minimum — needs at least ${minTicketCap?.toLocaleString()} tickets to cover ${totalPrizeValue.toLocaleString()} ETB in prizes.`;
+      toast.error(error, 'Save Failed');
+      return;
+    }
+    saving = true;
     try {
       // prizeValue/ticketPrice arrive from the API as NUMERIC columns,
       // which postgres.js serializes as strings (avoids float precision
