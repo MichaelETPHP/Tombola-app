@@ -327,9 +327,13 @@ adminRoutes.get('/backups', requireRole('owner'), async (c) => {
  * POST /admin/backups/run
  * Runs a backup on demand rather than waiting for the nightly job —
  * mainly so this can actually be verified working without waiting until
- * midnight, but also useful right before a risky manual change.
+ * midnight, but also useful right before a risky manual change. pg_dump
+ * is I/O/CPU-expensive and hits the same shared Postgres instance every
+ * other tenant on it uses, so this stays rate-limited even though it's
+ * already owner-only — a leaked token or a retry-happy client shouldn't
+ * be able to hammer it.
  */
-adminRoutes.post('/backups/run', requireRole('owner'), async (c) => {
+adminRoutes.post('/backups/run', requireRole('owner'), rateLimit({ max: 3, windowSeconds: 300 }), async (c) => {
   const backup = await runDatabaseBackup();
   return c.json({ backup });
 });
@@ -341,14 +345,20 @@ adminRoutes.post('/backups/run', requireRole('owner'), async (c) => {
  * touches the filesystem — it comes straight off the URL.
  */
 adminRoutes.get('/backups/:filename', requireRole('owner'), async (c) => {
-  const path = resolveBackupPath(c.req.param('filename'));
+  const filename = c.req.param('filename');
+  const path = resolveBackupPath(filename);
   if (!path) throw new AppError(404, 'Backup not found');
   const file = Bun.file(path);
   if (!(await file.exists())) throw new AppError(404, 'Backup not found');
   return new Response(file, {
     headers: {
       'Content-Type': 'application/sql',
-      'Content-Disposition': `attachment; filename="${c.req.param('filename')}"`,
+      // filename is reused here, not re-read from the request — it was
+      // already validated above by resolveBackupPath's anchored regex,
+      // and reusing that checked value (rather than a second raw param
+      // read) keeps it structurally impossible for a future refactor to
+      // put an unvalidated value back into this header.
+      'Content-Disposition': `attachment; filename="${filename}"`,
       'Cache-Control': 'private, no-store',
     },
   });
