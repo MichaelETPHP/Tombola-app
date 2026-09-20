@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { get } from 'svelte/store';
+  import { get, writable } from 'svelte/store';
   import { _, locale } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -23,7 +23,7 @@
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
   import '../app.css';
   import { initLanguage, setLanguage } from '$lib/stores/language.store.js';
-  import { authenticateTelegramMiniApp, prepareTelegramMiniApp } from '$lib/telegram.js';
+  import { authenticateTelegramMiniApp, prepareTelegramMiniApp, getTelegramMiniApp } from '$lib/telegram.js';
 
   // registerType is 'prompt' (see vite.config.ts) specifically so this
   // toast can exist at all: vite-plugin-pwa's client code for 'autoUpdate'
@@ -42,7 +42,19 @@
   // vite-plugin-pwa's generic default of `false` — has to be set explicitly)
   // additionally defers even *registering* the SW until the window `load`
   // event, so it can never race this same page's own initial load at all.
-  const { needRefresh, updateServiceWorker } = useRegisterSW({ immediate: false });
+  // A service worker gets a Telegram Mini App user nothing — there's no
+  // install-to-home-screen and no meaningful offline case (reaching the
+  // mini app at all already requires being inside Telegram, which already
+  // requires network) — while still costing first-load registration work
+  // and stacking a second cache layer on top of Telegram's own WebView
+  // cache, which is already inconsistent enough on its own to need the
+  // manual cache-busting workaround on the splash screen (see
+  // SplashScreen.svelte). Skipped entirely there; unaffected everywhere
+  // else (browser, installed PWA, the Android APK's WebView).
+  const isTelegramMiniApp = typeof window !== 'undefined' && !!getTelegramMiniApp();
+  const { needRefresh, updateServiceWorker } = isTelegramMiniApp
+    ? { needRefresh: writable(false), updateServiceWorker: async () => {} }
+    : useRegisterSW({ immediate: false });
   function applyUpdate() {
     hapticLight();
     void updateServiceWorker(true);
