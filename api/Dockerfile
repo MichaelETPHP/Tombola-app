@@ -10,6 +10,13 @@ FROM oven/bun:1.4.0-debian AS runtime
 
 WORKDIR /app
 
+# postgresql-client provides pg_dump, used by the nightly database backup
+# job (lib/db-backup.ts) — nothing else in the image needs it, so this is
+# the only reason it's here.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends postgresql-client \
+  && rm -rf /var/lib/apt/lists/*
+
 # Install deps first so this layer stays cached across source-only changes.
 COPY api/package.json api/bun.lock api/bunfig.toml ./
 RUN bun install --production --frozen-lockfile

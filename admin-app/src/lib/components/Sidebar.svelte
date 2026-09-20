@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { AlertTriangle, Bug, ChartNoAxesCombined, ChevronDown, Contact, FileClock, Image, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, Ticket, Users, X } from 'lucide-svelte';
+  import { AlertTriangle, Bug, ChartNoAxesCombined, ChevronDown, Contact, DatabaseBackup, FileClock, Image, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -27,6 +27,7 @@
       { href: '/integrations', label: 'Integrations', icon: Plug },
       { href: '/sms', label: 'SMS log', icon: MessageSquareText },
       { href: '/crashes', label: 'Crash reports', icon: Bug },
+      { href: '/backups', label: 'Database backups', icon: DatabaseBackup },
     ] : []),
     { href: '/settings', label: 'Settings', icon: Settings },
   ];

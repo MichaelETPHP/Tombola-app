@@ -47,6 +47,7 @@ import {
 } from './admin.service.js';
 import { getSmsStats, getSmsLogsPage } from './sms-admin.service.js';
 import { listClientCrashLogs, getClientCrashStats, type ClientCrashPlatform } from '../../lib/client-crash-log.js';
+import { listBackups, runDatabaseBackup, resolveBackupPath } from '../../lib/db-backup.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -310,6 +311,47 @@ adminRoutes.get('/crashes', requireRole('owner'), async (c) => {
 
   const page = await listClientCrashLogs({ platform: platform as ClientCrashPlatform | undefined, limit, before });
   return c.json(page);
+});
+
+/**
+ * GET /admin/backups
+ * Nightly database backups (see jobs/db-backup.job.ts), newest first.
+ * Owner-only: a backup is a full raw dump of every table, including data
+ * moderators have no business seeing in bulk.
+ */
+adminRoutes.get('/backups', requireRole('owner'), async (c) => {
+  return c.json({ backups: await listBackups() });
+});
+
+/**
+ * POST /admin/backups/run
+ * Runs a backup on demand rather than waiting for the nightly job —
+ * mainly so this can actually be verified working without waiting until
+ * midnight, but also useful right before a risky manual change.
+ */
+adminRoutes.post('/backups/run', requireRole('owner'), async (c) => {
+  const backup = await runDatabaseBackup();
+  return c.json({ backup });
+});
+
+/**
+ * GET /admin/backups/:filename
+ * Downloads one backup file. filename is validated against the exact
+ * pattern this system generates (see resolveBackupPath) before it ever
+ * touches the filesystem — it comes straight off the URL.
+ */
+adminRoutes.get('/backups/:filename', requireRole('owner'), async (c) => {
+  const path = resolveBackupPath(c.req.param('filename'));
+  if (!path) throw new AppError(404, 'Backup not found');
+  const file = Bun.file(path);
+  if (!(await file.exists())) throw new AppError(404, 'Backup not found');
+  return new Response(file, {
+    headers: {
+      'Content-Type': 'application/sql',
+      'Content-Disposition': `attachment; filename="${c.req.param('filename')}"`,
+      'Cache-Control': 'private, no-store',
+    },
+  });
 });
 
 /**

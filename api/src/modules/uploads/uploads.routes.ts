@@ -8,13 +8,14 @@ export const uploadsRoutes = new Hono<AppEnv>();
  * GET /uploads/:category/:filename
  * Serves a previously uploaded, sharp-compressed image (raffle prize
  * photos, splash slides, ...). No auth — fine for anything meant to be
- * public marketing/display material. 'id-documents' is the one category
- * that must never be reachable here: a winner's ID photo is sensitive
- * personal data, not a public asset — see payouts.routes.ts for the
- * actual authenticated way to read one back.
+ * public marketing/display material. 'id-documents' and 'backups' must
+ * never be reachable here: a winner's ID photo is sensitive personal
+ * data, and a backup is a full raw dump of every table in the database —
+ * see payouts.routes.ts and admin.routes.ts for their actual authenticated
+ * (owner-only, for backups) read paths instead.
  */
 uploadsRoutes.get('/:category/:filename', async (c) => {
-  if (c.req.param('category') === 'id-documents') return c.notFound();
+  if (['id-documents', 'backups'].includes(c.req.param('category'))) return c.notFound();
 
   const path = resolveUploadPath(c.req.param('category'), c.req.param('filename'));
   if (!path) return c.notFound();

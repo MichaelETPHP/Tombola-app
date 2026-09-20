@@ -20,6 +20,7 @@ import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { startStalePaymentCheck } from './jobs/stale-payment-check.job.js';
 import { startAutoDrawTriggerCheck } from './jobs/auto-draw-trigger.job.js';
+import { startNightlyDbBackup } from './jobs/db-backup.job.js';
 import { closeDb } from './db/client.js';
 import { logger } from './lib/logger.js';
 import { languageMiddleware } from './lib/i18n.js';
@@ -181,6 +182,7 @@ if (env.NODE_ENV !== 'test') {
   startTriggerExpiryCheck();
   startStalePaymentCheck();
   startAutoDrawTriggerCheck();
+  startNightlyDbBackup();
 }
 
 // ─── Graceful Shutdown ────────────────────────────────────────────
