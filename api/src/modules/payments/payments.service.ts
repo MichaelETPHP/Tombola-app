@@ -13,6 +13,7 @@ import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
+import { broadcastTicketsSold } from '../../lib/ticket-broadcast.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 
@@ -33,8 +34,11 @@ export async function processPaymentSuccess(txRef: string, meta?: ChapaPaymentMe
 }
 
 /**
- * Best-effort SMS confirmation, fired off after tickets are already issued.
- * Never blocks or fails the purchase — a dropped SMS is not a dropped sale.
+ * Best-effort side effects fired off after tickets are already issued —
+ * an SMS confirmation and a live push to any admin ticket grid watching
+ * this raffle. Never blocks or fails the purchase itself: a dropped SMS
+ * isn't a dropped sale, and a dead/slow admin socket must never affect it
+ * either (see broadcastTicketsSold).
  */
 function notifyTicketPurchase(txRef: string): void {
   void (async () => {
@@ -43,6 +47,15 @@ function notifyTicketPurchase(txRef: string): void {
       if (!payment) return;
       const receipt = await findPaymentReceiptById(payment.id);
       if (!receipt) return;
+
+      broadcastTicketsSold(
+        receipt.raffleId,
+        receipt.ticketNumbers.map((number, index) => ({
+          number,
+          displayNumber: receipt.ticketDisplayNumbers[index],
+        }))
+      );
+
       const result = await sendTicketPurchaseConfirmation(receipt.phoneNumber, {
         raffleName: receipt.raffleTitle,
         ticketCodes: receipt.ticketDisplayNumbers.map((d) => `${receipt.categoryCode}-${d}`),

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { ticketInventory, recordReviewedRefund } from '../tickets/ticket-admin.js';
+import { ticketInventory, recordReviewedRefund, findTicketBuyer } from '../tickets/ticket-admin.js';
 import { findPaymentById } from '../../db/queries/payments.queries.js';
 import { verifyAndReconcileChapaPayment } from '../payments/payments.service.js';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
@@ -47,6 +47,7 @@ import {
 } from './admin.service.js';
 import { getSmsStats, getSmsLogsPage } from './sms-admin.service.js';
 import { listClientCrashLogs, getClientCrashStats, type ClientCrashPlatform } from '../../lib/client-crash-log.js';
+import { listBackups, runDatabaseBackup, resolveBackupPath } from '../../lib/db-backup.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -111,6 +112,18 @@ adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
   const find = z.string().trim().regex(/^\d{6}$/).optional().parse(c.req.query('find'));
   return c.json(await ticketInventory(id, start, find));
 });
+
+/**
+ * GET /admin/raffles/:id/tickets/:number/buyer
+ * Who bought one specific ticket number — backs the ticket grid's
+ * click-a-sold-number modal.
+ */
+adminRoutes.get('/raffles/:id/tickets/:number/buyer', async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const number = z.coerce.number().int().min(1).parse(c.req.param('number'));
+  return c.json(await findTicketBuyer(id, number));
+});
+
 adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const payment = await findPaymentById(z.string().uuid().parse(c.req.param('id')));
   if (!payment?.gatewayRef || payment.gateway !== 'chapa') return c.json({ error: 'No supported gateway transaction found' }, 409);
@@ -310,6 +323,57 @@ adminRoutes.get('/crashes', requireRole('owner'), async (c) => {
 
   const page = await listClientCrashLogs({ platform: platform as ClientCrashPlatform | undefined, limit, before });
   return c.json(page);
+});
+
+/**
+ * GET /admin/backups
+ * Nightly database backups (see jobs/db-backup.job.ts), newest first.
+ * Owner-only: a backup is a full raw dump of every table, including data
+ * moderators have no business seeing in bulk.
+ */
+adminRoutes.get('/backups', requireRole('owner'), async (c) => {
+  return c.json({ backups: await listBackups() });
+});
+
+/**
+ * POST /admin/backups/run
+ * Runs a backup on demand rather than waiting for the nightly job —
+ * mainly so this can actually be verified working without waiting until
+ * midnight, but also useful right before a risky manual change. pg_dump
+ * is I/O/CPU-expensive and hits the same shared Postgres instance every
+ * other tenant on it uses, so this stays rate-limited even though it's
+ * already owner-only — a leaked token or a retry-happy client shouldn't
+ * be able to hammer it.
+ */
+adminRoutes.post('/backups/run', requireRole('owner'), rateLimit({ max: 3, windowSeconds: 300 }), async (c) => {
+  const backup = await runDatabaseBackup();
+  return c.json({ backup });
+});
+
+/**
+ * GET /admin/backups/:filename
+ * Downloads one backup file. filename is validated against the exact
+ * pattern this system generates (see resolveBackupPath) before it ever
+ * touches the filesystem — it comes straight off the URL.
+ */
+adminRoutes.get('/backups/:filename', requireRole('owner'), async (c) => {
+  const filename = c.req.param('filename');
+  const path = resolveBackupPath(filename);
+  if (!path) throw new AppError(404, 'Backup not found');
+  const file = Bun.file(path);
+  if (!(await file.exists())) throw new AppError(404, 'Backup not found');
+  return new Response(file, {
+    headers: {
+      'Content-Type': 'application/sql',
+      // filename is reused here, not re-read from the request — it was
+      // already validated above by resolveBackupPath's anchored regex,
+      // and reusing that checked value (rather than a second raw param
+      // read) keeps it structurally impossible for a future refactor to
+      // put an unvalidated value back into this header.
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'private, no-store',
+    },
+  });
 });
 
 /**

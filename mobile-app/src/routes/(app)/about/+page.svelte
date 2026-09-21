@@ -22,7 +22,7 @@
   import { getTelegramMiniApp } from '$lib/telegram.js';
 
   const BOT_LINK = 'https://t.me/yeneEtabot/yeneeta';
-  const TIKTOK_URL = 'https://www.tiktok.com/@yeneeta';
+  const TIKTOK_URL = 'https://www.tiktok.com/@251lottery';
   const SUPPORT_PHONE = '+251951043859';
 
   /**
@@ -204,7 +204,7 @@
       >
         <TikTokIcon size={20} />
         <span class="text-[11px] font-bold">TikTok</span>
-        <span class="text-[8px] font-bold uppercase tracking-[0.08em] text-primary-dark">@yeneeta</span>
+        <span class="text-[8px] font-bold uppercase tracking-[0.08em] text-primary-dark">@251lottery</span>
       </button>
       <button
         type="button"
