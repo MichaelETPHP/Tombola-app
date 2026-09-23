@@ -17,7 +17,7 @@ export const adminContactsRoutes = new Hono<AppEnv>();
 adminContactsRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
 
 adminContactsRoutes.get('/', async (c) => {
-  return c.json({ contacts: await listContacts() });
+  return c.json(await listContacts());
 });
 
 /**

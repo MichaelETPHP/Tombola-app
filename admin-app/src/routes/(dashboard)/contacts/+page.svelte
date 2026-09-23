@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import { toast } from '$lib/stores/toast.store.js';
-  import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
+  import { toEthiopianDate, toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import {
-    CircleAlert, Contact, Copy, RefreshCw, Search, Send, Trash2, Upload,
+    CircleAlert, Clock, Contact, Copy, MailCheck, RefreshCw, Search, Send, Trash2, Upload,
     X, CheckSquare, Square, SquareMinus,
   } from 'lucide-svelte';
 
@@ -13,20 +13,49 @@
     phone: string;
     name: string | null;
     importedAt: string;
+    // null until this contact is included in a successful bulk send —
+    // splits the list into the two sections below, and (once set) removes
+    // it from canSelect for any future send.
+    lastSmsSentAt: string | null;
     // Computed fresh by the server on every load — true once this number
     // belongs to a real registered account. A converted lead isn't
     // selectable for marketing SMS any more (see canSelect below).
     isRegistered: boolean;
   }
 
-  const canSelect = (c: ImportedContact) => !c.isRegistered;
+  const canSelect = (c: ImportedContact) => !c.isRegistered && !c.lastSmsSentAt;
 
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
+  const COOLDOWN_HOURS = 10; // mirrors contacts.service.ts's COOLDOWN_HOURS
 
   let contacts: ImportedContact[] = [];
   let loading = true;
   let loadError = false;
   let search = '';
+
+  // ── Send cooldown ────────────────────────────────────────────────
+  // A send affects up to 500 contacts at once and then goes on a 10-hour
+  // cooldown (mirrors the server's own computeNextSendAvailableAt) — this
+  // keeps the countdown ticking with a plain text update every second
+  // rather than any per-tick animation, which would just be motion for
+  // motion's sake on a number that changes 3600 times an hour.
+  let nextSendAvailableAt: string | null = null;
+  let nowMs = Date.now();
+  let cooldownInterval: ReturnType<typeof setInterval> | undefined;
+  onMount(() => {
+    cooldownInterval = setInterval(() => { nowMs = Date.now(); }, 1000);
+  });
+  onDestroy(() => { if (cooldownInterval) clearInterval(cooldownInterval); });
+
+  $: cooldownActive = !!nextSendAvailableAt && new Date(nextSendAvailableAt).getTime() > nowMs;
+  $: cooldownRemainingMs = cooldownActive ? new Date(nextSendAvailableAt!).getTime() - nowMs : 0;
+  function formatCountdown(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  }
 
   let fileInput: HTMLInputElement;
   let importing = false;
@@ -66,6 +95,10 @@
     (c.name ?? '').toLowerCase().includes(normalizedSearch)
   );
 
+  // ── Sent / not-sent split ──────────────────────────────────────
+  $: notSentContacts = filteredContacts.filter((c) => !c.lastSmsSentAt);
+  $: sentContacts = filteredContacts.filter((c) => !!c.lastSmsSentAt);
+
   // "All"/"some" only ever considers selectable (not-yet-registered)
   // contacts — an already-registered lead has no checkbox at all, so it
   // must never count against "everything is selected."
@@ -90,8 +123,9 @@
   async function load() {
     loading = true; loadError = false;
     try {
-      const res = await api.get<{ contacts: ImportedContact[] }>('/admin/contacts');
+      const res = await api.get<{ contacts: ImportedContact[]; nextSendAvailableAt: string | null }>('/admin/contacts');
       contacts = res.contacts;
+      nextSendAvailableAt = res.nextSendAvailableAt;
       clearSelection();
     } catch { loadError = true; }
     finally { loading = false; }
@@ -131,10 +165,10 @@
 
   async function sendBulkSmsToSelection() {
     const phones = [...selectedPhones];
-    if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim()) return;
+    if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim() || cooldownActive) return;
     sendingSms = true;
     try {
-      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number }>(
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number; nextSendAvailableAt: string | null }>(
         '/admin/contacts/sms',
         { phones, message: smsMessage.trim() }
       );
@@ -150,6 +184,10 @@
       } else {
         toast.error(`${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.${excludedNote}`, 'SMS Partially Sent');
       }
+      nextSendAvailableAt = result.nextSendAvailableAt;
+      const sentAt = new Date().toISOString();
+      const sentSet = new Set(phones);
+      contacts = contacts.map((c) => (sentSet.has(c.phone) ? { ...c, lastSmsSentAt: sentAt } : c));
       clearSelection();
       closeCompose();
     } catch (err) {
@@ -246,23 +284,37 @@
     </button>
   </div>
 
+  <!-- ── Send Cooldown ──────────────────────────────────────────── -->
+  {#if cooldownActive}
+    <div class="flex items-center gap-3 rounded-button border border-danger/25 bg-danger-bg px-4 py-3">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-danger/15 text-danger"><Clock size={16} /></span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[13px] font-bold text-danger">Bulk SMS is on cooldown</p>
+        <p class="text-[11px] text-danger/80">A send affects up to {MAX_SMS_RECIPIENTS} contacts at once, then waits {COOLDOWN_HOURS}h before the next wave.</p>
+      </div>
+      <span class="shrink-0 rounded-full bg-danger px-3 py-1.5 font-mono text-[13px] font-bold text-white">{formatCountdown(cooldownRemainingMs)}</span>
+    </div>
+  {/if}
+
   <!-- ── Selection Banner ───────────────────────────────────────── -->
   {#if selectedCount > 0}
     <div class="flex items-center justify-between rounded-button border border-primary/20 bg-primary-bg px-4 py-2.5">
       <p class="text-[13px] font-semibold text-primary-dark">
-        {selectedCount} of {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''} selected
+        {selectedCount} of {selectableVisible.length} contact{selectableVisible.length !== 1 ? 's' : ''} selected
       </p>
       <div class="flex items-center gap-2">
-        {#if selectedCount < filteredContacts.length}
+        {#if selectedCount < selectableVisible.length}
           <button type="button"
             class="admin-press text-[11px] font-bold text-primary-dark underline underline-offset-2"
             on:click={toggleSelectAllVisible}>
-            Select all {filteredContacts.length}
+            Select all {selectableVisible.length}
           </button>
           <span class="text-primary/40">·</span>
         {/if}
         <button type="button"
-          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg"
+          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg disabled:opacity-50"
+          disabled={cooldownActive}
+          title={cooldownActive ? 'Bulk SMS is on cooldown' : ''}
           on:click={() => (composingSms = true)}>
           <Send size={12} /> Send SMS ({selectedCount})
         </button>
@@ -298,102 +350,166 @@
       </button>
     </div>
   {:else}
-    <div class="overflow-hidden rounded-card border border-border bg-card">
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[600px] text-sm">
-          <thead>
-            <tr class="border-b border-border bg-bg text-left">
-              <th class="w-12 px-4 py-3">
-                <button type="button"
-                  aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
-                  aria-checked={allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'}
-                  role="checkbox"
-                  class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                  on:click={toggleSelectAllVisible}>
-                  {#if allVisibleSelected}
-                    <CheckSquare size={16} class="text-primary-dark" />
-                  {:else if someVisibleSelected}
-                    <SquareMinus size={16} class="text-primary-dark" />
-                  {:else}
-                    <Square size={16} />
-                  {/if}
-                </button>
-              </th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Status</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Imported</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            {#if filteredContacts.length === 0}
-              <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">No contacts match this search.</td></tr>
-            {:else}
-              {#each filteredContacts as contact (contact.phone)}
-                {@const isSelected = selectedPhones.has(contact.phone)}
-                <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
-                  <td class="px-4 py-3">
-                    {#if canSelect(contact)}
-                      <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
-                        class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                        on:click={() => toggleSelect(contact)}>
-                        {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
-                      </button>
+    <!-- ── Not sent ─────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+      <h2 class="flex items-center gap-2 text-[13px] font-bold text-ink">
+        <Square size={14} class="text-muted" /> Not sent
+        <span class="rounded-full bg-bg px-2 py-0.5 text-[11px] font-bold text-muted">{notSentContacts.length}</span>
+      </h2>
+      <div class="overflow-hidden rounded-card border border-border bg-card">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[600px] text-sm">
+            <thead>
+              <tr class="border-b border-border bg-bg text-left">
+                <th class="w-12 px-4 py-3">
+                  <button type="button"
+                    aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
+                    aria-checked={allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'}
+                    role="checkbox"
+                    class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
+                    on:click={toggleSelectAllVisible}>
+                    {#if allVisibleSelected}
+                      <CheckSquare size={16} class="text-primary-dark" />
+                    {:else if someVisibleSelected}
+                      <SquareMinus size={16} class="text-primary-dark" />
                     {:else}
-                      <span class="flex items-center justify-center text-faint" title="Already a registered account — not selectable for marketing SMS">
-                        <Square size={16} class="opacity-25" />
-                      </span>
+                      <Square size={16} />
                     {/if}
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
-                      <span>{contact.phone}</span>
-                      <button
-                        type="button"
-                        class="admin-press text-faint hover:text-ink transition-colors"
-                        title="Copy Phone"
-                        on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
-                      >
-                        <Copy size={11} />
+                  </button>
+                </th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Status</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Imported</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#if notSentContacts.length === 0}
+                <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'Everyone imported has already been messaged.'}</td></tr>
+              {:else}
+                {#each notSentContacts as contact (contact.phone)}
+                  {@const isSelected = selectedPhones.has(contact.phone)}
+                  <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
+                    <td class="px-4 py-3">
+                      {#if canSelect(contact)}
+                        <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
+                          class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
+                          on:click={() => toggleSelect(contact)}>
+                          {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
+                        </button>
+                      {:else}
+                        <span class="flex items-center justify-center text-faint" title="Already a registered account — not selectable for marketing SMS">
+                          <Square size={16} class="opacity-25" />
+                        </span>
+                      {/if}
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                        <span>{contact.phone}</span>
+                        <button
+                          type="button"
+                          class="admin-press text-faint hover:text-ink transition-colors"
+                          title="Copy Phone"
+                          on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <StatusBadge status={contact.isRegistered ? 'registered' : 'lead'} />
+                    </td>
+                    <td class="px-4 py-3 text-xs text-muted">
+                      <p class="font-medium text-ink">{toEthiopianDate(contact.importedAt)}</p>
+                      <p class="mt-1 text-[10px] text-faint">{new Date(contact.importedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button type="button" aria-label="Delete"
+                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={deleting}
+                        on:click={() => (confirmingDeleteOne = contact)}>
+                        <Trash2 size={13} />
                       </button>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
-                  </td>
-                  <td class="px-4 py-3">
-                    <StatusBadge status={contact.isRegistered ? 'registered' : 'lead'} />
-                  </td>
-                  <td class="px-4 py-3 text-xs text-muted">
-                    <p class="font-medium text-ink">{toEthiopianDate(contact.importedAt)}</p>
-                    <p class="mt-1 text-[10px] text-faint">{new Date(contact.importedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  </td>
-                  <td class="px-4 py-3">
-                    <button type="button" aria-label="Delete"
-                      class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
-                      disabled={deleting}
-                      on:click={() => (confirmingDeleteOne = contact)}>
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            {/if}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- ── Count summary — no pagination, the full filtered list already rendered above ── -->
-      {#if filteredContacts.length > 0}
-        <div class="flex items-center justify-between border-t border-border px-4 py-3">
-          <p class="text-[11px] text-faint">
-            {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''} shown
-            {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
-          </p>
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
         </div>
-      {/if}
-    </div>
+        {#if notSentContacts.length > 0}
+          <div class="flex items-center justify-between border-t border-border px-4 py-3">
+            <p class="text-[11px] text-faint">
+              {notSentContacts.length} contact{notSentContacts.length !== 1 ? 's' : ''} shown
+              {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
+            </p>
+          </div>
+        {/if}
+      </div>
+    </section>
+
+    <!-- ── Sent ─────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+      <h2 class="flex items-center gap-2 text-[13px] font-bold text-ink">
+        <MailCheck size={14} class="text-success" /> Sent
+        <span class="rounded-full bg-bg px-2 py-0.5 text-[11px] font-bold text-muted">{sentContacts.length}</span>
+      </h2>
+      <div class="overflow-hidden rounded-card border border-border bg-card">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[480px] text-sm">
+            <thead>
+              <tr class="border-b border-border bg-bg text-left">
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Sent</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#if sentContacts.length === 0}
+                <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'No bulk SMS has gone out yet.'}</td></tr>
+              {:else}
+                {#each sentContacts as contact (contact.phone)}
+                  <tr class="transition-colors duration-100 hover:bg-bg">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                        <span>{contact.phone}</span>
+                        <button
+                          type="button"
+                          class="admin-press text-faint hover:text-ink transition-colors"
+                          title="Copy Phone"
+                          on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-muted">
+                      <p class="font-medium text-ink">{toEthiopianDateTime(contact.lastSmsSentAt ?? contact.importedAt)}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button type="button" aria-label="Delete"
+                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={deleting}
+                        on:click={() => (confirmingDeleteOne = contact)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   {/if}
 </div>
 
@@ -407,6 +523,10 @@
       {#if selectedContacts.length > MAX_SMS_RECIPIENTS}
         <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
           <CircleAlert size={14} /> Too many recipients — maximum {MAX_SMS_RECIPIENTS} per send. Narrow your selection.
+        </div>
+      {:else if cooldownActive}
+        <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
+          <Clock size={14} /> On cooldown — next send available in {formatCountdown(cooldownRemainingMs)}.
         </div>
       {/if}
 
@@ -432,7 +552,7 @@
         <button type="button" class="admin-press h-10 rounded-button border border-border px-5 text-xs font-bold text-ink" disabled={sendingSms} on:click={closeCompose}>Cancel</button>
         <button type="button"
           class="admin-press inline-flex h-10 items-center gap-1.5 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"
-          disabled={sendingSms || !smsMessage.trim() || selectedContacts.length === 0 || selectedContacts.length > MAX_SMS_RECIPIENTS}
+          disabled={sendingSms || !smsMessage.trim() || selectedContacts.length === 0 || selectedContacts.length > MAX_SMS_RECIPIENTS || cooldownActive}
           on:click={sendBulkSmsToSelection}>
           {#if sendingSms}<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span> Sending…{:else}<Send size={13} /> Send{/if}
         </button>
