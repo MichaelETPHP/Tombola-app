@@ -13,42 +13,50 @@
     phone: string;
     name: string | null;
     importedAt: string;
-    // null until this contact is included in a successful bulk send —
-    // splits the list into the two sections below, and (once set) removes
-    // it from canSelect for any future send.
+    // null until this contact is included in a successful bulk send.
     lastSmsSentAt: string | null;
+    // This one contact's own cooldown end time (10h after lastSmsSentAt),
+    // or null once it's eligible again — computed fresh by the server on
+    // every load, per contact, never a shared/global gate. A contact who
+    // was never sent to, or whose own cooldown has already elapsed, has
+    // this as null and is a completely normal send target.
+    cooldownUntil: string | null;
     // Computed fresh by the server on every load — true once this number
     // belongs to a real registered account. A converted lead isn't
     // selectable for marketing SMS any more (see canSelect below).
     isRegistered: boolean;
   }
 
-  const canSelect = (c: ImportedContact) => !c.isRegistered && !c.lastSmsSentAt;
-
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
+  const QUICK_SELECT_COUNT = 50;
   const COOLDOWN_HOURS = 10; // mirrors contacts.service.ts's COOLDOWN_HOURS
 
-  let contacts: ImportedContact[] = [];
-  let loading = true;
-  let loadError = false;
-  let search = '';
-
-  // ── Send cooldown ────────────────────────────────────────────────
-  // A send affects up to 500 contacts at once and then goes on a 10-hour
-  // cooldown (mirrors the server's own computeNextSendAvailableAt) — this
-  // keeps the countdown ticking with a plain text update every second
-  // rather than any per-tick animation, which would just be motion for
-  // motion's sake on a number that changes 3600 times an hour.
-  let nextSendAvailableAt: string | null = null;
+  // A ticking clock, not a one-time snapshot — every per-contact cooldown
+  // reads off this, so all of them count down live and a contact flips
+  // back to "Not sent" (see notSentContacts below) the instant its own
+  // window closes, no reload needed. Plain text update every second, no
+  // per-tick animation — that would be motion for motion's sake on a
+  // number changing 3600 times an hour.
   let nowMs = Date.now();
-  let cooldownInterval: ReturnType<typeof setInterval> | undefined;
+  let clockInterval: ReturnType<typeof setInterval> | undefined;
   onMount(() => {
-    cooldownInterval = setInterval(() => { nowMs = Date.now(); }, 1000);
+    clockInterval = setInterval(() => { nowMs = Date.now(); }, 1000);
   });
-  onDestroy(() => { if (cooldownInterval) clearInterval(cooldownInterval); });
+  onDestroy(() => { if (clockInterval) clearInterval(clockInterval); });
 
-  $: cooldownActive = !!nextSendAvailableAt && new Date(nextSendAvailableAt).getTime() > nowMs;
-  $: cooldownRemainingMs = cooldownActive ? new Date(nextSendAvailableAt!).getTime() - nowMs : 0;
+  // Plain functions, not $: reactive statements — Svelte's $: dependency
+  // tracking only sees variable names textually referenced in a given
+  // reactive statement itself, not ones used transitively inside a
+  // function it calls. A plain function here still reads the live nowMs
+  // on every call (it's just a normal closure), and every call site that
+  // actually needs to re-run each tick names nowMs directly instead (see
+  // notSentContacts/sentContacts/selectableVisible below).
+  function isOnCooldown(c: ImportedContact): boolean {
+    return !!c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs;
+  }
+  function cooldownRemainingMs(c: ImportedContact): number {
+    return c.cooldownUntil ? Math.max(0, new Date(c.cooldownUntil).getTime() - nowMs) : 0;
+  }
   function formatCountdown(ms: number): string {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
     const h = Math.floor(totalSeconds / 3600);
@@ -56,6 +64,14 @@
     const s = totalSeconds % 60;
     return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
   }
+  function canSelect(c: ImportedContact): boolean {
+    return !c.isRegistered && !isOnCooldown(c);
+  }
+
+  let contacts: ImportedContact[] = [];
+  let loading = true;
+  let loadError = false;
+  let search = '';
 
   let fileInput: HTMLInputElement;
   let importing = false;
@@ -96,13 +112,19 @@
   );
 
   // ── Sent / not-sent split ──────────────────────────────────────
-  $: notSentContacts = filteredContacts.filter((c) => !c.lastSmsSentAt);
-  $: sentContacts = filteredContacts.filter((c) => !!c.lastSmsSentAt);
+  // nowMs is referenced directly in both statements (not just inside the
+  // isOnCooldown call) so Svelte's $: dependency tracking actually picks
+  // it up — it only looks at names textually present in the statement
+  // itself, not ones used transitively inside a called function. Without
+  // this, a contact's cooldown expiring wouldn't move it back to "Not
+  // sent" until some unrelated state change happened to force a rerun.
+  $: notSentContacts = filteredContacts.filter((c) => !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
+  $: sentContacts = filteredContacts.filter((c) => !!(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
 
-  // "All"/"some" only ever considers selectable (not-yet-registered)
-  // contacts — an already-registered lead has no checkbox at all, so it
-  // must never count against "everything is selected."
-  $: selectableVisible = filteredContacts.filter(canSelect);
+  // "All"/"some" only ever considers selectable (not-yet-registered,
+  // not-on-cooldown) contacts — one of those has no checkbox at all, so
+  // it must never count against "everything is selected."
+  $: selectableVisible = filteredContacts.filter((c) => !c.isRegistered && !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
   $: selectedVisibleCount = selectableVisible.filter((c) => selectedPhones.has(c.phone)).length;
   $: allVisibleSelected = selectableVisible.length > 0 && selectedVisibleCount === selectableVisible.length;
   $: someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
@@ -117,15 +139,28 @@
     selectedPhones.has(contact.phone) ? selectedPhones.delete(contact.phone) : selectedPhones.add(contact.phone);
     selectedPhones = new Set(selectedPhones);
   }
+  /** Quick-select the next batch of 50 eligible contacts — adds to
+   *  whatever's already selected rather than replacing it, so repeated
+   *  clicks build up toward the 500 cap in predictable 50-person steps. */
+  function selectNext50() {
+    const next = new Set(selectedPhones);
+    let added = 0;
+    for (const c of selectableVisible) {
+      if (added >= QUICK_SELECT_COUNT) break;
+      if (next.has(c.phone)) continue;
+      next.add(c.phone);
+      added += 1;
+    }
+    selectedPhones = next;
+  }
   function clearSelection() { selectedPhones = new Set(); }
 
   // ── Load ─────────────────────────────────────────────────────
   async function load() {
     loading = true; loadError = false;
     try {
-      const res = await api.get<{ contacts: ImportedContact[]; nextSendAvailableAt: string | null }>('/admin/contacts');
+      const res = await api.get<{ contacts: ImportedContact[] }>('/admin/contacts');
       contacts = res.contacts;
-      nextSendAvailableAt = res.nextSendAvailableAt;
       clearSelection();
     } catch { loadError = true; }
     finally { loading = false; }
@@ -165,29 +200,32 @@
 
   async function sendBulkSmsToSelection() {
     const phones = [...selectedPhones];
-    if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim() || cooldownActive) return;
+    if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim()) return;
     sendingSms = true;
     try {
-      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number; nextSendAvailableAt: string | null }>(
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number; excludedOnCooldown: number }>(
         '/admin/contacts/sms',
         { phones, message: smsMessage.trim() }
       );
-      // excludedRegistered should normally be 0 — the page already hides
-      // the checkbox for a registered contact — but the server re-checks
-      // independently (someone could register between page load and send),
-      // so it's surfaced here rather than silently swallowed.
-      const excludedNote = result.excludedRegistered > 0
-        ? ` (${result.excludedRegistered} skipped — already registered)`
-        : '';
+      // excludedRegistered/excludedOnCooldown should normally both be 0 —
+      // the page already hides the checkbox for either case — but the
+      // server re-checks independently (someone could register, or a
+      // previous send's cooldown could still be active, between page load
+      // and send), so both are surfaced here rather than silently swallowed.
+      const excludedParts = [
+        result.excludedRegistered > 0 ? `${result.excludedRegistered} already registered` : '',
+        result.excludedOnCooldown > 0 ? `${result.excludedOnCooldown} still on cooldown` : '',
+      ].filter(Boolean);
+      const excludedNote = excludedParts.length ? ` (${excludedParts.join(', ')} — skipped)` : '';
       if (result.failedCount === 0) {
         toast.success(`Sent to ${result.sentCount} contact${result.sentCount !== 1 ? 's' : ''}.${excludedNote}`, 'SMS Sent');
       } else {
         toast.error(`${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.${excludedNote}`, 'SMS Partially Sent');
       }
-      nextSendAvailableAt = result.nextSendAvailableAt;
       const sentAt = new Date().toISOString();
+      const cooldownUntil = new Date(Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
       const sentSet = new Set(phones);
-      contacts = contacts.map((c) => (sentSet.has(c.phone) ? { ...c, lastSmsSentAt: sentAt } : c));
+      contacts = contacts.map((c) => (sentSet.has(c.phone) ? { ...c, lastSmsSentAt: sentAt, cooldownUntil } : c));
       clearSelection();
       closeCompose();
     } catch (err) {
@@ -277,24 +315,19 @@
       <input bind:value={search} type="search" placeholder="Search by name or phone"
         class="h-11 w-full rounded-button border border-border bg-card pl-10 pr-4 text-[13px] text-ink outline-none transition-colors placeholder:text-faint focus:border-primary" />
     </label>
-    <button type="button"
-      class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-border bg-card px-3 text-[11px] font-bold text-muted hover:text-ink sm:self-auto"
-      on:click={load} disabled={loading}>
-      <RefreshCw size={13} class={loading ? 'animate-spin' : ''} /> Refresh
-    </button>
-  </div>
-
-  <!-- ── Send Cooldown ──────────────────────────────────────────── -->
-  {#if cooldownActive}
-    <div class="flex items-center gap-3 rounded-button border border-danger/25 bg-danger-bg px-4 py-3">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-danger/15 text-danger"><Clock size={16} /></span>
-      <div class="min-w-0 flex-1">
-        <p class="text-[13px] font-bold text-danger">Bulk SMS is on cooldown</p>
-        <p class="text-[11px] text-danger/80">A send affects up to {MAX_SMS_RECIPIENTS} contacts at once, then waits {COOLDOWN_HOURS}h before the next wave.</p>
-      </div>
-      <span class="shrink-0 rounded-full bg-danger px-3 py-1.5 font-mono text-[13px] font-bold text-white">{formatCountdown(cooldownRemainingMs)}</span>
+    <div class="flex items-center gap-2">
+      <button type="button"
+        class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-primary/25 bg-primary-bg px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg/70 disabled:opacity-50 sm:self-auto"
+        on:click={selectNext50} disabled={selectableVisible.length === 0}>
+        <CheckSquare size={13} /> Select {QUICK_SELECT_COUNT}
+      </button>
+      <button type="button"
+        class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-border bg-card px-3 text-[11px] font-bold text-muted hover:text-ink sm:self-auto"
+        on:click={load} disabled={loading}>
+        <RefreshCw size={13} class={loading ? 'animate-spin' : ''} /> Refresh
+      </button>
     </div>
-  {/if}
+  </div>
 
   <!-- ── Selection Banner ───────────────────────────────────────── -->
   {#if selectedCount > 0}
@@ -312,9 +345,7 @@
           <span class="text-primary/40">·</span>
         {/if}
         <button type="button"
-          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg disabled:opacity-50"
-          disabled={cooldownActive}
-          title={cooldownActive ? 'Bulk SMS is on cooldown' : ''}
+          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg"
           on:click={() => (composingSms = true)}>
           <Send size={12} /> Send SMS ({selectedCount})
         </button>
@@ -460,18 +491,19 @@
       </h2>
       <div class="overflow-hidden rounded-card border border-border bg-card">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[480px] text-sm">
+          <table class="w-full min-w-[640px] text-sm">
             <thead>
               <tr class="border-b border-border bg-bg text-left">
                 <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
                 <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
                 <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Sent</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Next available</th>
                 <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
               {#if sentContacts.length === 0}
-                <tr><td colspan="4" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'No bulk SMS has gone out yet.'}</td></tr>
+                <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'No bulk SMS has gone out yet.'}</td></tr>
               {:else}
                 {#each sentContacts as contact (contact.phone)}
                   <tr class="transition-colors duration-100 hover:bg-bg">
@@ -493,6 +525,13 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-muted">
                       <p class="font-medium text-ink">{toEthiopianDateTime(contact.lastSmsSentAt ?? contact.importedAt)}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <!-- Each row reads its own cooldownUntil — this contact's
+                           own countdown, independent of every other row's. -->
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-danger-bg px-2.5 py-1 font-mono text-[11px] font-bold text-danger">
+                        <Clock size={11} /> {formatCountdown(cooldownRemainingMs(contact))}
+                      </span>
                     </td>
                     <td class="px-4 py-3">
                       <button type="button" aria-label="Delete"
@@ -524,10 +563,6 @@
         <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
           <CircleAlert size={14} /> Too many recipients — maximum {MAX_SMS_RECIPIENTS} per send. Narrow your selection.
         </div>
-      {:else if cooldownActive}
-        <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
-          <Clock size={14} /> On cooldown — next send available in {formatCountdown(cooldownRemainingMs)}.
-        </div>
       {/if}
 
       <div class="mt-4 max-h-[140px] overflow-y-auto rounded-button border border-border bg-bg p-2">
@@ -552,7 +587,7 @@
         <button type="button" class="admin-press h-10 rounded-button border border-border px-5 text-xs font-bold text-ink" disabled={sendingSms} on:click={closeCompose}>Cancel</button>
         <button type="button"
           class="admin-press inline-flex h-10 items-center gap-1.5 rounded-button bg-primary px-5 text-xs font-bold text-white disabled:opacity-50"
-          disabled={sendingSms || !smsMessage.trim() || selectedContacts.length === 0 || selectedContacts.length > MAX_SMS_RECIPIENTS || cooldownActive}
+          disabled={sendingSms || !smsMessage.trim() || selectedContacts.length === 0 || selectedContacts.length > MAX_SMS_RECIPIENTS}
           on:click={sendBulkSmsToSelection}>
           {#if sendingSms}<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span> Sending…{:else}<Send size={13} /> Send{/if}
         </button>
