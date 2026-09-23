@@ -5,7 +5,7 @@
   import { toEthiopianDate, toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import {
-    CircleAlert, Clock, Contact, Copy, MailCheck, RefreshCw, Search, Send, Trash2, Upload,
+    ChevronLeft, ChevronRight, CircleAlert, Clock, Contact, Copy, MailCheck, RefreshCw, Search, Send, Trash2, Upload,
     X, CheckSquare, Square, SquareMinus,
   } from 'lucide-svelte';
 
@@ -28,7 +28,7 @@
   }
 
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
-  const QUICK_SELECT_COUNT = 50;
+  const PAGE_SIZE = 50; // one page = one send batch — see the Not-sent pagination below
   const COOLDOWN_HOURS = 10; // mirrors contacts.service.ts's COOLDOWN_HOURS
 
   // A ticking clock, not a one-time snapshot — every per-contact cooldown
@@ -50,7 +50,7 @@
   // function it calls. A plain function here still reads the live nowMs
   // on every call (it's just a normal closure), and every call site that
   // actually needs to re-run each tick names nowMs directly instead (see
-  // notSentContacts/sentContacts/selectableVisible below).
+  // notSentContacts/sentContacts/selectableOnPage below).
   function isOnCooldown(c: ImportedContact): boolean {
     return !!c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs;
   }
@@ -102,8 +102,6 @@
   }
 
   // ── Filtering ──────────────────────────────────────────────────
-  // No pagination, deliberately — the whole (filtered) list renders at
-  // once so nothing is ever hidden behind a page control.
   $: normalizedSearch = search.trim().toLowerCase();
   $: filteredContacts = contacts.filter((c) =>
     !normalizedSearch ||
@@ -121,37 +119,38 @@
   $: notSentContacts = filteredContacts.filter((c) => !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
   $: sentContacts = filteredContacts.filter((c) => !!(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
 
-  // "All"/"some" only ever considers selectable (not-yet-registered,
-  // not-on-cooldown) contacts — one of those has no checkbox at all, so
-  // it must never count against "everything is selected."
-  $: selectableVisible = filteredContacts.filter((c) => !c.isRegistered && !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
-  $: selectedVisibleCount = selectableVisible.filter((c) => selectedPhones.has(c.phone)).length;
-  $: allVisibleSelected = selectableVisible.length > 0 && selectedVisibleCount === selectableVisible.length;
-  $: someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  // ── Not-sent pagination ──────────────────────────────────────────
+  // One page IS one send batch: 50 contacts at a time, so "select all"
+  // at the top of a page selects exactly the next 50 to message — no
+  // separate quick-select control needed on top of that. A search reset
+  // jumps back to page 1 (a stale page number showing an unrelated slice
+  // of the new filtered set would be confusing); moving/returning
+  // contacts (a send completing, or a cooldown expiring) just clamps the
+  // page back into range if it no longer exists, rather than jumping the
+  // admin around while they're mid-review.
+  let notSentPage = 1;
+  $: search, (notSentPage = 1);
+  $: notSentTotalPages = Math.max(1, Math.ceil(notSentContacts.length / PAGE_SIZE));
+  $: if (notSentPage > notSentTotalPages) notSentPage = notSentTotalPages;
+  $: pagedNotSentContacts = notSentContacts.slice((notSentPage - 1) * PAGE_SIZE, notSentPage * PAGE_SIZE);
 
-  function toggleSelectAllVisible() {
-    if (allVisibleSelected) selectableVisible.forEach((c) => selectedPhones.delete(c.phone));
-    else selectableVisible.forEach((c) => selectedPhones.add(c.phone));
+  // "All"/"some" only ever considers this page's selectable (not
+  // registered, not on cooldown) contacts — one of those has no checkbox
+  // at all, so it must never count against "everything is selected."
+  $: selectableOnPage = pagedNotSentContacts.filter((c) => !c.isRegistered && !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
+  $: selectedOnPageCount = selectableOnPage.filter((c) => selectedPhones.has(c.phone)).length;
+  $: allOnPageSelected = selectableOnPage.length > 0 && selectedOnPageCount === selectableOnPage.length;
+  $: someOnPageSelected = selectedOnPageCount > 0 && !allOnPageSelected;
+
+  function toggleSelectAllOnPage() {
+    if (allOnPageSelected) selectableOnPage.forEach((c) => selectedPhones.delete(c.phone));
+    else selectableOnPage.forEach((c) => selectedPhones.add(c.phone));
     selectedPhones = new Set(selectedPhones);
   }
   function toggleSelect(contact: ImportedContact) {
     if (!canSelect(contact)) return;
     selectedPhones.has(contact.phone) ? selectedPhones.delete(contact.phone) : selectedPhones.add(contact.phone);
     selectedPhones = new Set(selectedPhones);
-  }
-  /** Quick-select the next batch of 50 eligible contacts — adds to
-   *  whatever's already selected rather than replacing it, so repeated
-   *  clicks build up toward the 500 cap in predictable 50-person steps. */
-  function selectNext50() {
-    const next = new Set(selectedPhones);
-    let added = 0;
-    for (const c of selectableVisible) {
-      if (added >= QUICK_SELECT_COUNT) break;
-      if (next.has(c.phone)) continue;
-      next.add(c.phone);
-      added += 1;
-    }
-    selectedPhones = next;
   }
   function clearSelection() { selectedPhones = new Set(); }
 
@@ -315,32 +314,25 @@
       <input bind:value={search} type="search" placeholder="Search by name or phone"
         class="h-11 w-full rounded-button border border-border bg-card pl-10 pr-4 text-[13px] text-ink outline-none transition-colors placeholder:text-faint focus:border-primary" />
     </label>
-    <div class="flex items-center gap-2">
-      <button type="button"
-        class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-primary/25 bg-primary-bg px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg/70 disabled:opacity-50 sm:self-auto"
-        on:click={selectNext50} disabled={selectableVisible.length === 0}>
-        <CheckSquare size={13} /> Select {QUICK_SELECT_COUNT}
-      </button>
-      <button type="button"
-        class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-border bg-card px-3 text-[11px] font-bold text-muted hover:text-ink sm:self-auto"
-        on:click={load} disabled={loading}>
-        <RefreshCw size={13} class={loading ? 'animate-spin' : ''} /> Refresh
-      </button>
-    </div>
+    <button type="button"
+      class="admin-press inline-flex h-9 items-center gap-1.5 self-start rounded-button border border-border bg-card px-3 text-[11px] font-bold text-muted hover:text-ink sm:self-auto"
+      on:click={load} disabled={loading}>
+      <RefreshCw size={13} class={loading ? 'animate-spin' : ''} /> Refresh
+    </button>
   </div>
 
   <!-- ── Selection Banner ───────────────────────────────────────── -->
   {#if selectedCount > 0}
     <div class="flex items-center justify-between rounded-button border border-primary/20 bg-primary-bg px-4 py-2.5">
       <p class="text-[13px] font-semibold text-primary-dark">
-        {selectedCount} of {selectableVisible.length} contact{selectableVisible.length !== 1 ? 's' : ''} selected
+        {selectedCount} of {selectableOnPage.length} contact{selectableOnPage.length !== 1 ? 's' : ''} selected on this page
       </p>
       <div class="flex items-center gap-2">
-        {#if selectedCount < selectableVisible.length}
+        {#if selectedCount < selectableOnPage.length}
           <button type="button"
             class="admin-press text-[11px] font-bold text-primary-dark underline underline-offset-2"
-            on:click={toggleSelectAllVisible}>
-            Select all {selectableVisible.length}
+            on:click={toggleSelectAllOnPage}>
+            Select all {selectableOnPage.length}
           </button>
           <span class="text-primary/40">·</span>
         {/if}
@@ -394,14 +386,14 @@
               <tr class="border-b border-border bg-bg text-left">
                 <th class="w-12 px-4 py-3">
                   <button type="button"
-                    aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
-                    aria-checked={allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'}
+                    aria-label={allOnPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                    aria-checked={allOnPageSelected ? 'true' : someOnPageSelected ? 'mixed' : 'false'}
                     role="checkbox"
                     class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                    on:click={toggleSelectAllVisible}>
-                    {#if allVisibleSelected}
+                    on:click={toggleSelectAllOnPage}>
+                    {#if allOnPageSelected}
                       <CheckSquare size={16} class="text-primary-dark" />
-                    {:else if someVisibleSelected}
+                    {:else if someOnPageSelected}
                       <SquareMinus size={16} class="text-primary-dark" />
                     {:else}
                       <Square size={16} />
@@ -416,10 +408,10 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
-              {#if notSentContacts.length === 0}
+              {#if pagedNotSentContacts.length === 0}
                 <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'Everyone imported has already been messaged.'}</td></tr>
               {:else}
-                {#each notSentContacts as contact (contact.phone)}
+                {#each pagedNotSentContacts as contact (contact.phone)}
                   {@const isSelected = selectedPhones.has(contact.phone)}
                   <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
                     <td class="px-4 py-3">
@@ -473,11 +465,30 @@
           </table>
         </div>
         {#if notSentContacts.length > 0}
-          <div class="flex items-center justify-between border-t border-border px-4 py-3">
+          <div class="flex flex-col gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p class="text-[11px] text-faint">
-              {notSentContacts.length} contact{notSentContacts.length !== 1 ? 's' : ''} shown
+              Batch {notSentPage} of {notSentTotalPages} · {pagedNotSentContacts.length} of {notSentContacts.length} contact{notSentContacts.length !== 1 ? 's' : ''} shown
               {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
             </p>
+            {#if notSentTotalPages > 1}
+              <nav aria-label="Not-sent contact batches" class="flex items-center gap-3 self-end sm:self-auto">
+                <button type="button"
+                  class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border text-ink disabled:opacity-40"
+                  disabled={notSentPage === 1}
+                  aria-label="Previous batch"
+                  on:click={() => (notSentPage -= 1)}>
+                  <ChevronLeft size={15} />
+                </button>
+                <span class="text-[11px] font-bold text-ink">{notSentPage} / {notSentTotalPages}</span>
+                <button type="button"
+                  class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border text-ink disabled:opacity-40"
+                  disabled={notSentPage === notSentTotalPages}
+                  aria-label="Next batch"
+                  on:click={() => (notSentPage += 1)}>
+                  <ChevronRight size={15} />
+                </button>
+              </nav>
+            {/if}
           </div>
         {/if}
       </div>
