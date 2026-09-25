@@ -433,7 +433,12 @@
                         {:else}
                           <span class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-info-bg text-info"><Send size={12} /></span>
                         {/if}
-                        <p class="text-xs font-bold text-info">Telegram</p>
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold text-info">Telegram</p>
+                          {#if user.telegramUsername}
+                            <p class="truncate text-[11px] font-medium text-muted">@{user.telegramUsername}</p>
+                          {/if}
+                        </div>
                       </div>
                     {:else}
                       <div class="flex items-center gap-2">

@@ -281,6 +281,12 @@
           <span>{profile.phone}</span>
           <button type="button" class="admin-press text-faint hover:text-ink" title="Copy phone" on:click={() => copyText(profile?.phone ?? '', 'Phone')}><Copy size={12} /></button>
         </div>
+        {#if profile.telegramUsername}
+          <div class="mt-1 flex items-center gap-1.5 text-sm text-info">
+            <Send size={13} />
+            <span class="font-medium">@{profile.telegramUsername}</span>
+          </div>
+        {/if}
       </div>
       <button
         type="button"
