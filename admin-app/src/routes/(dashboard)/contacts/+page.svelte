@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { api, ApiError } from '$lib/api/client.js';
   import { toast } from '$lib/stores/toast.store.js';
-  import { toEthiopianDate } from '$lib/utils/ethiopianDate.js';
+  import { toEthiopianDate, toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import {
-    CircleAlert, Contact, Copy, RefreshCw, Search, Send, Trash2, Upload,
+    ChevronLeft, ChevronRight, CircleAlert, Clock, Contact, Copy, MailCheck, RefreshCw, Search, Send, Trash2, Upload,
     X, CheckSquare, Square, SquareMinus,
   } from 'lucide-svelte';
 
@@ -13,15 +13,60 @@
     phone: string;
     name: string | null;
     importedAt: string;
+    // null until this contact is included in a successful bulk send.
+    lastSmsSentAt: string | null;
+    // This one contact's own cooldown end time (10h after lastSmsSentAt),
+    // or null once it's eligible again — computed fresh by the server on
+    // every load, per contact, never a shared/global gate. A contact who
+    // was never sent to, or whose own cooldown has already elapsed, has
+    // this as null and is a completely normal send target.
+    cooldownUntil: string | null;
     // Computed fresh by the server on every load — true once this number
     // belongs to a real registered account. A converted lead isn't
     // selectable for marketing SMS any more (see canSelect below).
     isRegistered: boolean;
   }
 
-  const canSelect = (c: ImportedContact) => !c.isRegistered;
-
   const MAX_SMS_RECIPIENTS = 500; // mirrors the server-side cap in POST /admin/contacts/sms
+  const PAGE_SIZE = 50; // one page = one send batch — see the Not-sent pagination below
+  const COOLDOWN_HOURS = 10; // mirrors contacts.service.ts's COOLDOWN_HOURS
+
+  // A ticking clock, not a one-time snapshot — every per-contact cooldown
+  // reads off this, so all of them count down live and a contact flips
+  // back to "Not sent" (see notSentContacts below) the instant its own
+  // window closes, no reload needed. Plain text update every second, no
+  // per-tick animation — that would be motion for motion's sake on a
+  // number changing 3600 times an hour.
+  let nowMs = Date.now();
+  let clockInterval: ReturnType<typeof setInterval> | undefined;
+  onMount(() => {
+    clockInterval = setInterval(() => { nowMs = Date.now(); }, 1000);
+  });
+  onDestroy(() => { if (clockInterval) clearInterval(clockInterval); });
+
+  // Plain functions, not $: reactive statements — Svelte's $: dependency
+  // tracking only sees variable names textually referenced in a given
+  // reactive statement itself, not ones used transitively inside a
+  // function it calls. A plain function here still reads the live nowMs
+  // on every call (it's just a normal closure), and every call site that
+  // actually needs to re-run each tick names nowMs directly instead (see
+  // notSentContacts/sentContacts/selectableOnPage below).
+  function isOnCooldown(c: ImportedContact): boolean {
+    return !!c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs;
+  }
+  function cooldownRemainingMs(c: ImportedContact): number {
+    return c.cooldownUntil ? Math.max(0, new Date(c.cooldownUntil).getTime() - nowMs) : 0;
+  }
+  function formatCountdown(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  }
+  function canSelect(c: ImportedContact): boolean {
+    return !c.isRegistered && !isOnCooldown(c);
+  }
 
   let contacts: ImportedContact[] = [];
   let loading = true;
@@ -57,8 +102,6 @@
   }
 
   // ── Filtering ──────────────────────────────────────────────────
-  // No pagination, deliberately — the whole (filtered) list renders at
-  // once so nothing is ever hidden behind a page control.
   $: normalizedSearch = search.trim().toLowerCase();
   $: filteredContacts = contacts.filter((c) =>
     !normalizedSearch ||
@@ -66,17 +109,42 @@
     (c.name ?? '').toLowerCase().includes(normalizedSearch)
   );
 
-  // "All"/"some" only ever considers selectable (not-yet-registered)
-  // contacts — an already-registered lead has no checkbox at all, so it
-  // must never count against "everything is selected."
-  $: selectableVisible = filteredContacts.filter(canSelect);
-  $: selectedVisibleCount = selectableVisible.filter((c) => selectedPhones.has(c.phone)).length;
-  $: allVisibleSelected = selectableVisible.length > 0 && selectedVisibleCount === selectableVisible.length;
-  $: someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  // ── Sent / not-sent split ──────────────────────────────────────
+  // nowMs is referenced directly in both statements (not just inside the
+  // isOnCooldown call) so Svelte's $: dependency tracking actually picks
+  // it up — it only looks at names textually present in the statement
+  // itself, not ones used transitively inside a called function. Without
+  // this, a contact's cooldown expiring wouldn't move it back to "Not
+  // sent" until some unrelated state change happened to force a rerun.
+  $: notSentContacts = filteredContacts.filter((c) => !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
+  $: sentContacts = filteredContacts.filter((c) => !!(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
 
-  function toggleSelectAllVisible() {
-    if (allVisibleSelected) selectableVisible.forEach((c) => selectedPhones.delete(c.phone));
-    else selectableVisible.forEach((c) => selectedPhones.add(c.phone));
+  // ── Not-sent pagination ──────────────────────────────────────────
+  // One page IS one send batch: 50 contacts at a time, so "select all"
+  // at the top of a page selects exactly the next 50 to message — no
+  // separate quick-select control needed on top of that. A search reset
+  // jumps back to page 1 (a stale page number showing an unrelated slice
+  // of the new filtered set would be confusing); moving/returning
+  // contacts (a send completing, or a cooldown expiring) just clamps the
+  // page back into range if it no longer exists, rather than jumping the
+  // admin around while they're mid-review.
+  let notSentPage = 1;
+  $: search, (notSentPage = 1);
+  $: notSentTotalPages = Math.max(1, Math.ceil(notSentContacts.length / PAGE_SIZE));
+  $: if (notSentPage > notSentTotalPages) notSentPage = notSentTotalPages;
+  $: pagedNotSentContacts = notSentContacts.slice((notSentPage - 1) * PAGE_SIZE, notSentPage * PAGE_SIZE);
+
+  // "All"/"some" only ever considers this page's selectable (not
+  // registered, not on cooldown) contacts — one of those has no checkbox
+  // at all, so it must never count against "everything is selected."
+  $: selectableOnPage = pagedNotSentContacts.filter((c) => !c.isRegistered && !(c.cooldownUntil && new Date(c.cooldownUntil).getTime() > nowMs));
+  $: selectedOnPageCount = selectableOnPage.filter((c) => selectedPhones.has(c.phone)).length;
+  $: allOnPageSelected = selectableOnPage.length > 0 && selectedOnPageCount === selectableOnPage.length;
+  $: someOnPageSelected = selectedOnPageCount > 0 && !allOnPageSelected;
+
+  function toggleSelectAllOnPage() {
+    if (allOnPageSelected) selectableOnPage.forEach((c) => selectedPhones.delete(c.phone));
+    else selectableOnPage.forEach((c) => selectedPhones.add(c.phone));
     selectedPhones = new Set(selectedPhones);
   }
   function toggleSelect(contact: ImportedContact) {
@@ -134,22 +202,29 @@
     if (phones.length === 0 || phones.length > MAX_SMS_RECIPIENTS || !smsMessage.trim()) return;
     sendingSms = true;
     try {
-      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number }>(
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number; excludedRegistered: number; excludedOnCooldown: number }>(
         '/admin/contacts/sms',
         { phones, message: smsMessage.trim() }
       );
-      // excludedRegistered should normally be 0 — the page already hides
-      // the checkbox for a registered contact — but the server re-checks
-      // independently (someone could register between page load and send),
-      // so it's surfaced here rather than silently swallowed.
-      const excludedNote = result.excludedRegistered > 0
-        ? ` (${result.excludedRegistered} skipped — already registered)`
-        : '';
+      // excludedRegistered/excludedOnCooldown should normally both be 0 —
+      // the page already hides the checkbox for either case — but the
+      // server re-checks independently (someone could register, or a
+      // previous send's cooldown could still be active, between page load
+      // and send), so both are surfaced here rather than silently swallowed.
+      const excludedParts = [
+        result.excludedRegistered > 0 ? `${result.excludedRegistered} already registered` : '',
+        result.excludedOnCooldown > 0 ? `${result.excludedOnCooldown} still on cooldown` : '',
+      ].filter(Boolean);
+      const excludedNote = excludedParts.length ? ` (${excludedParts.join(', ')} — skipped)` : '';
       if (result.failedCount === 0) {
         toast.success(`Sent to ${result.sentCount} contact${result.sentCount !== 1 ? 's' : ''}.${excludedNote}`, 'SMS Sent');
       } else {
         toast.error(`${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.${excludedNote}`, 'SMS Partially Sent');
       }
+      const sentAt = new Date().toISOString();
+      const cooldownUntil = new Date(Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+      const sentSet = new Set(phones);
+      contacts = contacts.map((c) => (sentSet.has(c.phone) ? { ...c, lastSmsSentAt: sentAt, cooldownUntil } : c));
       clearSelection();
       closeCompose();
     } catch (err) {
@@ -250,14 +325,14 @@
   {#if selectedCount > 0}
     <div class="flex items-center justify-between rounded-button border border-primary/20 bg-primary-bg px-4 py-2.5">
       <p class="text-[13px] font-semibold text-primary-dark">
-        {selectedCount} of {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''} selected
+        {selectedCount} of {selectableOnPage.length} contact{selectableOnPage.length !== 1 ? 's' : ''} selected on this page
       </p>
       <div class="flex items-center gap-2">
-        {#if selectedCount < filteredContacts.length}
+        {#if selectedCount < selectableOnPage.length}
           <button type="button"
             class="admin-press text-[11px] font-bold text-primary-dark underline underline-offset-2"
-            on:click={toggleSelectAllVisible}>
-            Select all {filteredContacts.length}
+            on:click={toggleSelectAllOnPage}>
+            Select all {selectableOnPage.length}
           </button>
           <span class="text-primary/40">·</span>
         {/if}
@@ -298,102 +373,193 @@
       </button>
     </div>
   {:else}
-    <div class="overflow-hidden rounded-card border border-border bg-card">
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[600px] text-sm">
-          <thead>
-            <tr class="border-b border-border bg-bg text-left">
-              <th class="w-12 px-4 py-3">
-                <button type="button"
-                  aria-label={allVisibleSelected ? 'Deselect all' : 'Select all'}
-                  aria-checked={allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'}
-                  role="checkbox"
-                  class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                  on:click={toggleSelectAllVisible}>
-                  {#if allVisibleSelected}
-                    <CheckSquare size={16} class="text-primary-dark" />
-                  {:else if someVisibleSelected}
-                    <SquareMinus size={16} class="text-primary-dark" />
-                  {:else}
-                    <Square size={16} />
-                  {/if}
-                </button>
-              </th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Status</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Imported</th>
-              <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            {#if filteredContacts.length === 0}
-              <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">No contacts match this search.</td></tr>
-            {:else}
-              {#each filteredContacts as contact (contact.phone)}
-                {@const isSelected = selectedPhones.has(contact.phone)}
-                <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
-                  <td class="px-4 py-3">
-                    {#if canSelect(contact)}
-                      <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
-                        class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
-                        on:click={() => toggleSelect(contact)}>
-                        {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
-                      </button>
+    <!-- ── Not sent ─────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+      <h2 class="flex items-center gap-2 text-[13px] font-bold text-ink">
+        <Square size={14} class="text-muted" /> Not sent
+        <span class="rounded-full bg-bg px-2 py-0.5 text-[11px] font-bold text-muted">{notSentContacts.length}</span>
+      </h2>
+      <div class="overflow-hidden rounded-card border border-border bg-card">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[600px] text-sm">
+            <thead>
+              <tr class="border-b border-border bg-bg text-left">
+                <th class="w-12 px-4 py-3">
+                  <button type="button"
+                    aria-label={allOnPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                    aria-checked={allOnPageSelected ? 'true' : someOnPageSelected ? 'mixed' : 'false'}
+                    role="checkbox"
+                    class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
+                    on:click={toggleSelectAllOnPage}>
+                    {#if allOnPageSelected}
+                      <CheckSquare size={16} class="text-primary-dark" />
+                    {:else if someOnPageSelected}
+                      <SquareMinus size={16} class="text-primary-dark" />
                     {:else}
-                      <span class="flex items-center justify-center text-faint" title="Already a registered account — not selectable for marketing SMS">
-                        <Square size={16} class="opacity-25" />
-                      </span>
+                      <Square size={16} />
                     {/if}
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
-                      <span>{contact.phone}</span>
-                      <button
-                        type="button"
-                        class="admin-press text-faint hover:text-ink transition-colors"
-                        title="Copy Phone"
-                        on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
-                      >
-                        <Copy size={11} />
+                  </button>
+                </th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Status</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Imported</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#if pagedNotSentContacts.length === 0}
+                <tr><td colspan="6" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'Everyone imported has already been messaged.'}</td></tr>
+              {:else}
+                {#each pagedNotSentContacts as contact (contact.phone)}
+                  {@const isSelected = selectedPhones.has(contact.phone)}
+                  <tr class="transition-colors duration-100 {contact.isRegistered ? 'opacity-60' : ''} {isSelected ? 'bg-primary-bg/40' : 'hover:bg-bg'}">
+                    <td class="px-4 py-3">
+                      {#if canSelect(contact)}
+                        <button type="button" aria-label={isSelected ? 'Deselect' : 'Select'}
+                          class="admin-press flex items-center justify-center text-muted hover:text-primary-dark"
+                          on:click={() => toggleSelect(contact)}>
+                          {#if isSelected}<CheckSquare size={16} class="text-primary-dark" />{:else}<Square size={16} />{/if}
+                        </button>
+                      {:else}
+                        <span class="flex items-center justify-center text-faint" title="Already a registered account — not selectable for marketing SMS">
+                          <Square size={16} class="opacity-25" />
+                        </span>
+                      {/if}
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                        <span>{contact.phone}</span>
+                        <button
+                          type="button"
+                          class="admin-press text-faint hover:text-ink transition-colors"
+                          title="Copy Phone"
+                          on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <StatusBadge status={contact.isRegistered ? 'registered' : 'lead'} />
+                    </td>
+                    <td class="px-4 py-3 text-xs text-muted">
+                      <p class="font-medium text-ink">{toEthiopianDate(contact.importedAt)}</p>
+                      <p class="mt-1 text-[10px] text-faint">{new Date(contact.importedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button type="button" aria-label="Delete"
+                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={deleting}
+                        on:click={() => (confirmingDeleteOne = contact)}>
+                        <Trash2 size={13} />
                       </button>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
-                  </td>
-                  <td class="px-4 py-3">
-                    <StatusBadge status={contact.isRegistered ? 'registered' : 'lead'} />
-                  </td>
-                  <td class="px-4 py-3 text-xs text-muted">
-                    <p class="font-medium text-ink">{toEthiopianDate(contact.importedAt)}</p>
-                    <p class="mt-1 text-[10px] text-faint">{new Date(contact.importedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  </td>
-                  <td class="px-4 py-3">
-                    <button type="button" aria-label="Delete"
-                      class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
-                      disabled={deleting}
-                      on:click={() => (confirmingDeleteOne = contact)}>
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            {/if}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- ── Count summary — no pagination, the full filtered list already rendered above ── -->
-      {#if filteredContacts.length > 0}
-        <div class="flex items-center justify-between border-t border-border px-4 py-3">
-          <p class="text-[11px] text-faint">
-            {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''} shown
-            {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
-          </p>
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
         </div>
-      {/if}
-    </div>
+        {#if notSentContacts.length > 0}
+          <div class="flex flex-col gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-[11px] text-faint">
+              Batch {notSentPage} of {notSentTotalPages} · {pagedNotSentContacts.length} of {notSentContacts.length} contact{notSentContacts.length !== 1 ? 's' : ''} shown
+              {#if selectedCount > 0}<span class="ml-2 font-bold text-primary-dark">· {selectedCount} selected</span>{/if}
+            </p>
+            {#if notSentTotalPages > 1}
+              <nav aria-label="Not-sent contact batches" class="flex items-center gap-3 self-end sm:self-auto">
+                <button type="button"
+                  class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border text-ink disabled:opacity-40"
+                  disabled={notSentPage === 1}
+                  aria-label="Previous batch"
+                  on:click={() => (notSentPage -= 1)}>
+                  <ChevronLeft size={15} />
+                </button>
+                <span class="text-[11px] font-bold text-ink">{notSentPage} / {notSentTotalPages}</span>
+                <button type="button"
+                  class="admin-press flex h-8 w-8 items-center justify-center rounded-button border border-border text-ink disabled:opacity-40"
+                  disabled={notSentPage === notSentTotalPages}
+                  aria-label="Next batch"
+                  on:click={() => (notSentPage += 1)}>
+                  <ChevronRight size={15} />
+                </button>
+              </nav>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </section>
+
+    <!-- ── Sent ─────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+      <h2 class="flex items-center gap-2 text-[13px] font-bold text-ink">
+        <MailCheck size={14} class="text-success" /> Sent
+        <span class="rounded-full bg-bg px-2 py-0.5 text-[11px] font-bold text-muted">{sentContacts.length}</span>
+      </h2>
+      <div class="overflow-hidden rounded-card border border-border bg-card">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr class="border-b border-border bg-bg text-left">
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Phone</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Name</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Sent</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Next available</th>
+                <th class="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {#if sentContacts.length === 0}
+                <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-muted">{normalizedSearch ? 'No contacts match this search.' : 'No bulk SMS has gone out yet.'}</td></tr>
+              {:else}
+                {#each sentContacts as contact (contact.phone)}
+                  <tr class="transition-colors duration-100 hover:bg-bg">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                        <span>{contact.phone}</span>
+                        <button
+                          type="button"
+                          class="admin-press text-faint hover:text-ink transition-colors"
+                          title="Copy Phone"
+                          on:click={() => { navigator.clipboard.writeText(contact.phone); toast.success(`Phone copied: ${contact.phone}`, 'Copied'); }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class={contact.name ? 'font-semibold text-ink' : 'text-faint'}>{contact.name ?? 'Not provided'}</span>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-muted">
+                      <p class="font-medium text-ink">{toEthiopianDateTime(contact.lastSmsSentAt ?? contact.importedAt)}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <!-- Each row reads its own cooldownUntil — this contact's
+                           own countdown, independent of every other row's. -->
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-danger-bg px-2.5 py-1 font-mono text-[11px] font-bold text-danger">
+                        <Clock size={11} /> {formatCountdown(cooldownRemainingMs(contact))}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button type="button" aria-label="Delete"
+                        class="admin-press inline-flex h-8 w-8 items-center justify-center rounded-button border border-danger/20 bg-danger-bg text-danger hover:bg-danger hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={deleting}
+                        on:click={() => (confirmingDeleteOne = contact)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   {/if}
 </div>
 

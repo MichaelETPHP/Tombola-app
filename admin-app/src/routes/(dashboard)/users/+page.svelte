@@ -50,6 +50,16 @@
   let sendingSms = false;
   $: selectedUsers = users.filter((u) => selectedIds.has(u.id));
 
+  // Bulk Telegram — only ever reaches accounts with a linked Telegram id;
+  // a phone-OTP-only account has none, so it's excluded from the send
+  // rather than treated as a failure (same server-side reasoning as
+  // findTelegramIdsByIds).
+  const MAX_TELEGRAM_RECIPIENTS = 200; // mirrors the server-side cap in POST /admin/users/telegram
+  let composingTelegram = false;
+  let telegramMessage = '';
+  let sendingTelegram = false;
+  $: selectedTelegramUsers = selectedUsers.filter((u) => u.authMethod === 'telegram');
+
   function showToast(msg: string) {
     toast.success(msg);
   }
@@ -237,6 +247,35 @@
     }
   }
 
+  // ── Bulk Telegram ────────────────────────────────────────────
+  function closeTelegramCompose() { composingTelegram = false; telegramMessage = ''; }
+
+  async function sendBulkTelegramToSelection() {
+    const ids = selectedTelegramUsers.map((u) => u.id);
+    if (ids.length === 0 || ids.length > MAX_TELEGRAM_RECIPIENTS || !telegramMessage.trim()) return;
+    sendingTelegram = true;
+    try {
+      const result = await api.post<{ requested: number; sentCount: number; failedCount: number }>(
+        '/admin/users/telegram',
+        { userIds: ids, message: telegramMessage.trim() }
+      );
+      if (result.failedCount === 0) {
+        toast.success(`Sent to ${result.sentCount} account${result.sentCount !== 1 ? 's' : ''}.`, 'Telegram Message Sent');
+      } else {
+        toast.error(
+          `${result.sentCount} sent, ${result.failedCount} failed out of ${result.requested}.`,
+          'Telegram Message Partially Sent'
+        );
+      }
+      clearSelection();
+      closeTelegramCompose();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? 'Telegram send failed.' : 'Network error.', 'Send Failed');
+    } finally {
+      sendingTelegram = false;
+    }
+  }
+
   // Page range helper for pagination buttons
   function pageRange(cur: number, total: number): (number | '…')[] {
     if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -326,6 +365,13 @@
           class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-primary/25 bg-card px-3 text-[11px] font-bold text-primary-dark hover:bg-primary-bg"
           on:click={() => (composingSms = true)}>
           <Send size={12} /> Send SMS ({selectedCount})
+        </button>
+        <button type="button"
+          class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-info/25 bg-card px-3 text-[11px] font-bold text-info hover:bg-info-bg disabled:opacity-50"
+          disabled={selectedTelegramUsers.length === 0}
+          title={selectedTelegramUsers.length === 0 ? 'None of the selected accounts have Telegram linked' : ''}
+          on:click={() => (composingTelegram = true)}>
+          <Send size={12} /> Send Telegram ({selectedTelegramUsers.length})
         </button>
         <button type="button"
           class="admin-press inline-flex h-8 items-center gap-1.5 rounded-button border border-danger/25 bg-danger-bg px-3 text-[11px] font-bold text-danger hover:bg-danger hover:text-white"
@@ -433,7 +479,12 @@
                         {:else}
                           <span class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-info-bg text-info"><Send size={12} /></span>
                         {/if}
-                        <p class="text-xs font-bold text-info">Telegram</p>
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold text-info">Telegram</p>
+                          {#if user.telegramUsername}
+                            <p class="truncate text-[11px] font-medium text-muted">@{user.telegramUsername}</p>
+                          {/if}
+                        </div>
                       </div>
                     {:else}
                       <div class="flex items-center gap-2">
@@ -558,6 +609,55 @@
           disabled={sendingSms || !smsMessage.trim() || selectedUsers.length === 0 || selectedUsers.length > MAX_SMS_RECIPIENTS}
           on:click={sendBulkSmsToSelection}>
           {#if sendingSms}<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span> Sending…{:else}<Send size={13} /> Send{/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Compose Telegram Modal ─────────────────────────────────────── -->
+{#if composingTelegram}
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4">
+    <div class="admin-reveal w-full max-w-[440px] rounded-card border border-border bg-card p-6 shadow-2xl">
+      <h2 class="text-base font-bold text-ink">Send Telegram message to {selectedTelegramUsers.length} account{selectedTelegramUsers.length !== 1 ? 's' : ''}</h2>
+      <p class="mt-1.5 text-sm text-muted">Sent directly from the platform bot into each person's Telegram chat.</p>
+
+      {#if selectedUsers.length > selectedTelegramUsers.length}
+        <div class="mt-4 flex items-center gap-2 rounded-button border border-border bg-bg px-3 py-2.5 text-xs font-medium text-muted">
+          <CircleAlert size={14} /> {selectedUsers.length - selectedTelegramUsers.length} of your selected account{selectedUsers.length - selectedTelegramUsers.length !== 1 ? 's have' : ' has'} no Telegram linked and won't receive this.
+        </div>
+      {/if}
+      {#if selectedTelegramUsers.length > MAX_TELEGRAM_RECIPIENTS}
+        <div class="mt-4 flex items-center gap-2 rounded-button border border-danger/20 bg-danger-bg px-3 py-2.5 text-xs font-semibold text-danger">
+          <CircleAlert size={14} /> Too many recipients — maximum {MAX_TELEGRAM_RECIPIENTS} per send. Narrow your selection.
+        </div>
+      {/if}
+
+      <div class="mt-4 max-h-[140px] overflow-y-auto rounded-button border border-border bg-bg p-2">
+        <ul class="flex flex-wrap gap-1.5">
+          {#each selectedTelegramUsers as user (user.id)}
+            <li class="rounded-[6px] border border-border bg-card px-2 py-1 font-mono text-[11px] text-ink">
+              {user.telegramUsername ? `@${user.telegramUsername}` : user.phone}{#if user.fullName}<span class="text-faint"> · {user.fullName}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+      </div>
+
+      <label class="mt-4 block">
+        <span class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-faint">Message</span>
+        <textarea bind:value={telegramMessage} rows="4" maxlength="1000" placeholder="Type your message…"
+          class="w-full resize-none rounded-button border border-border bg-card p-3 text-sm text-ink outline-none focus:border-primary"
+        ></textarea>
+        <span class="mt-1 block text-right text-[10px] text-faint">{telegramMessage.length}/1000</span>
+      </label>
+
+      <div class="mt-2 flex justify-end gap-2">
+        <button type="button" class="admin-press h-10 rounded-button border border-border px-5 text-xs font-bold text-ink" disabled={sendingTelegram} on:click={closeTelegramCompose}>Cancel</button>
+        <button type="button"
+          class="admin-press inline-flex h-10 items-center gap-1.5 rounded-button bg-info px-5 text-xs font-bold text-white disabled:opacity-50"
+          disabled={sendingTelegram || !telegramMessage.trim() || selectedTelegramUsers.length === 0 || selectedTelegramUsers.length > MAX_TELEGRAM_RECIPIENTS}
+          on:click={sendBulkTelegramToSelection}>
+          {#if sendingTelegram}<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span> Sending…{:else}<Send size={13} /> Send{/if}
         </button>
       </div>
     </div>

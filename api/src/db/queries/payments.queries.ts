@@ -344,6 +344,7 @@ export interface DbPaymentReceipt extends DbPayment {
    *  ticketNumbers — empty until the webhook lands, same as ticketNumbers. */
   ticketDisplayNumbers: string[];
   phoneNumber: string;
+  telegramUserId: string | null;
 }
 
 /** Payment status plus the receipt data shown after confirmation. */
@@ -355,6 +356,7 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
       r.category_code AS category_code,
       r.number_block_start AS number_block_start,
       u.phone_number AS phone_number,
+      u.telegram_user_id AS telegram_user_id,
       COALESCE(
         array_agg(t.ticket_number ORDER BY t.ticket_number)
           FILTER (WHERE t.ticket_number IS NOT NULL),

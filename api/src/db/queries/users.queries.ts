@@ -205,6 +205,18 @@ export async function findPhonesByIds(ids: string[]): Promise<{ id: string; phon
   `;
 }
 
+/** Look up Telegram user ids for a set of user IDs — for bulk-Telegram-DM
+ *  recipients. Only rows with a linked Telegram account can be messaged
+ *  this way, so a phone-OTP-only user is silently excluded rather than
+ *  erroring — same reasoning as findPhonesByIds not caring whether an id
+ *  is invalid, just returning whatever actually matches. */
+export async function findTelegramIdsByIds(ids: string[]): Promise<{ id: string; telegramUserId: string }[]> {
+  if (ids.length === 0) return [];
+  return sql<{ id: string; telegramUserId: string }[]>`
+    SELECT id, telegram_user_id FROM users WHERE id = ANY(${ids}::uuid[]) AND telegram_user_id IS NOT NULL
+  `;
+}
+
 /**
  * Reverse of the above — batch phone-to-name lookup for the admin SMS log,
  * which only ever has the recipient's phone number to go on (that's what

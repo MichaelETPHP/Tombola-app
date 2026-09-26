@@ -126,6 +126,8 @@
 
   let smsMessage = '';
   let sendingSms = false;
+  let telegramMessage = '';
+  let sendingTelegram = false;
 
   async function loadProfile() {
     profileLoading = true;
@@ -242,6 +244,20 @@
     }
   }
 
+  async function sendTelegramDirect() {
+    if (!telegramMessage.trim() || sendingTelegram) return;
+    sendingTelegram = true;
+    try {
+      await api.post(`/admin/users/${userId}/telegram`, { message: telegramMessage.trim() });
+      toast.success('Message sent.', 'Telegram Message Sent');
+      telegramMessage = '';
+    } catch (err) {
+      toast.error(err instanceof ApiError ? 'Telegram send failed.' : 'Network error.', 'Send Failed');
+    } finally {
+      sendingTelegram = false;
+    }
+  }
+
   async function copyText(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -281,6 +297,12 @@
           <span>{profile.phone}</span>
           <button type="button" class="admin-press text-faint hover:text-ink" title="Copy phone" on:click={() => copyText(profile?.phone ?? '', 'Phone')}><Copy size={12} /></button>
         </div>
+        {#if profile.telegramUsername}
+          <div class="mt-1 flex items-center gap-1.5 text-sm text-info">
+            <Send size={13} />
+            <span class="font-medium">@{profile.telegramUsername}</span>
+          </div>
+        {/if}
       </div>
       <button
         type="button"
@@ -460,6 +482,30 @@
             {sendingSms ? 'Sending…' : 'Send message'}
           </button>
         </section>
+
+        {#if profile.telegramLinkedAt}
+          <!-- ── Send a Telegram message ── -->
+          <section class="rounded-card border border-border bg-card p-5">
+            <h2 class="mb-3 flex items-center gap-2 text-sm font-bold text-ink"><Send size={15} class="text-info" /> Send a Telegram message</h2>
+            <textarea
+              bind:value={telegramMessage}
+              rows="4"
+              maxlength="1000"
+              placeholder="Type a message to DM this user on Telegram…"
+              class="w-full resize-none rounded-button border border-border bg-bg/40 p-3 text-xs text-ink outline-none focus:border-info"
+            ></textarea>
+            <div class="mt-1 text-right text-[10px] text-faint">{telegramMessage.length}/1000</div>
+            <button
+              type="button"
+              disabled={sendingTelegram || !telegramMessage.trim()}
+              on:click={sendTelegramDirect}
+              class="admin-press mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-button bg-info text-xs font-bold text-white disabled:opacity-50"
+            >
+              {#if sendingTelegram}<Loader2 size={14} class="animate-spin" />{:else}<Send size={13} />{/if}
+              {sendingTelegram ? 'Sending…' : 'Send message'}
+            </button>
+          </section>
+        {/if}
 
         <!-- ── Message history ── -->
         <section class="rounded-card border border-border bg-card p-5">

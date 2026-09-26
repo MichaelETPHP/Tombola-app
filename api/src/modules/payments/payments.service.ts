@@ -12,6 +12,7 @@ import {
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
+import { sendTelegramTicketConfirmation } from '../../lib/telegram-bot.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 import { broadcastTicketsSold } from '../../lib/ticket-broadcast.js';
 import { logger } from '../../lib/logger.js';
@@ -56,15 +57,27 @@ function notifyTicketPurchase(txRef: string): void {
         }))
       );
 
+      const ticketCodes = receipt.ticketDisplayNumbers.map((d) => `${receipt.categoryCode}-${d}`);
+
       const result = await sendTicketPurchaseConfirmation(receipt.phoneNumber, {
         raffleName: receipt.raffleTitle,
-        ticketCodes: receipt.ticketDisplayNumbers.map((d) => `${receipt.categoryCode}-${d}`),
+        ticketCodes,
       });
       if (!result.success) {
         logger.error(`Ticket purchase SMS failed for tx_ref ${txRef}: ${result.error}`);
       }
+
+      if (receipt.telegramUserId) {
+        const telegramResult = await sendTelegramTicketConfirmation(receipt.telegramUserId, {
+          raffleName: receipt.raffleTitle,
+          ticketCodes,
+        });
+        if (!telegramResult.success) {
+          logger.error(`Ticket purchase Telegram DM failed for tx_ref ${txRef}: ${telegramResult.error}`);
+        }
+      }
     } catch (error) {
-      logger.error(`Ticket purchase SMS exception for tx_ref ${txRef}: ${error instanceof Error ? error.message : error}`);
+      logger.error(`Ticket purchase notification exception for tx_ref ${txRef}: ${error instanceof Error ? error.message : error}`);
     }
   })();
 }

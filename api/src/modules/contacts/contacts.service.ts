@@ -19,6 +19,12 @@ export interface Contact {
   phone: string;
   name: string | null;
   importedAt: string;
+  /** Set the moment this contact is included in a successful bulk send —
+   *  null until then, and effectively reset back to null (see
+   *  cooldownUntil) once their own 10-hour cooldown has passed, so a
+   *  contact who's gone quiet again shows back up as a normal send
+   *  target rather than staying "sent" forever. */
+  lastSmsSentAt: string | null;
 }
 
 /** What the admin list actually renders — a stored Contact plus a live
@@ -27,6 +33,28 @@ export interface Contact {
  *  after being imported. */
 export interface ContactWithStatus extends Contact {
   isRegistered: boolean;
+  /** ISO timestamp this specific contact becomes send-eligible again, or
+   *  null if they're eligible right now (never sent to, or their own
+   *  cooldown already elapsed). Per-contact, not a global gate — two
+   *  different, never-before-messaged people can be sent to minutes
+   *  apart; only a person who was JUST messaged is briefly excluded. */
+  cooldownUntil: string | null;
+}
+
+// A single send can affect up to 500 contacts at once (see
+// sendContactsSmsSchema's cap), but batches of any size can go out back
+// to back as long as they're reaching different people — this cooldown
+// only ever protects one specific contact from being re-messaged too
+// soon, never the sending feature as a whole.
+const COOLDOWN_HOURS = 10;
+const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
+
+/** This one contact's own cooldown end time, or null if they're eligible
+ *  to be sent to right now. */
+function computeContactCooldownUntil(contact: Contact): string | null {
+  if (!contact.lastSmsSentAt) return null;
+  const availableAt = new Date(contact.lastSmsSentAt).getTime() + COOLDOWN_MS;
+  return availableAt > Date.now() ? new Date(availableAt).toISOString() : null;
 }
 
 // Same directory tree as raffle image uploads (see lib/uploads.ts) —
@@ -90,7 +118,11 @@ export async function listContacts(): Promise<ContactWithStatus[]> {
   const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
   return [...contacts]
     .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
-    .map((c) => ({ ...c, isRegistered: registeredPhones.has(c.phone) && !isAlwaysSelectable(c.phone) }));
+    .map((c) => ({
+      ...c,
+      isRegistered: registeredPhones.has(c.phone) && !isAlwaysSelectable(c.phone),
+      cooldownUntil: computeContactCooldownUntil(c),
+    }));
 }
 
 /**
@@ -206,7 +238,7 @@ export async function importContactsFromCsv(csvText: string): Promise<ImportResu
         if (!isValidE164(phone)) { skippedInvalid += 1; continue; }
         if (seen.has(phone)) { skippedDuplicates += 1; continue; }
         seen.add(phone);
-        next.push({ phone, name, importedAt });
+        next.push({ phone, name, importedAt, lastSmsSentAt: null });
         imported += 1;
       }
     }
@@ -240,13 +272,41 @@ export async function deleteContacts(phones: string[]): Promise<{ deleted: numbe
  * real account now, not someone to keep cold-marketing.
  */
 export async function sendSmsToContacts(phones: string[], message: string) {
+  const existingByPhone = new Map((await readContacts()).map((c) => [c.phone, c]));
+
   const registeredUsers = await findUsersByPhones(phones.map(toE164));
   const registeredPhones = new Set(registeredUsers.map((u) => u.phoneNumber));
-  const targetPhones = phones.filter((p) => !registeredPhones.has(toE164(p)) || isAlwaysSelectable(toE164(p)));
-  const excludedRegistered = phones.length - targetPhones.length;
+
+  // Two independent exclusions, same reasoning for both: the admin page's
+  // own checkboxes already prevent selecting a registered or
+  // still-on-cooldown contact, but that's a UI convenience, not the
+  // actual guarantee — re-checked here against what's actually on disk.
+  let excludedRegistered = 0;
+  let excludedOnCooldown = 0;
+  const targetPhones = phones.filter((raw) => {
+    const phone = toE164(raw);
+    if (isAlwaysSelectable(phone)) return true;
+    if (registeredPhones.has(phone)) { excludedRegistered += 1; return false; }
+    const existing = existingByPhone.get(phone);
+    if (existing && computeContactCooldownUntil(existing)) { excludedOnCooldown += 1; return false; }
+    return true;
+  });
 
   const result = await sendBulkSmsWithSummaryLog(targetPhones, message, 'contacts_broadcast');
   const sentCount = result.recipients.filter((r) => r.success).length;
   const failedCount = result.recipients.length - sentCount;
-  return { requested: phones.length, sentCount, failedCount, excludedRegistered, recipients: result.recipients };
+
+  // The whole attempted batch is stamped together, not just the
+  // individually-successful sends — a few gateway-level delivery failures
+  // (already surfaced to the admin separately) shouldn't leave someone
+  // eligible to be immediately re-messaged in the very next batch.
+  const sentAt = new Date().toISOString();
+  const targetSet = new Set(targetPhones.map(toE164));
+  await withFileLock(async () => {
+    const current = await readContacts();
+    const updated = current.map((c) => (targetSet.has(c.phone) ? { ...c, lastSmsSentAt: sentAt } : c));
+    await writeContactsAtomic(updated);
+  });
+
+  return { requested: phones.length, sentCount, failedCount, excludedRegistered, excludedOnCooldown, recipients: result.recipients };
 }

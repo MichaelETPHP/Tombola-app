@@ -12,7 +12,9 @@ import {
   listUsersSchema,
   suspendUserSchema,
   bulkSmsSchema,
+  bulkTelegramSchema,
   sendUserSmsSchema,
+  sendUserTelegramSchema,
   adminLoginSchema,
   updateOwnProfileSchema,
   createAdminSchema,
@@ -31,12 +33,14 @@ import {
   adminDeleteUser,
   adminBulkDeleteUsers,
   adminBulkSendSms,
+  adminBulkSendTelegram,
   getUserTickets,
   getUserPayouts,
   getUserSmsLogs,
   getUserLogins,
   getUserPayments,
   adminSendSmsToUser,
+  adminSendTelegramToUser,
   getAdminProfile,
   updateOwnAdminProfile,
   listAdminUsers,
@@ -446,6 +450,20 @@ adminRoutes.post('/users/sms', async (c) => {
 });
 
 /**
+ * POST /admin/users/telegram
+ * Send one message directly to a set of users' Telegram accounts via the
+ * platform bot. Body: { userIds: string[], message: string }. Only users
+ * with a linked Telegram account actually receive it — see
+ * adminBulkSendTelegram/findTelegramIdsByIds.
+ */
+adminRoutes.post('/users/telegram', async (c) => {
+  const body = await c.req.json();
+  const input = bulkTelegramSchema.parse(body);
+  const result = await adminBulkSendTelegram(input);
+  return c.json(result);
+});
+
+/**
  * GET /admin/users/:id
  * Full "Customer Profile" for one user — profile fields plus at-a-glance
  * stats (tickets bought, total spent, SMS sent, prizes won, last login).
@@ -527,5 +545,16 @@ adminRoutes.get('/users/:id/payments', async (c) => {
 adminRoutes.post('/users/:id/sms', async (c) => {
   const input = sendUserSmsSchema.parse(await c.req.json());
   const result = await adminSendSmsToUser(z.string().uuid().parse(c.req.param('id')), input);
+  return c.json(result);
+});
+
+/**
+ * POST /admin/users/:id/telegram
+ * Same as the direct-SMS endpoint above, straight to this user's Telegram
+ * account instead — requires them to have one linked.
+ */
+adminRoutes.post('/users/:id/telegram', async (c) => {
+  const input = sendUserTelegramSchema.parse(await c.req.json());
+  const result = await adminSendTelegramToUser(z.string().uuid().parse(c.req.param('id')), input);
   return c.json(result);
 });

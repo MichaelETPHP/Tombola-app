@@ -26,9 +26,22 @@ export const bulkSmsSchema = z.object({
   message: z.string().trim().min(1).max(1000),
 });
 
+// Same shape and cap as bulkSmsSchema — kept as its own named schema since
+// it validates a functionally different action (Telegram DM vs SMS), even
+// though the rules happen to be identical today.
+export const bulkTelegramSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(200),
+  message: z.string().trim().min(1).max(1000),
+});
+
 // Sent from the user-detail page directly to one already-known phone number
 // — same length cap as bulk SMS, no recipient list to validate.
 export const sendUserSmsSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+});
+
+// Same shape — sent directly to one already-known Telegram account instead.
+export const sendUserTelegramSchema = z.object({
   message: z.string().trim().min(1).max(1000),
 });
 
@@ -75,7 +88,9 @@ export type ListUsersInput = z.infer<typeof listUsersSchema>;
 export type ListAuditLogInput = z.infer<typeof listAuditLogSchema>;
 export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
 export type BulkSmsInput = z.infer<typeof bulkSmsSchema>;
+export type BulkTelegramInput = z.infer<typeof bulkTelegramSchema>;
 export type SendUserSmsInput = z.infer<typeof sendUserSmsSchema>;
+export type SendUserTelegramInput = z.infer<typeof sendUserTelegramSchema>;
 export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileSchema>;
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;
 export type UpdateAdminInput = z.infer<typeof updateAdminSchema>;
