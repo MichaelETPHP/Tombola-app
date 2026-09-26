@@ -1,4 +1,4 @@
-import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds, findUserById } from '../../db/queries/users.queries.js';
+import { listAdminUserPage, setUserSuspended, deleteUser, bulkDeleteUsers, findPhonesByIds, findTelegramIdsByIds, findUserById } from '../../db/queries/users.queries.js';
 import { listUserTickets } from '../../db/queries/tickets.queries.js';
 import { findPayoutsByUserIdDetailed } from '../../db/queries/payouts.queries.js';
 import { listUserPayments } from '../../db/queries/payments.queries.js';
@@ -21,9 +21,10 @@ import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
 import { sendBulkSms, sendSms, pingSmsGateway } from '../../lib/sms.js';
+import { sendBulkTelegramMessages } from '../../lib/telegram-bot.js';
 import { pingChapa } from '../../lib/payment-gateway.js';
 import { listIntegrationLogs, type IntegrationKey, type IntegrationLogStatus } from '../../lib/integration-log.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput, SendUserSmsInput } from './admin.schema.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput, BulkTelegramInput, SendUserSmsInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 export type IntegrationLiveStatus = 'reachable' | 'unreachable' | 'not_applicable';
@@ -546,6 +547,29 @@ export async function adminBulkSendSms(input: BulkSmsInput) {
     sentCount,
     failedCount,
     recipients: result.recipients,
+  };
+}
+
+/**
+ * Same shape as adminBulkSendSms, but only ever reaches users with a
+ * linked Telegram account — a phone-OTP-only user has no Telegram id to
+ * message, so they're excluded here the same way findTelegramIdsByIds
+ * excludes them at the query level, not treated as a failure to report.
+ */
+export async function adminBulkSendTelegram(input: BulkTelegramInput) {
+  const rows = await findTelegramIdsByIds(input.userIds);
+  if (rows.length === 0) throw new AppError(404, 'None of the selected users have a linked Telegram account');
+
+  const results = await sendBulkTelegramMessages(rows.map((r) => r.telegramUserId), input.message, 'admin_bulk_send');
+  const sentCount = results.filter((r) => r.success).length;
+  const failedCount = results.length - sentCount;
+
+  return {
+    requested: input.userIds.length,
+    excludedNoTelegram: input.userIds.length - rows.length,
+    sentCount,
+    failedCount,
+    recipients: results,
   };
 }
 

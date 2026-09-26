@@ -25,6 +25,7 @@ import {
   type SharedContact,
 } from '../../lib/telegram.js';
 import { sendOtp, sendWelcomeSms } from '../../lib/sms.js';
+import { sendTelegramWelcome } from '../../lib/telegram-bot.js';
 import { recordLoginEvent, recordLogoutEvent, type LoginMethod } from '../../lib/login-events.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
@@ -241,6 +242,7 @@ export async function linkTelegramContact(contact: SharedContact): Promise<void>
   });
   if (isNewUser) {
     void sendWelcomeSms(contact.phone).catch((error) => logger.error('Failed to send welcome SMS', error));
+    void sendTelegramWelcome(contact.telegramUserId).catch((error) => logger.error('Failed to send Telegram welcome DM', error));
   }
 }
 
@@ -274,6 +276,7 @@ export async function authenticateTelegramOidc(idToken: string, nonceToken: stri
   user = await attachTelegram(user, identity);
   if (isNewUser) {
     void sendWelcomeSms(identity.phone).catch((error) => logger.error('Failed to send welcome SMS', error));
+    void sendTelegramWelcome(identity.userId).catch((error) => logger.error('Failed to send Telegram welcome DM', error));
   }
   return { status: 'authenticated' as const, ...(await createSession(user, isNewUser, 'telegram', meta)) };
 }

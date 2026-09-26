@@ -12,6 +12,7 @@ import {
   listUsersSchema,
   suspendUserSchema,
   bulkSmsSchema,
+  bulkTelegramSchema,
   sendUserSmsSchema,
   adminLoginSchema,
   updateOwnProfileSchema,
@@ -31,6 +32,7 @@ import {
   adminDeleteUser,
   adminBulkDeleteUsers,
   adminBulkSendSms,
+  adminBulkSendTelegram,
   getUserTickets,
   getUserPayouts,
   getUserSmsLogs,
@@ -442,6 +444,20 @@ adminRoutes.post('/users/sms', async (c) => {
   const body = await c.req.json();
   const input = bulkSmsSchema.parse(body);
   const result = await adminBulkSendSms(input);
+  return c.json(result);
+});
+
+/**
+ * POST /admin/users/telegram
+ * Send one message directly to a set of users' Telegram accounts via the
+ * platform bot. Body: { userIds: string[], message: string }. Only users
+ * with a linked Telegram account actually receive it — see
+ * adminBulkSendTelegram/findTelegramIdsByIds.
+ */
+adminRoutes.post('/users/telegram', async (c) => {
+  const body = await c.req.json();
+  const input = bulkTelegramSchema.parse(body);
+  const result = await adminBulkSendTelegram(input);
   return c.json(result);
 });
 
