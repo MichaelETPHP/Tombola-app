@@ -23,7 +23,7 @@
   import { CalendarClock, Check, ChevronLeft, Info, Minus, Phone, Plus, Share2, ShieldCheck, Ticket, X } from 'lucide-svelte';
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
-  const RAFFLE_BOT_LINK = 'https://t.me/YeneEta_ETBOT/start';
+  const RAFFLE_BOT_LINK = 'https://t.me/lottery251_bot';
   let sharingRaffle = false;
 
   async function shareRaffle() {

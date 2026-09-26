@@ -21,7 +21,7 @@
   import { showBanner } from '$lib/stores/banner.store.js';
   import { getTelegramMiniApp } from '$lib/telegram.js';
 
-  const BOT_LINK = 'https://t.me/yeneEtabot/yeneeta';
+  const BOT_LINK = 'https://t.me/lottery251_bot';
   const TIKTOK_URL = 'https://www.tiktok.com/@251lottery';
   const SUPPORT_PHONE = '+251951043859';
 
@@ -175,7 +175,7 @@
       <Share2 size={17} />
       {sharing ? $_('about.openingShare') : $_('about.shareTelegramLink')}
     </button>
-    <p class="mt-2.5 truncate text-center text-[10px] font-medium text-muted">t.me/yeneEtabot/yeneeta</p>
+    <p class="mt-2.5 truncate text-center text-[10px] font-medium text-muted">t.me/lottery251_bot</p>
   </section>
 
   <section class="flex flex-col gap-3">

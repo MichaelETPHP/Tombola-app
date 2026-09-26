@@ -312,7 +312,7 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
   });
 }
 
-const YENEETA_BOT_LINK = 'http://t.me/YeneEta_ETBOT/start';
+const YENEETA_BOT_LINK = 'https://t.me/lottery251_bot';
 
 // The gateway relays through a real Android phone's own SIM (see
 // SMS_SENDER_LABEL above), so recipients always see a plain phone number,
