@@ -40,6 +40,11 @@ export const sendUserSmsSchema = z.object({
   message: z.string().trim().min(1).max(1000),
 });
 
+// Same shape — sent directly to one already-known Telegram account instead.
+export const sendUserTelegramSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+});
+
 const adminPhone = z.string().trim().transform((value) => {
   if (value.startsWith('+251')) return value;
   if (value.startsWith('0')) return `+251${value.slice(1)}`;
@@ -85,6 +90,7 @@ export type SuspendUserInput = z.infer<typeof suspendUserSchema>;
 export type BulkSmsInput = z.infer<typeof bulkSmsSchema>;
 export type BulkTelegramInput = z.infer<typeof bulkTelegramSchema>;
 export type SendUserSmsInput = z.infer<typeof sendUserSmsSchema>;
+export type SendUserTelegramInput = z.infer<typeof sendUserTelegramSchema>;
 export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileSchema>;
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;
 export type UpdateAdminInput = z.infer<typeof updateAdminSchema>;

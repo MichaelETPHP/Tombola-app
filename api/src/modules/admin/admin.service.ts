@@ -21,10 +21,10 @@ import { AppError } from '../../middleware/error-handler.middleware.js';
 import { env } from '../../config/env.js';
 import { sql } from '../../db/client.js';
 import { sendBulkSms, sendSms, pingSmsGateway } from '../../lib/sms.js';
-import { sendBulkTelegramMessages } from '../../lib/telegram-bot.js';
+import { sendBulkTelegramMessages, sendTelegramMessage } from '../../lib/telegram-bot.js';
 import { pingChapa } from '../../lib/payment-gateway.js';
 import { listIntegrationLogs, type IntegrationKey, type IntegrationLogStatus } from '../../lib/integration-log.js';
-import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput, BulkTelegramInput, SendUserSmsInput } from './admin.schema.js';
+import type { UpdateOwnProfileInput, CreateAdminInput, UpdateAdminInput, ListAuditLogInput, ListUsersInput, BulkSmsInput, BulkTelegramInput, SendUserSmsInput, SendUserTelegramInput } from './admin.schema.js';
 
 export type IntegrationMode = 'mock' | 'live' | 'unconfigured' | 'not_implemented';
 export type IntegrationLiveStatus = 'reachable' | 'unreachable' | 'not_applicable';
@@ -649,6 +649,18 @@ export async function adminSendSmsToUser(userId: string, input: SendUserSmsInput
   if (!user) throw new AppError(404, 'User not found');
   const result = await sendSms({ to: user.phoneNumber, message: input.message, event: 'admin_direct_send' });
   if (!result.success) throw new AppError(502, result.error ?? 'SMS delivery failed');
+  return { sent: true as const };
+}
+
+/** Same shape as adminSendSmsToUser, straight to this user's Telegram
+ *  account instead — requires a linked Telegram id (a phone-OTP-only
+ *  account has none). */
+export async function adminSendTelegramToUser(userId: string, input: SendUserTelegramInput) {
+  const user = await findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+  if (!user.telegramUserId) throw new AppError(409, 'This user has no linked Telegram account');
+  const result = await sendTelegramMessage(user.telegramUserId, input.message, 'admin_direct_send');
+  if (!result.success) throw new AppError(502, result.error ?? 'Telegram delivery failed');
   return { sent: true as const };
 }
 
