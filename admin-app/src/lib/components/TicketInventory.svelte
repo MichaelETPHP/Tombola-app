@@ -6,7 +6,10 @@
   import { ChevronLeft, ChevronRight, RefreshCw, Ticket, X } from 'lucide-svelte';
   export let raffleId: string;
   type Inventory = { publicCode: string; ticketCap: number; start: number; end: number; numbers: { number: number; state: string; displayNumber: string }[]; payments: { id: string; selectedDisplayNumbers: string[]; amount: number; reviewRequired: boolean; checkoutStartedAt: string | null; createdAt: string }[] };
-  type TicketBuyer = { displayNumber: string; buyerName: string | null; buyerPhone: string; amount: number; purchasedAt: string; paymentStatus: string };
+  type TicketBuyer = {
+    displayNumber: string; buyerName: string | null; buyerPhone: string; amount: number; createdAt: string;
+    paymentStatus: string; isSold: boolean; reviewRequired: boolean; reservationExpiresAt: string | null;
+  };
   let inventory: Inventory | null = null;
   let start = 1;
   let error = '';
@@ -119,8 +122,10 @@
     <div class="inventory-grid">{#each inventory.numbers as item (item.number)}
       {#if item.state === 'sold'}
         <button type="button" class="sold" title="{inventory.publicCode}-{item.displayNumber} · sold — click for buyer" on:click={() => openBuyer(item.number)}>{item.displayNumber}<small>Bought</small></button>
+      {:else if item.state === 'held'}
+        <button type="button" class="held" title="{inventory.publicCode}-{item.displayNumber} · held — click for details" on:click={() => openBuyer(item.number)}>{item.displayNumber}<small>Held</small></button>
       {:else}
-        <span class:held={item.state === 'held'} class:available={item.state === 'available'} title="{inventory.publicCode}-{item.displayNumber} · {item.state}">{item.displayNumber}<small>{item.state === 'held' ? 'Held' : 'Active'}</small></span>
+        <span class="available" title="{inventory.publicCode}-{item.displayNumber} · available">{item.displayNumber}<small>Active</small></span>
       {/if}
     {/each}</div>
     <div class="pending-orders"><h3>Checkouts to reconcile</h3><p>Held numbers cannot be sold again. Resolve pending payments before closing the raffle or drawing.</p>
@@ -145,12 +150,22 @@
         <p class="inventory-error" role="alert">{buyerError}</p>
       {:else if buyer}
         <h3>Ticket {buyer.displayNumber}</h3>
+        {#if !buyer.isSold}
+          <p class="hold-banner">
+            {buyer.reviewRequired
+              ? 'Payment verified but not yet resolved — see Checkouts to reconcile below.'
+              : 'Reservation in progress — this number is locked to this checkout until it completes or expires.'}
+          </p>
+        {/if}
         <dl>
-          <dt>Buyer</dt><dd>{buyer.buyerName || 'No name on file'}</dd>
+          <dt>{buyer.isSold ? 'Buyer' : 'Holder'}</dt><dd>{buyer.buyerName || 'No name on file'}</dd>
           <dt>Phone</dt><dd>{buyer.buyerPhone}</dd>
-          <dt>Paid</dt><dd>{Number(buyer.amount).toLocaleString()} ETB</dd>
-          <dt>Purchased</dt><dd>{new Date(buyer.purchasedAt).toLocaleString()}</dd>
-          <dt>Status</dt><dd>{buyer.paymentStatus}</dd>
+          <dt>{buyer.isSold ? 'Paid' : 'Amount due'}</dt><dd>{Number(buyer.amount).toLocaleString()} ETB</dd>
+          <dt>{buyer.isSold ? 'Purchased' : 'Reserved'}</dt><dd>{new Date(buyer.createdAt).toLocaleString()}</dd>
+          {#if !buyer.isSold && buyer.reservationExpiresAt}
+            <dt>Expires</dt><dd>{new Date(buyer.reservationExpiresAt).toLocaleString()}</dd>
+          {/if}
+          <dt>Status</dt><dd>{buyer.isSold ? 'Sold' : buyer.reviewRequired ? 'Payment review' : buyer.paymentStatus}</dd>
         </dl>
       {/if}
     </div>
@@ -167,6 +182,8 @@
   .inventory-grid small { font-size: 9px; margin-top: 2px; }
   .inventory-grid .available { background: #e7f7ee; border-color: #7fcba0; color: #146336; } .inventory-grid .available small { color: #1a8f4c; }
   .inventory-grid .held { background: #fff4d6; border-color: #c8a456; color: #6b4d0f; } .inventory-grid .held small { color: #805e14; }
+  .inventory-grid button.held { cursor: pointer; } .inventory-grid button.held:hover { background: #ffecc0; }
+  .inventory-grid button.held:focus-visible { outline: 2px solid #805e14; outline-offset: 2px; }
   .inventory-grid button.sold { background: #fdeaec; border-color: #e79aa4; color: #7d1523; cursor: pointer; text-decoration: line-through; text-decoration-thickness: 1.5px; } .inventory-grid button.sold small { color: #b0202f; text-decoration: none; }
   .inventory-grid button.sold:hover { background: #fbdadd; }
   .inventory-grid button.sold:focus-visible { outline: 2px solid #b0202f; outline-offset: 2px; }
@@ -174,6 +191,7 @@
   .buyer-modal { position: relative; width: min(360px, 100%); background: var(--color-card, #fff); color: var(--color-ink, #1a1d29); border-radius: 16px; padding: 24px; box-shadow: 0 20px 50px -20px rgb(0 0 0 / 40%); }
   .buyer-close { position: absolute; top: 10px; right: 10px; }
   .buyer-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+  .hold-banner { margin: -6px 0 14px; padding: 10px 12px; border-radius: 8px; background: #fff4d6; color: #6b4d0f; font-size: 12px; line-height: 1.5; }
   .buyer-modal dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 13px; }
   .buyer-modal dt { color: #5b6472; font-weight: 600; } .buyer-modal dd { text-align: right; }
   .pending-orders { margin-top: 28px; } h3 { font-size: 15px; font-weight: 700; } .empty-inventory { padding: 20px 0; font-size: 13px; color: #5b6472; } article { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px 0; border-bottom: 1px solid #e2e5ee; font-size: 12px; } article strong { font-size: 13px; } article p { margin-top: 5px; color: #5b6472; } .order-numbers { font-variant-numeric: tabular-nums; font-weight: 700; } .payment-reference { display: block; overflow-wrap: anywhere; color: #5b6472; margin-top: 5px; } .order-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

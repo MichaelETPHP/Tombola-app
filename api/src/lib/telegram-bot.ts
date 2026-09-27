@@ -58,17 +58,24 @@ export async function sendTelegramMessage(telegramUserId: string, text: string, 
   }
 }
 
+// Same support line on every welcome touchpoint (SMS and Telegram) —
+// deliberately kept even though a Telegram user is already inside this
+// exact bot chat, since a welcome message often gets forwarded/screenshotted
+// to someone who isn't.
+const SUPPORT_PHONE = '+251951043859';
+const SUPPORT_TELEGRAM = '@lottery251_bot';
+
 /**
- * Sent the moment a brand-new account is created via Telegram — mirrors
- * sendWelcomeSms's content (lib/sms.ts), minus the "save this number" /
- * bot-link lines, which only make sense in an SMS that arrived from
- * outside Telegram. Someone reading this is already inside the bot chat.
+ * Sent the moment a brand-new account is created via Telegram — short and
+ * bilingual, with the same support contact info as the rest of the app.
  */
 export async function sendTelegramWelcome(telegramUserId: string): Promise<TelegramSendResult> {
   const text = [
-    '🎉 Welcome to 251 Lottery!',
-    "Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.",
-    'እንኳን ደህና መጡ · Welcome aboard!',
+    '🎉 Welcome to 251 Lottery! Real prizes, fair draws.',
+    'እንኳን ደህና መጡ!',
+    '',
+    `Support: ${SUPPORT_PHONE}`,
+    `Telegram: ${SUPPORT_TELEGRAM}`,
   ].join('\n');
   return sendTelegramMessage(telegramUserId, text, 'welcome');
 }

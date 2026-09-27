@@ -68,16 +68,24 @@ export interface TicketBuyer {
   buyerName: string | null;
   buyerPhone: string;
   amount: number;
-  purchasedAt: string;
+  createdAt: string;
   paymentStatus: string;
+  /** false for a 'held' number — someone has it reserved (mid-checkout, or
+   *  a verified charge stuck in review) but hasn't completed the sale yet. */
+  isSold: boolean;
+  reviewRequired: boolean;
+  /** Only meaningful while isSold is false and reviewRequired is false —
+   *  when this reservation's checkout window actually closes. */
+  reservationExpiresAt: string | null;
 }
 
 /**
- * Who bought one specific sold ticket number — backs the admin ticket
- * grid's click-a-number modal. Only ever called for a number the grid
- * already marked 'sold', but still returns 404 rather than nulls if the
- * claim turns out not to be sold (e.g. a held reservation clicked mid-race
- * with this exact number selling a moment earlier or later).
+ * Who has one specific ticket number — sold or currently held — backs the
+ * admin ticket grid's click-a-number modal for both states. A claims row
+ * that isn't sold only exists at all while a hold is genuinely active (a
+ * cancelled/refunded reservation deletes its row — see
+ * recordReviewedRefund), so finding one here always means a real, current
+ * buyer or holder, never stale data.
  */
 export async function findTicketBuyer(raffleId: string, ticketNumber: number): Promise<TicketBuyer> {
   const [raffle] = await sql<{ ticketCap: number; numberBlockStart: number | null }[]>`
@@ -86,14 +94,16 @@ export async function findTicketBuyer(raffleId: string, ticketNumber: number): P
   if (ticketNumber < 1 || ticketNumber > raffle.ticketCap) throw new AppError(404, 'Ticket not found');
 
   const [row] = await sql<{
-    buyerName: string | null; buyerPhone: string; amount: number; purchasedAt: string; paymentStatus: string;
+    buyerName: string | null; buyerPhone: string; amount: number; createdAt: string;
+    paymentStatus: string; isSold: boolean; reviewRequired: boolean; reservationExpiresAt: string | null;
   }[]>`
-    SELECT u.full_name AS buyer_name, u.phone_number AS buyer_phone, p.amount, p.created_at AS purchased_at, p.status AS payment_status
+    SELECT u.full_name AS buyer_name, u.phone_number AS buyer_phone, p.amount, p.created_at AS created_at,
+      p.status AS payment_status, c.sold AS is_sold, p.review_required, p.reservation_expires_at
     FROM ticket_number_claims c
     JOIN payments p ON p.id = c.payment_id
     JOIN users u ON u.id = p.user_id
-    WHERE c.raffle_id = ${raffleId} AND c.ticket_number = ${ticketNumber} AND c.sold`;
-  if (!row) throw new AppError(404, 'This ticket has not been sold.');
+    WHERE c.raffle_id = ${raffleId} AND c.ticket_number = ${ticketNumber}`;
+  if (!row) throw new AppError(404, 'This ticket is available — no buyer or hold on it.');
 
   const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
   return { ...row, displayNumber: formatDisplayNumber(raffle.numberBlockStart, cipherKey, ticketNumber) };

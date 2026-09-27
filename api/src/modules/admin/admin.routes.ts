@@ -119,8 +119,8 @@ adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
 
 /**
  * GET /admin/raffles/:id/tickets/:number/buyer
- * Who bought one specific ticket number — backs the ticket grid's
- * click-a-sold-number modal.
+ * Who has one specific ticket number, sold or currently held — backs the
+ * ticket grid's click-a-number modal for both states.
  */
 adminRoutes.get('/raffles/:id/tickets/:number/buyer', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
