@@ -23,17 +23,21 @@
   async function load() { loading = true; error = ''; try { inventory = await api.get<Inventory>(`/admin/raffles/${raffleId}/ticket-inventory?start=${start}`); } catch (cause) { error = message(cause); } finally { loading = false; } }
   onMount(load);
 
-  // Buyer modal — opened by clicking a sold ticket number.
+  // Buyer modal — opened by clicking a sold or held ticket number.
   let buyerModalOpen = false;
   let buyerLoading = false;
   let buyerError = '';
   let buyer: TicketBuyer | null = null;
+  let buyerNumber: number | null = null;
 
   async function openBuyer(number: number) {
     buyerModalOpen = true;
     buyerLoading = true;
     buyerError = '';
     buyer = null;
+    buyerNumber = number;
+    confirmingRelease = false;
+    releaseError = '';
     try {
       buyer = await api.get<TicketBuyer>(`/admin/raffles/${raffleId}/tickets/${number}/buyer`);
     } catch (cause) {
@@ -45,6 +49,32 @@
   function closeBuyer() { buyerModalOpen = false; }
   function onBuyerModalKeydown(event: KeyboardEvent) { if (event.key === 'Escape') closeBuyer(); }
   function focusOnMount(node: HTMLElement) { node.focus(); }
+
+  // Release — only ever offered for a plain, unpaid hold (never a verified
+  // charge stuck in review; the server enforces this too, this is just so
+  // the button isn't even shown for a case it would refuse). A deliberate
+  // extra confirm step, not a single click — this puts an active
+  // reservation back into circulation, which is exactly the kind of thing
+  // that shouldn't happen by accident.
+  let confirmingRelease = false;
+  let releasing = false;
+  let releaseError = '';
+
+  async function releaseHeldTicket() {
+    if (buyerNumber === null || releasing) return;
+    releasing = true;
+    releaseError = '';
+    try {
+      await api.post(`/admin/raffles/${raffleId}/tickets/${buyerNumber}/release`, {});
+      closeBuyer();
+      await load();
+    } catch (cause) {
+      releaseError = message(cause);
+      confirmingRelease = false;
+    } finally {
+      releasing = false;
+    }
+  }
 
   // Live updates — a ticket sold anywhere reaches every admin tab with
   // this raffle's grid open, no polling and no manual refresh. Only
@@ -167,6 +197,23 @@
           {/if}
           <dt>Status</dt><dd>{buyer.isSold ? 'Sold' : buyer.reviewRequired ? 'Payment review' : buyer.paymentStatus}</dd>
         </dl>
+
+        {#if !buyer.isSold && !buyer.reviewRequired && $auth.admin?.role === 'owner'}
+          {#if releaseError}<p class="inventory-error" role="alert">{releaseError}</p>{/if}
+          {#if confirmingRelease}
+            <div class="release-confirm">
+              <p>Free ticket {buyer.displayNumber} for someone else to buy? This can't be undone — if {buyer.buyerName || 'this holder'} completes their payment after this, it goes to review instead of issuing automatically.</p>
+              <div class="release-confirm-actions">
+                <button type="button" disabled={releasing} on:click={() => (confirmingRelease = false)}>Cancel</button>
+                <button type="button" class="release-danger" disabled={releasing} on:click={releaseHeldTicket}>
+                  {releasing ? 'Releasing…' : 'Yes, release it'}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <button type="button" class="release-trigger" on:click={() => (confirmingRelease = true)}>Release this number</button>
+          {/if}
+        {/if}
       {/if}
     </div>
   </div>
@@ -194,6 +241,15 @@
   .hold-banner { margin: -6px 0 14px; padding: 10px 12px; border-radius: 8px; background: #fff4d6; color: #6b4d0f; font-size: 12px; line-height: 1.5; }
   .buyer-modal dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 13px; }
   .buyer-modal dt { color: #5b6472; font-weight: 600; } .buyer-modal dd { text-align: right; }
+  .release-trigger { margin-top: 18px; width: 100%; min-height: 44px; border: 1px solid #e79aa4; border-radius: 8px; background: #fdeaec; color: #7d1523; font-weight: 650; font-size: 13px; }
+  .release-trigger:hover { background: #fbdadd; }
+  .release-confirm { margin-top: 18px; padding: 14px; border-radius: 8px; background: #fff0f1; border: 1px solid #f0c6cb; }
+  .release-confirm p { font-size: 12px; line-height: 1.6; color: #7d1523; }
+  .release-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .release-confirm-actions button { flex: 1; min-height: 40px; border-radius: 8px; font-size: 12px; font-weight: 650; }
+  .release-confirm-actions button:first-child { background: #fff; border: 1px solid #d7dce6; color: #1a1d29; }
+  .release-danger { background: #b0202f; color: #fff; border: none; }
+  .release-danger:disabled, .release-confirm-actions button:disabled { opacity: .6; }
   .pending-orders { margin-top: 28px; } h3 { font-size: 15px; font-weight: 700; } .empty-inventory { padding: 20px 0; font-size: 13px; color: #5b6472; } article { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px 0; border-bottom: 1px solid #e2e5ee; font-size: 12px; } article strong { font-size: 13px; } article p { margin-top: 5px; color: #5b6472; } .order-numbers { font-variant-numeric: tabular-nums; font-weight: 700; } .payment-reference { display: block; overflow-wrap: anywhere; color: #5b6472; margin-top: 5px; } .order-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .refund-form { display: grid; gap: 12px; padding: 18px; background: #f4f6fa; font-size: 13px; line-height: 1.6; } .refund-form label { display: grid; gap: 6px; } .refund-form .refund-confirm { display: flex; align-items: center; gap: 10px; min-height: 44px; } .refund-form > div { display: flex; gap: 10px; } .inventory-error { color: #992b40; background: #fff0f1; padding: 12px; border-radius: 8px; margin-top: 14px; font-size: 13px; }
   button:disabled { opacity: .5; } button:focus-visible, input:focus-visible { outline: 2px solid #0135c6; outline-offset: 3px; } @media (max-width: 480px) { .inventory { padding: 16px; } }
