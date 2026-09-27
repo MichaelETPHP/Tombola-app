@@ -261,7 +261,7 @@
       {#if rankedPrizes.length <= 1}<p class="mt-1 truncate text-[11px] text-muted">{raffle.prizeName}</p>{/if}
       {#if raffle.description}
         <div class="raffle-description mt-2">
-          <p bind:this={descEl} class="text-[13px] leading-[1.55] text-ink/75" class:line-clamp-3={!descExpanded}>{raffle.description}</p>
+          <p bind:this={descEl} class="whitespace-pre-line text-[13px] leading-[1.55] text-ink/75" class:line-clamp-3={!descExpanded}>{raffle.description}</p>
           {#if descOverflowing}
             <button type="button" class="tappable mt-0.5 text-[11px] font-bold text-primary-dark" on:click={() => { hapticLight(); descExpanded = !descExpanded; }}>
               {descExpanded ? $_('raffle.readLess') : $_('raffle.readMore')}
