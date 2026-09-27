@@ -97,6 +97,11 @@
 
       if (isTelegramLaunch) {
         document.write('<script src="https://telegram.org/js/telegram-web-app.js?61"><\/script>');
+        // Marks the document before the boot-splash <style> below even
+        // parses, so Telegram never shows the letterbox frame for even one
+        // frame while waiting for telegram.ts's own onMount call to do the
+        // same thing later. See the matching override in app.css.
+        document.documentElement.classList.add('telegram-mini-app');
       }
     </script>
     <style>
@@ -143,6 +148,19 @@
           border-radius: 44px;
           box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 45px -18px rgba(0, 0, 0, 0.6), 0 70px 140px -50px rgba(0, 0, 0, 0.5);
         }
+      }
+      /* Telegram is a dedicated container for this app, never a stray
+         browser tab — always trust its own panel width completely and
+         never show the letterbox frame there, even if that panel happens
+         to be wider than --app-max-width (Telegram Desktop). Matches the
+         app.css override for once the real stylesheet takes over; this
+         copy exists because the boot splash paints before app.css loads.
+         Higher specificity than the plain #boot-splash rules above, so it
+         wins without needing !important. */
+      html.telegram-mini-app #boot-splash {
+        max-width: none;
+        border-radius: 0;
+        box-shadow: none;
       }
       #boot-splash.boot-splash--hidden {
         opacity: 0;

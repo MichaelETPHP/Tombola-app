@@ -411,6 +411,36 @@ html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-floating-top {
   max-width: var(--app-max-width);
 }
 
+/* ─── Telegram is exempt from the letterbox frame entirely ─────────────
+   The frame exists for a stray browser tab that was never meant to fill a
+   wide window — Telegram is the opposite of that: a dedicated, purpose-
+   built container for this exact app, the same way the native APK is.
+   Telegram Desktop's Mini App panel can occasionally report a width past
+   --app-max-width, and without this override that alone was enough to
+   trigger the cap: a visible boxed/edged app sitting inside Telegram's own
+   already-framed window — a frame inside a frame. Always trust Telegram's
+   own sizing completely instead, exactly like the native APK trusts the
+   installed app's real screen size, and always render true edge-to-edge.
+   `html.telegram-mini-app` is added synchronously in app.html's own
+   inline script (before first paint) as well as here from telegram.ts, so
+   this holds from the very first frame, not just after hydration. */
+html.telegram-mini-app body {
+  max-width: none;
+  box-shadow: none;
+}
+
+html.telegram-mini-app body::after {
+  display: none;
+}
+
+html.telegram-mini-app .bottom-nav,
+html.telegram-mini-app .number-picker,
+html.telegram-mini-app .receipt-overlay,
+html.telegram-mini-app .lightbox,
+html.telegram-mini-app .app-frame-fixed {
+  max-width: none;
+}
+
 .tappable {
   cursor: pointer;
   transition: opacity 140ms var(--ease-out);
