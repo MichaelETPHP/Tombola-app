@@ -7,7 +7,7 @@
 
 {#if $banner.visible}
   <div
-    class="safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center px-4"
+    class="app-frame-fixed safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center px-4"
     transition:fly={{ y: -24, duration: 280, easing: cubicOut }}
   >
     <div

@@ -131,7 +131,7 @@
   </div>
 {:else if showRestored}
   <div
-    class="safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4"
+    class="app-frame-fixed safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4"
     role="status"
     aria-live="polite"
     transition:fly={{ y: -28, duration: 320, easing: cubicOut }}

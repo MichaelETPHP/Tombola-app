@@ -381,7 +381,7 @@
     <Banner />
     <ConnectivityGate />
     {#if $needRefresh}
-      <div class="update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
+      <div class="app-frame-fixed update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
         <button
           type="button"
           class="tappable pressable flex items-center gap-2.5 rounded-full bg-ink px-4 py-3 text-[13px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,0,0,0.5)]"
