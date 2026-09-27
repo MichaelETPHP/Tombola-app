@@ -325,6 +325,78 @@ export async function resolvePaymentReview(id: string, adminId: string, referenc
   });
 }
 
+export interface DbChapaTransaction {
+  id: string;
+  raffleId: string;
+  raffleTitle: string;
+  userPhone: string;
+  userFullName: string | null;
+  amount: number;
+  status: PaymentStatus;
+  reviewRequired: boolean;
+  gatewayRef: string | null;
+  chapaReference: string | null;
+  paymentMethod: string | null;
+  createdAt: Date;
+}
+
+export type ChapaTransactionStatusFilter = 'all' | 'success' | 'failed' | 'pending' | 'review';
+
+export interface ListChapaTransactionsInput {
+  limit: number;
+  offset: number;
+  search: string;
+  status: ChapaTransactionStatusFilter;
+}
+
+/**
+ * Backs the admin "Chapa Transactions" page — a local mirror of Chapa's own
+ * dashboard, built from what every checkout already writes to `payments`
+ * rather than a live pull against Chapa (no such list endpoint is exposed
+ * to us). `status` literals in the WHERE below are always fixed strings,
+ * never the caller's own filter value — comparing the `payment_status` enum
+ * column against an arbitrary string like 'all' would fail to cast
+ * regardless of which side of an OR it's on, since Postgres still
+ * type-checks every operand before short-circuiting (see the same idiom in
+ * listAdminUserPage).
+ */
+export async function listChapaTransactions(
+  input: ListChapaTransactionsInput
+): Promise<{ transactions: DbChapaTransaction[]; total: number }> {
+  const search = `%${input.search.replace(/[\\%_]/g, '\\$&')}%`;
+  const where = sql`
+    p.gateway = 'chapa'
+    AND (${input.search === ''} OR u.phone_number ILIKE ${search} OR COALESCE(u.full_name, '') ILIKE ${search}
+      OR COALESCE(p.chapa_reference, '') ILIKE ${search} OR COALESCE(p.gateway_ref, '') ILIKE ${search})
+    AND (${input.status === 'all'}
+      OR (${input.status === 'review'} AND p.review_required)
+      OR (${input.status === 'success'} AND p.status = 'completed' AND NOT p.review_required)
+      OR (${input.status === 'failed'} AND p.status = 'failed' AND NOT p.review_required)
+      OR (${input.status === 'pending'} AND p.status = 'pending' AND NOT p.review_required))
+  `;
+  const [transactions, [{ total }]] = await Promise.all([
+    sql<DbChapaTransaction[]>`
+      SELECT
+        p.id, p.raffle_id, r.title AS raffle_title,
+        u.phone_number AS user_phone, u.full_name AS user_full_name,
+        p.amount, p.status, p.review_required, p.gateway_ref, p.chapa_reference, p.payment_method, p.created_at
+      FROM payments p
+      JOIN raffles r ON r.id = p.raffle_id
+      JOIN users u ON u.id = p.user_id
+      WHERE ${where}
+      ORDER BY p.created_at DESC
+      LIMIT ${input.limit} OFFSET ${input.offset}
+    `,
+    sql<{ total: number }[]>`
+      SELECT COUNT(*)::int AS total
+      FROM payments p
+      JOIN users u ON u.id = p.user_id
+      WHERE ${where}
+    `,
+  ]);
+  return { transactions, total };
+}
+
 /**
  * Find a payment by ID.
  */

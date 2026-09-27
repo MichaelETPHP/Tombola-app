@@ -11,8 +11,10 @@ import {
   verifyPaymentForUser,
   cancelPaymentForUser,
   getPaymentsNeedingReview,
+  getChapaTransactions,
   resolvePaymentReview,
 } from './payments.service.js';
+import type { ChapaTransactionStatusFilter } from '../../db/queries/payments.queries.js';
 import { verifyChapaWebhookSignature, verifyMockPaymentSecret } from '../../lib/payment-gateway.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/require-role.middleware.js';
@@ -165,6 +167,23 @@ adminPaymentsRoutes.get('/review-queue', async (c) => {
   const offset = Number.isFinite(offsetParam) ? Math.max(0, offsetParam) : 0;
   const payments = await getPaymentsNeedingReview(limit, offset);
   return c.json({ payments });
+});
+
+const CHAPA_STATUS_FILTERS: ChapaTransactionStatusFilter[] = ['all', 'success', 'failed', 'pending', 'review'];
+
+/** GET /admin/payments/chapa-transactions */
+adminPaymentsRoutes.get('/chapa-transactions', async (c) => {
+  const limitParam = Number(c.req.query('limit'));
+  const limit = Number.isFinite(limitParam) ? Math.min(100, Math.max(1, limitParam)) : 25;
+  const offsetParam = Number(c.req.query('offset'));
+  const offset = Number.isFinite(offsetParam) ? Math.max(0, offsetParam) : 0;
+  const search = c.req.query('search') ?? '';
+  const statusParam = c.req.query('status') ?? 'all';
+  const status = CHAPA_STATUS_FILTERS.includes(statusParam as ChapaTransactionStatusFilter)
+    ? (statusParam as ChapaTransactionStatusFilter)
+    : 'all';
+  const result = await getChapaTransactions({ limit, offset, search, status });
+  return c.json(result);
 });
 
 /** POST /admin/payments/:id/resolve-review */

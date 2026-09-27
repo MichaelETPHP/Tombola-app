@@ -5,9 +5,11 @@ import {
   findPaymentReceiptById,
   listUserPayments,
   listPaymentsNeedingReview,
+  listChapaTransactions,
   resolvePaymentReview as dbResolvePaymentReview,
   updatePaymentStatus,
   type ChapaPaymentMeta,
+  type ChapaTransactionStatusFilter,
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
 import { chapaVerify } from '../../lib/payment-gateway.js';
@@ -238,6 +240,37 @@ export async function verifyPaymentForUser(id: string, userId: string) {
  */
 export async function getPaymentsNeedingReview(limit: number, offset: number) {
   return listPaymentsNeedingReview(limit, offset);
+}
+
+/**
+ * Admin "Chapa Transactions" page — a local view of every Chapa checkout,
+ * styled after Chapa's own dashboard. Reviews Chapa's own status for
+ * 'review'-queued payments as 'success' too, since a review is a completed
+ * charge Chapa accepted, just one this system couldn't turn into tickets.
+ */
+export async function getChapaTransactions(input: {
+  limit: number;
+  offset: number;
+  search: string;
+  status: ChapaTransactionStatusFilter;
+}) {
+  const { transactions, total } = await listChapaTransactions(input);
+  return {
+    total,
+    transactions: transactions.map((t) => ({
+      id: t.id,
+      raffleId: t.raffleId,
+      raffleTitle: t.raffleTitle,
+      userPhone: t.userPhone,
+      userFullName: t.userFullName,
+      amount: t.amount,
+      status: t.reviewRequired ? 'review' : t.status,
+      gatewayRef: t.gatewayRef,
+      chapaReference: t.chapaReference,
+      paymentMethod: t.paymentMethod,
+      createdAt: t.createdAt,
+    })),
+  };
 }
 
 /**
