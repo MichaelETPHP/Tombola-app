@@ -121,7 +121,16 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
 
   // Fullscreen is available from Bot API 8.0. Keep the version guard as old
   // Telegram clients expose a smaller bridge and throw for unknown methods.
-  if (webApp.isVersionAtLeast?.('8.0')) {
+  //
+  // Desktop clients ('tdesktop' = Windows/Linux, 'macos') render "fullscreen"
+  // as taking over the whole app window — no minimize/restore chrome, no
+  // swipe handle — rather than a phone-sized layout, since there's no phone
+  // screen to fill. On phones it's the opposite: fullscreen removes
+  // Telegram's own chrome for a cleaner immersive layout, which is what this
+  // was added for. Skipping it on desktop leaves that client in its default
+  // resizable, minimizable window instead.
+  const isDesktopClient = webApp.platform === 'tdesktop' || webApp.platform === 'macos';
+  if (!isDesktopClient && webApp.isVersionAtLeast?.('8.0')) {
     try {
       webApp.requestFullscreen?.();
     } catch {
