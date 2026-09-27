@@ -97,6 +97,11 @@
 
       if (isTelegramLaunch) {
         document.write('<script src="https://telegram.org/js/telegram-web-app.js?61"><\/script>');
+        // Marks the document before the boot-splash <style> below even
+        // parses, so Telegram never shows the letterbox frame for even one
+        // frame while waiting for telegram.ts's own onMount call to do the
+        // same thing later. See the matching override in app.css.
+        document.documentElement.classList.add('telegram-mini-app');
       }
     </script>
     <style>
@@ -111,14 +116,51 @@
          now live only in the database (admin-editable, see SplashScreen.svelte),
          and this screen paints before any network request or JS can run —
          it can never depend on either. */
+      /* Matches the same phone-frame cap app.css applies to body once it
+         loads (--app-max-width/--app-frame-backdrop/--app-frame-radius) —
+         hardcoded, not shared via a variable, since this must render
+         before app.css is guaranteed to have applied. Keeps the very
+         first paint from flashing full-bleed (or the old light letterbox)
+         on a wide desktop browser tab before immediately snapping to the
+         real frame. */
+      html {
+        background: #0a0f24;
+      }
       #boot-splash {
         position: fixed;
         inset: 0;
+        left: 0;
+        right: 0;
+        margin-inline: auto;
+        max-width: 480px;
         z-index: 9999;
         overflow: hidden;
         background: linear-gradient(135deg, #E1E9FC 0%, #C3D7F5 100%);
         transition: opacity 320ms cubic-bezier(0.23, 1, 0.32, 1);
         animation: boot-splash-auto-hide 280ms cubic-bezier(0.23, 1, 0.32, 1) 820ms forwards;
+      }
+      /* Rounded "device" corners + elevation only once actually
+         letterboxed — on a real phone #boot-splash exactly fills the
+         viewport, so rounding it here would cut visible corners out of
+         the real screen. */
+      @media (min-width: 481px) {
+        #boot-splash {
+          border-radius: 44px;
+          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 45px -18px rgba(0, 0, 0, 0.6), 0 70px 140px -50px rgba(0, 0, 0, 0.5);
+        }
+      }
+      /* Telegram is a dedicated container for this app, never a stray
+         browser tab — always trust its own panel width completely and
+         never show the letterbox frame there, even if that panel happens
+         to be wider than --app-max-width (Telegram Desktop). Matches the
+         app.css override for once the real stylesheet takes over; this
+         copy exists because the boot splash paints before app.css loads.
+         Higher specificity than the plain #boot-splash rules above, so it
+         wins without needing !important. */
+      html.telegram-mini-app #boot-splash {
+        max-width: none;
+        border-radius: 0;
+        box-shadow: none;
       }
       #boot-splash.boot-splash--hidden {
         opacity: 0;

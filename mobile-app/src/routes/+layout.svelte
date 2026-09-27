@@ -381,7 +381,7 @@
     <Banner />
     <ConnectivityGate />
     {#if $needRefresh}
-      <div class="update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
+      <div class="app-frame-fixed update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
         <button
           type="button"
           class="tappable pressable flex items-center gap-2.5 rounded-full bg-ink px-4 py-3 text-[13px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(0,0,0,0.5)]"
@@ -401,7 +401,7 @@
          app's own reactive/store machinery (i18n included) is what broke;
          a fallback that depends on the same thing that might have just
          failed isn't a fallback. -->
-    <div class="fixed inset-0 z-[9998] flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#E7EEFC] px-6 text-center">
+    <div class="app-frame-fixed fixed inset-0 z-[9998] flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#E7EEFC] px-6 text-center">
       <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#D8434C] shadow-sm">
         <TriangleAlert size={27} />
       </span>

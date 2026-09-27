@@ -76,6 +76,23 @@
      each edge. */
   --safe-top: max(env(safe-area-inset-top), var(--native-safe-area-top, 0px));
   --safe-bottom: max(env(safe-area-inset-bottom), var(--native-safe-area-bottom, 0px), var(--telegram-content-safe-bottom, 0px));
+
+  /* This app has never had a desktop layout — nothing was ever designed to
+     fill a browser tab wider than a phone. Rather than stretch edge to
+     edge whenever it's opened outside a real phone context (a plain
+     browser tab, or the Telegram Mini App link opened outside Telegram),
+     everything caps at this width and centers, so it always reads as a
+     phone screen no matter how wide the window actually is. A no-op on an
+     actual phone, the native APK, and inside Telegram (mini app or
+     Desktop) — all of those already report a viewport at or under this. */
+  --app-max-width: 480px;
+  /* iPhone-like screen-corner radius for the letterboxed frame. */
+  --app-frame-radius: 44px;
+  /* Deep, near-black stage the phone frame floats on once letterboxed —
+     picked for contrast against the light UI, not from the app's own
+     palette, the way a device mockup sits on a dark stage rather than a
+     background that matches the product itself. */
+  --app-frame-backdrop: #0a0f24;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -127,6 +144,13 @@
   html {
     height: 100%;
     overflow-x: hidden;
+    /* Fills the letterbox space on either side of the centered body frame
+       (see --app-max-width) on anything wider than a phone. Invisible
+       everywhere else — body already covers the full width there. In
+       practice body::after's corner-mask spread (below) fully overpaints
+       this the instant CSS applies; it only matters for the first unstyled
+       instant and as the color that spread is built from. */
+    background: var(--app-frame-backdrop);
   }
 
   /* Every scrollIntoView/scrollTo call in this app already passes its own
@@ -213,6 +237,23 @@
     min-height: 100vh;
     min-height: 100dvh;
     position: relative;
+    /* The phone-frame cap (see --app-max-width above). A plain width+margin
+       centering, not a transform: this app's whole scroll model depends on
+       html being the only real scroll container (see the comment on the
+       html rule below) — a transformed body would instead become the
+       containing block for every position:fixed descendant (BottomNav,
+       modals, the ticket picker), re-basing them to body's own full
+       document height instead of the viewport and breaking "stays pinned
+       while the page scrolls" for all of them. Plain max-width+margin
+       leaves position:fixed completely alone; only the persistent
+       full-bleed fixed elements below need their own matching override
+       for the same reason. */
+    max-width: var(--app-max-width);
+    margin-inline: auto;
+    /* A hairline highlight (like light catching a device's edge) plus two
+       stacked shadows — a tight near shadow and a soft far one — read as
+       real elevation off the dark stage instead of a single flat blur. */
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 45px -18px rgba(0, 0, 0, 0.6), 0 70px 140px -50px rgba(0, 0, 0, 0.5);
   }
 
   /* Subtle diagonal stripe texture overlay */
@@ -220,6 +261,10 @@
     content: '';
     position: fixed;
     inset: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    max-width: var(--app-max-width);
     opacity: 0.04;
     background: repeating-linear-gradient(
       45deg,
@@ -236,6 +281,42 @@
   body > div {
     position: relative;
     z-index: 1;
+  }
+
+  /* Persistent iPhone-style screen-corner rounding for the letterboxed
+     frame, painted as a mask rather than as border-radius on body/html
+     directly. body is the single scrolling document (see the scroll-model
+     comment above `html`) and can grow far taller than one viewport on a
+     long list — a radius on body's own box would only round the true top
+     and bottom of the whole page, invisible the instant you scroll a list.
+     This pseudo-element is position:fixed instead, so it always sits at
+     the real viewport's four corners no matter how far the page has
+     scrolled. Its own box paints nothing; the huge box-shadow spread
+     paints var(--app-frame-backdrop) everywhere *outside* its rounded
+     rect, out to 100vmax, which is what actually mattes the four corners
+     of whatever's currently on screen into a rounded phone silhouette.
+     Zero cost on a real phone/native/Telegram — the rule is gated to
+     never fire under --app-max-width, where there'd be no visible edge to
+     round against anyway. */
+  body::after {
+    content: '';
+    display: none;
+    position: fixed;
+    inset: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    max-width: var(--app-max-width);
+    border-radius: var(--app-frame-radius);
+    box-shadow: 0 0 0 100vmax var(--app-frame-backdrop);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  @media (min-width: 481px) {
+    body::after {
+      display: block;
+    }
   }
 
   ::-webkit-scrollbar {
@@ -306,6 +387,58 @@ html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-floating-top {
 /* Keep the final page content scrollable above the raised navigation bar. */
 .native-bottom-nav-clearance {
   padding-bottom: calc(100px + var(--safe-bottom));
+}
+
+/* ─── Desktop letterbox frame — persistent/full-bleed fixed elements ────
+   body's own max-width+margin centers everything in normal document flow,
+   but position: fixed is always relative to the real viewport regardless
+   of body's width — so anything fixed that's meant to span "the whole
+   screen" (a persistent nav bar, a full-screen takeover) needs this same
+   left/right/margin override explicitly, or it stays stuck to the true
+   browser window's edges even while the content around it obeys the
+   frame. A plain click-catching backdrop (dimming the page behind a
+   popover/modal) is deliberately left alone — a full-window dim behind a
+   centered dialog is normal even on real desktop web apps, only the
+   dialog's own panel needs framing, not its backdrop. */
+.bottom-nav,
+.number-picker,
+.receipt-overlay,
+.lightbox,
+.app-frame-fixed {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: var(--app-max-width);
+}
+
+/* ─── Telegram is exempt from the letterbox frame entirely ─────────────
+   The frame exists for a stray browser tab that was never meant to fill a
+   wide window — Telegram is the opposite of that: a dedicated, purpose-
+   built container for this exact app, the same way the native APK is.
+   Telegram Desktop's Mini App panel can occasionally report a width past
+   --app-max-width, and without this override that alone was enough to
+   trigger the cap: a visible boxed/edged app sitting inside Telegram's own
+   already-framed window — a frame inside a frame. Always trust Telegram's
+   own sizing completely instead, exactly like the native APK trusts the
+   installed app's real screen size, and always render true edge-to-edge.
+   `html.telegram-mini-app` is added synchronously in app.html's own
+   inline script (before first paint) as well as here from telegram.ts, so
+   this holds from the very first frame, not just after hydration. */
+html.telegram-mini-app body {
+  max-width: none;
+  box-shadow: none;
+}
+
+html.telegram-mini-app body::after {
+  display: none;
+}
+
+html.telegram-mini-app .bottom-nav,
+html.telegram-mini-app .number-picker,
+html.telegram-mini-app .receipt-overlay,
+html.telegram-mini-app .lightbox,
+html.telegram-mini-app .app-frame-fixed {
+  max-width: none;
 }
 
 .tappable {

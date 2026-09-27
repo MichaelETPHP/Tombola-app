@@ -70,7 +70,7 @@
 
 {#if isBlocked}
   <div
-    class="safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#E7EEFC] px-5 text-ink"
+    class="app-frame-fixed safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#E7EEFC] px-5 text-ink"
     role="alertdialog"
     aria-modal="true"
     aria-live="assertive"
@@ -131,7 +131,7 @@
   </div>
 {:else if showRestored}
   <div
-    class="safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4"
+    class="app-frame-fixed safe-area-top pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4"
     role="status"
     aria-live="polite"
     transition:fly={{ y: -28, duration: 320, easing: cubicOut }}

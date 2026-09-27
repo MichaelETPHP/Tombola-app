@@ -377,7 +377,7 @@
 
 {#if termsOpen}
   <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#080E49]/45" aria-label={$_('raffle.closeAria')} on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
-  <section class="no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
+  <section class="app-frame-fixed no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
     <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">{$_('raffle.termsTitle')}</h2><button type="button" aria-label={$_('raffle.closeAria')} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
     <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>{$_('raffle.termsList.age')}</li><li>{$_('raffle.termsList.final')}</li><li>{$_('raffle.termsList.independent')}</li><li>{$_('raffle.termsList.max')}</li><li>{$_('raffle.termsList.fairness')}</li></ul>
     <div class="mt-4"><Button size="md" on:click={() => (termsOpen = false)}>{$_('raffle.understood')}</Button></div>
