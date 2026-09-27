@@ -86,6 +86,13 @@
      actual phone, the native APK, and inside Telegram (mini app or
      Desktop) — all of those already report a viewport at or under this. */
   --app-max-width: 480px;
+  /* iPhone-like screen-corner radius for the letterboxed frame. */
+  --app-frame-radius: 44px;
+  /* Deep, near-black stage the phone frame floats on once letterboxed —
+     picked for contrast against the light UI, not from the app's own
+     palette, the way a device mockup sits on a dark stage rather than a
+     background that matches the product itself. */
+  --app-frame-backdrop: #0a0f24;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -139,8 +146,11 @@
     overflow-x: hidden;
     /* Fills the letterbox space on either side of the centered body frame
        (see --app-max-width) on anything wider than a phone. Invisible
-       everywhere else — body already covers the full width there. */
-    background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
+       everywhere else — body already covers the full width there. In
+       practice body::after's corner-mask spread (below) fully overpaints
+       this the instant CSS applies; it only matters for the first unstyled
+       instant and as the color that spread is built from. */
+    background: var(--app-frame-backdrop);
   }
 
   /* Every scrollIntoView/scrollTo call in this app already passes its own
@@ -240,7 +250,10 @@
        for the same reason. */
     max-width: var(--app-max-width);
     margin-inline: auto;
-    box-shadow: 0 0 0 1px rgba(1, 53, 198, 0.06), 0 40px 100px -30px rgba(1, 41, 163, 0.28);
+    /* A hairline highlight (like light catching a device's edge) plus two
+       stacked shadows — a tight near shadow and a soft far one — read as
+       real elevation off the dark stage instead of a single flat blur. */
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 45px -18px rgba(0, 0, 0, 0.6), 0 70px 140px -50px rgba(0, 0, 0, 0.5);
   }
 
   /* Subtle diagonal stripe texture overlay */
@@ -268,6 +281,42 @@
   body > div {
     position: relative;
     z-index: 1;
+  }
+
+  /* Persistent iPhone-style screen-corner rounding for the letterboxed
+     frame, painted as a mask rather than as border-radius on body/html
+     directly. body is the single scrolling document (see the scroll-model
+     comment above `html`) and can grow far taller than one viewport on a
+     long list — a radius on body's own box would only round the true top
+     and bottom of the whole page, invisible the instant you scroll a list.
+     This pseudo-element is position:fixed instead, so it always sits at
+     the real viewport's four corners no matter how far the page has
+     scrolled. Its own box paints nothing; the huge box-shadow spread
+     paints var(--app-frame-backdrop) everywhere *outside* its rounded
+     rect, out to 100vmax, which is what actually mattes the four corners
+     of whatever's currently on screen into a rounded phone silhouette.
+     Zero cost on a real phone/native/Telegram — the rule is gated to
+     never fire under --app-max-width, where there'd be no visible edge to
+     round against anyway. */
+  body::after {
+    content: '';
+    display: none;
+    position: fixed;
+    inset: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    max-width: var(--app-max-width);
+    border-radius: var(--app-frame-radius);
+    box-shadow: 0 0 0 100vmax var(--app-frame-backdrop);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  @media (min-width: 481px) {
+    body::after {
+      display: block;
+    }
   }
 
   ::-webkit-scrollbar {
