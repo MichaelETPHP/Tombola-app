@@ -15,7 +15,7 @@
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { User, MessageCircle, ChevronLeft, ChevronRight, Pencil, Ticket as TicketIcon, Check, Info } from 'lucide-svelte';
   import { language, languages, setLanguage, type AppLanguage } from '$lib/stores/language.store.js';
-  import { dicebearAvatarUri } from '$lib/utils/avatar.js';
+  import DicebearAvatar from '$lib/components/DicebearAvatar.svelte';
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
   import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
   import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
@@ -48,11 +48,6 @@
   let saving = false;
   let error = '';
   let editOpen = false;
-
-  // Phone/OTP accounts have no profile photo at all — a generated
-  // cartoon avatar reads far better than plain initials. Seeded by the
-  // user's own id, so it's the same avatar every time, no storage needed.
-  $: dicebearUri = $auth.user ? dicebearAvatarUri($auth.user.id) : '';
 
   // Seeded from the session cache — same reasoning as the Tickets page.
   let payments: PaymentHistoryItem[] = get(paymentsStore);
@@ -193,12 +188,10 @@
       <div
         class="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bg-start text-lg font-bold text-primary-dark"
       >
-        {#if $auth.user?.telegramPhotoUrl || dicebearUri}
-          <img
-            src={$auth.user?.telegramPhotoUrl || dicebearUri}
-            alt=""
-            class="h-full w-full rounded-full object-cover"
-          />
+        {#if $auth.user?.telegramPhotoUrl}
+          <img src={$auth.user.telegramPhotoUrl} alt="" class="h-full w-full rounded-full object-cover" />
+        {:else if $auth.user}
+          <DicebearAvatar seed={$auth.user.id} class="h-full w-full rounded-full object-cover" />
         {:else}
           <User size={24} />
         {/if}
