@@ -13,6 +13,9 @@ interface TelegramWebApp {
   ready(): void;
   expand(): void;
   isVersionAtLeast?(version: string): boolean;
+  /** Bot API 8.0+. Reflects whether requestFullscreen() actually took —
+   *  never true on desktop clients, since prepareTelegramMiniApp never asks. */
+  isFullscreen?: boolean;
   onEvent?(eventType: 'contentSafeAreaChanged' | 'fullscreenChanged', callback: () => void): void;
   disableVerticalSwipes?(): void;
   enableClosingConfirmation?(): void;
@@ -42,6 +45,17 @@ interface TelegramWebApp {
     notificationOccurred(type: 'error' | 'success' | 'warning'): void;
     selectionChanged(): void;
   };
+}
+
+/**
+ * Only the fullscreen "floating chrome" spacing in app.css should ever be
+ * reserved — a client that never entered fullscreen (desktop, or an old
+ * client below Bot API 8.0) has no floating Close/menu controls to clear,
+ * so it must keep using the normal safe-area padding instead of the extra
+ * fixed floor meant for that overlay.
+ */
+function syncTelegramFullscreenClass(webApp: TelegramWebApp): void {
+  document.documentElement.classList.toggle('telegram-mini-app-fullscreen', !!webApp.isFullscreen);
 }
 
 function syncTelegramContentSafeArea(webApp: TelegramWebApp): void {
@@ -108,8 +122,12 @@ export function prepareTelegramMiniApp(): TelegramWebApp | null {
   // fullscreen. Mirror the live bridge value into our own stable CSS variable
   // so the app header always begins below Telegram's floating controls.
   safeBridgeCall('syncTelegramContentSafeArea', () => syncTelegramContentSafeArea(webApp));
+  safeBridgeCall('syncTelegramFullscreenClass', () => syncTelegramFullscreenClass(webApp));
   safeBridgeCall('onEvent(contentSafeAreaChanged)', () => webApp.onEvent?.('contentSafeAreaChanged', () => syncTelegramContentSafeArea(webApp)));
-  safeBridgeCall('onEvent(fullscreenChanged)', () => webApp.onEvent?.('fullscreenChanged', () => syncTelegramContentSafeArea(webApp)));
+  safeBridgeCall('onEvent(fullscreenChanged)', () => webApp.onEvent?.('fullscreenChanged', () => {
+    syncTelegramContentSafeArea(webApp);
+    syncTelegramFullscreenClass(webApp);
+  }));
 
   safeBridgeCall('ready', () => webApp.ready());
   safeBridgeCall('expand', () => webApp.expand());

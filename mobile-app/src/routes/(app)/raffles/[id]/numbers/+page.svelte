@@ -430,7 +430,7 @@
      parent layout entirely: it always exactly fills the screen, so only
      .picker-scroll (never the page itself) can ever need to scroll. */
   .number-picker { --picker-ink: #0a0a0a; --picker-muted: #566960; --picker-border: #c8d6d0; position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; background: #F5F7FC; padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
-  :global(html.telegram-mini-app) .number-picker { padding-top: var(--telegram-content-start); }
+  :global(html.telegram-mini-app.telegram-mini-app-fullscreen) .number-picker { padding-top: var(--telegram-content-start); }
   .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 210px; }
   :global(html:has(.number-picker)) { background: #F5F7FC; }
   :global(html:has(.number-picker) body) { background: #F5F7FC; }

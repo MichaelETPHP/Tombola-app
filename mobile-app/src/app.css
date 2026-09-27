@@ -263,10 +263,15 @@
 /* In Telegram fullscreen mode the host's Close/menu controls float over the
    WebView. Its content-safe inset is specifically the area below that chrome,
    so keep a small breathing gap after it. A 100px floor keeps the brand row
-   clear while tightening the previously over-generous 137px spacing. This
-   selector only exists after a signed Telegram Mini App launch, leaving the
-   native APK and browser/PWA spacing unchanged. */
-html.telegram-mini-app {
+   clear while tightening the previously over-generous 137px spacing. Gated on
+   .telegram-mini-app-fullscreen (set only once requestFullscreen actually
+   took — see telegram.ts), not just .telegram-mini-app: a client that never
+   went fullscreen (desktop, or an old client below Bot API 8.0) has no
+   floating chrome to clear, so it falls through to the normal safe-area-top
+   rule above instead of reserving dead space for an overlay that isn't
+   there. This is what was pushing the header below the fold on Telegram
+   Desktop once it stopped requesting fullscreen. */
+html.telegram-mini-app.telegram-mini-app-fullscreen {
   --telegram-content-start: max(
     100px,
     calc(var(--tg-content-safe-area-inset-top, 0px) + 12px),
@@ -274,7 +279,7 @@ html.telegram-mini-app {
   );
 }
 
-html.telegram-mini-app .safe-area-top {
+html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-top {
   padding-top: var(--telegram-content-start);
 }
 
@@ -284,7 +289,7 @@ html.telegram-mini-app .safe-area-top {
   top: max(44px, var(--safe-top));
 }
 
-html.telegram-mini-app .safe-area-floating-top {
+html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-floating-top {
   top: var(--telegram-content-start);
 }
 
