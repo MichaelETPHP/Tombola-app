@@ -25,7 +25,11 @@
     const raw = target.value.replace(/\D/g, '');
 
     if (raw.length > 1) {
-      // Pasted or autofilled — distribute across the remaining boxes.
+      // Platform SMS-autofill suggestion — always lands in whichever box
+      // has focus (normally box 0, the only one with room for it; see
+      // maxlength below) via a plain `input` event, not `paste`, so the
+      // explicit paste handler below doesn't see it. Fill from *this* box
+      // forward.
       const chars = raw.slice(0, length - i).split('');
       chars.forEach((c, offset) => {
         digits[i + offset] = c;
@@ -45,6 +49,30 @@
     if (raw && i < length - 1) {
       boxes[i + 1]?.focus();
     }
+  }
+
+  // A manual copy-paste from the SMS app can land on *any* box, not just
+  // the first — every box past index 0 caps `maxlength` at 1 (see below),
+  // which would otherwise silently truncate a pasted 6-digit code down to
+  // its single leftover character before `onInput` ever saw the rest.
+  // Reading the clipboard directly here, before that truncation happens,
+  // fills the whole code from the start regardless of which box the paste
+  // landed on — the same forgiving behavior banking/checkout OTP inputs
+  // give you.
+  async function onPaste(e: ClipboardEvent) {
+    const raw = (e.clipboardData?.getData('text') ?? '').replace(/\D/g, '');
+    if (!raw) return;
+    e.preventDefault();
+
+    const chars = raw.slice(0, length).split('');
+    chars.forEach((c, index) => {
+      digits[index] = c;
+    });
+    digits = digits;
+    const nextEmpty = digits.findIndex((d) => !d);
+    await tick();
+    (boxes[nextEmpty === -1 ? length - 1 : nextEmpty] ?? boxes[length - 1])?.focus();
+    syncValue();
   }
 
   function onKeydown(i: number, e: KeyboardEvent) {
@@ -72,6 +100,7 @@
       value={digit}
       on:input={(e) => onInput(i, e)}
       on:keydown={(e) => onKeydown(i, e)}
+      on:paste={onPaste}
       type="text"
       inputmode="numeric"
       enterkeyhint={i === length - 1 ? 'done' : 'next'}
