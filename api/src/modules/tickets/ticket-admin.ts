@@ -1,6 +1,7 @@
 import { sql } from '../../db/client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
+import { cancelPendingPayment } from '../../db/queries/payments.queries.js';
 
 /**
  * Given the scrambled display number a customer/support conversation refers
@@ -107,6 +108,50 @@ export async function findTicketBuyer(raffleId: string, ticketNumber: number): P
 
   const cipherKey = raffle.numberBlockStart !== null ? await getGlobalCipherKey() : null;
   return { ...row, displayNumber: formatDisplayNumber(raffle.numberBlockStart, cipherKey, ticketNumber) };
+}
+
+/**
+ * Manually frees a held-but-unpaid ticket number for someone else to buy —
+ * the "Release" action on the admin ticket grid's held-number modal, for a
+ * reservation that's stalled (checkout abandoned, or a USSD confirmation
+ * that's taking too long) rather than actually completing.
+ *
+ * Deliberately refuses anything with a verified charge attached
+ * (review_required) — that's real money already captured, which must go
+ * through the refund flow (see recordReviewedRefund), never a plain
+ * release. This check happens twice: once here for a clear, specific error
+ * message, and again — authoritatively — inside cancelPendingPayment's own
+ * atomic `WHERE status = 'pending' AND NOT review_required` condition, so
+ * a race with a webhook completing (or a charge verifying) in the same
+ * instant this runs can never be missed just because this pre-check read
+ * a moment-old snapshot.
+ */
+export async function adminReleaseHeldTicket(raffleId: string, ticketNumber: number, adminId: string): Promise<{ released: true }> {
+  const [claim] = await sql<{ paymentId: string | null; sold: boolean }[]>`
+    SELECT payment_id, sold FROM ticket_number_claims WHERE raffle_id = ${raffleId} AND ticket_number = ${ticketNumber}`;
+  if (!claim || !claim.paymentId || claim.sold) {
+    throw new AppError(404, 'This ticket is not currently held.');
+  }
+
+  const [payment] = await sql<{ status: string; reviewRequired: boolean }[]>`
+    SELECT status, review_required FROM payments WHERE id = ${claim.paymentId}`;
+  if (!payment) throw new AppError(404, 'The reservation for this ticket could not be found.');
+  if (payment.reviewRequired) {
+    throw new AppError(409, 'This ticket has a verified payment awaiting review — it must be refunded, not released. See Checkouts to reconcile.');
+  }
+  if (payment.status !== 'pending') {
+    throw new AppError(409, 'This reservation was just resolved — refresh to see its current state.');
+  }
+
+  const cancelled = await cancelPendingPayment(claim.paymentId);
+  if (!cancelled) {
+    throw new AppError(409, 'This reservation was just resolved (paid, or already released) — refresh to see its current state.');
+  }
+
+  await sql`INSERT INTO audit_log (actor_type, actor_id, action, entity_type, entity_id, metadata)
+    VALUES ('admin', ${adminId}, 'ticket.admin_released', 'payment', ${claim.paymentId}, ${sql.json({ raffleId, ticketNumber })})`;
+
+  return { released: true };
 }
 
 /** Records an externally completed refund. Does not call a refund gateway. */

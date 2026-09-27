@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { ticketInventory, recordReviewedRefund, findTicketBuyer } from '../tickets/ticket-admin.js';
+import { ticketInventory, recordReviewedRefund, findTicketBuyer, adminReleaseHeldTicket } from '../tickets/ticket-admin.js';
 import { findPaymentById } from '../../db/queries/payments.queries.js';
 import { verifyAndReconcileChapaPayment } from '../payments/payments.service.js';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
@@ -126,6 +126,20 @@ adminRoutes.get('/raffles/:id/tickets/:number/buyer', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
   const number = z.coerce.number().int().min(1).parse(c.req.param('number'));
   return c.json(await findTicketBuyer(id, number));
+});
+
+/**
+ * POST /admin/raffles/:id/tickets/:number/release
+ * Manually frees a held-but-unpaid ticket number — see
+ * adminReleaseHeldTicket for the safety reasoning. Owner-only and
+ * rate-limited: this is a financially sensitive action (it can put a
+ * still-active reservation back into circulation), not a routine one.
+ */
+adminRoutes.post('/raffles/:id/tickets/:number/release', requireRole('owner'), rateLimit({ max: 20, windowSeconds: 60 }), async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const number = z.coerce.number().int().min(1).parse(c.req.param('number'));
+  const result = await adminReleaseHeldTicket(id, number, c.get('admin')!.id);
+  return c.json(result);
 });
 
 adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
