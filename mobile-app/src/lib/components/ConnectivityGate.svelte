@@ -70,7 +70,7 @@
 
 {#if isBlocked}
   <div
-    class="safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#E7EEFC] px-5 text-ink"
+    class="app-frame-fixed safe-area-top safe-area-bottom fixed inset-0 z-[70] flex min-h-[100dvh] flex-col bg-[#E7EEFC] px-5 text-ink"
     role="alertdialog"
     aria-modal="true"
     aria-live="assertive"

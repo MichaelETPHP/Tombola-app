@@ -76,6 +76,16 @@
      each edge. */
   --safe-top: max(env(safe-area-inset-top), var(--native-safe-area-top, 0px));
   --safe-bottom: max(env(safe-area-inset-bottom), var(--native-safe-area-bottom, 0px), var(--telegram-content-safe-bottom, 0px));
+
+  /* This app has never had a desktop layout — nothing was ever designed to
+     fill a browser tab wider than a phone. Rather than stretch edge to
+     edge whenever it's opened outside a real phone context (a plain
+     browser tab, or the Telegram Mini App link opened outside Telegram),
+     everything caps at this width and centers, so it always reads as a
+     phone screen no matter how wide the window actually is. A no-op on an
+     actual phone, the native APK, and inside Telegram (mini app or
+     Desktop) — all of those already report a viewport at or under this. */
+  --app-max-width: 480px;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -127,6 +137,10 @@
   html {
     height: 100%;
     overflow-x: hidden;
+    /* Fills the letterbox space on either side of the centered body frame
+       (see --app-max-width) on anything wider than a phone. Invisible
+       everywhere else — body already covers the full width there. */
+    background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
   }
 
   /* Every scrollIntoView/scrollTo call in this app already passes its own
@@ -213,6 +227,20 @@
     min-height: 100vh;
     min-height: 100dvh;
     position: relative;
+    /* The phone-frame cap (see --app-max-width above). A plain width+margin
+       centering, not a transform: this app's whole scroll model depends on
+       html being the only real scroll container (see the comment on the
+       html rule below) — a transformed body would instead become the
+       containing block for every position:fixed descendant (BottomNav,
+       modals, the ticket picker), re-basing them to body's own full
+       document height instead of the viewport and breaking "stays pinned
+       while the page scrolls" for all of them. Plain max-width+margin
+       leaves position:fixed completely alone; only the persistent
+       full-bleed fixed elements below need their own matching override
+       for the same reason. */
+    max-width: var(--app-max-width);
+    margin-inline: auto;
+    box-shadow: 0 0 0 1px rgba(1, 53, 198, 0.06), 0 40px 100px -30px rgba(1, 41, 163, 0.28);
   }
 
   /* Subtle diagonal stripe texture overlay */
@@ -220,6 +248,10 @@
     content: '';
     position: fixed;
     inset: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    max-width: var(--app-max-width);
     opacity: 0.04;
     background: repeating-linear-gradient(
       45deg,
@@ -306,6 +338,28 @@ html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-floating-top {
 /* Keep the final page content scrollable above the raised navigation bar. */
 .native-bottom-nav-clearance {
   padding-bottom: calc(100px + var(--safe-bottom));
+}
+
+/* ─── Desktop letterbox frame — persistent/full-bleed fixed elements ────
+   body's own max-width+margin centers everything in normal document flow,
+   but position: fixed is always relative to the real viewport regardless
+   of body's width — so anything fixed that's meant to span "the whole
+   screen" (a persistent nav bar, a full-screen takeover) needs this same
+   left/right/margin override explicitly, or it stays stuck to the true
+   browser window's edges even while the content around it obeys the
+   frame. A plain click-catching backdrop (dimming the page behind a
+   popover/modal) is deliberately left alone — a full-window dim behind a
+   centered dialog is normal even on real desktop web apps, only the
+   dialog's own panel needs framing, not its backdrop. */
+.bottom-nav,
+.number-picker,
+.receipt-overlay,
+.lightbox,
+.app-frame-fixed {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: var(--app-max-width);
 }
 
 .tappable {

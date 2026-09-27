@@ -111,9 +111,21 @@
          now live only in the database (admin-editable, see SplashScreen.svelte),
          and this screen paints before any network request or JS can run —
          it can never depend on either. */
+      /* Matches the same phone-frame cap app.css applies to body once it
+         loads (--app-max-width) — hardcoded, not shared via a variable,
+         since this must render before app.css is guaranteed to have
+         applied. Keeps the very first paint from flashing full-bleed on a
+         wide desktop browser tab before immediately snapping narrow. */
+      html {
+        background: linear-gradient(135deg, #E1E9FC 0%, #C3D7F5 100%);
+      }
       #boot-splash {
         position: fixed;
         inset: 0;
+        left: 0;
+        right: 0;
+        margin-inline: auto;
+        max-width: 480px;
         z-index: 9999;
         overflow: hidden;
         background: linear-gradient(135deg, #E1E9FC 0%, #C3D7F5 100%);
