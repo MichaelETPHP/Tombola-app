@@ -58,6 +58,10 @@ export const statusColors = {
   // Payment status (admin user-detail page's "Payment activity" section)
   pending: { fg: colors.info, bg: colors.infoBg },
   refunded: { fg: colors.warning, bg: colors.warningBg },
+  // Chapa transactions page: a verified charge stuck without tickets,
+  // awaiting the admin's own review/refund flow — distinct from "pending"
+  // (still mid-checkout) since money already moved.
+  review: { fg: colors.warning, bg: colors.warningBg },
 
   pending_claim: { fg: colors.warning, bg: colors.warningBg },
   id_submitted: { fg: colors.info, bg: colors.infoBg },
