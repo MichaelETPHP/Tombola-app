@@ -37,6 +37,13 @@
   const pageSize = 5000;
   let availability: Availability | null = null;
   let selected: number[] = [];
+  // Reserves exactly enough room below the grid for the sticky footer
+  // below to rest on once it appears, instead of parking on top of the
+  // grid's own last row. Without this, position:sticky only ever pulls
+  // the footer down to its stuck offset — it never pushes the content
+  // above it out of the way itself, so the last row stayed covered no
+  // matter how far down you scrolled.
+  let footerHeight = 0;
   let start = 1;
   let error = '';
   let notice = '';
@@ -222,7 +229,12 @@
   {/if}
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<div class="picker-message allowance-limit" role="alert"><CircleAlert size={18} /><div><p class="allowance-limit-text">{$_('numbers.allowanceReached')}</p><a href="/tickets" class="allowance-limit-cta"><Ticket size={14} />{$_('numbers.viewMyTickets')}<ArrowRight size={14} /></a></div></div>{/if}
 
-  <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
+  <section
+    class="numbers-section"
+    aria-label={$_('numbers.gridSectionAria')}
+    aria-busy={refreshing}
+    style={selected.length ? `padding-bottom: ${footerHeight}px` : ''}
+  >
     <div class="grid-heading"><h2>{$_('numbers.wheelsHeading')}</h2><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
     {#if loading || manualRefreshing}
@@ -238,7 +250,7 @@
     {/if}
   </section>
   {#if selected.length}
-  <footer class="selection-footer">
+  <footer class="selection-footer" bind:clientHeight={footerHeight}>
     <div class="selection-caption">
       <div class="selection-caption-row"><strong>{$_('numbers.yourSelection')}</strong><span aria-live="polite">{availability ? $_('numbers.selectedSummary', { values: { n: selected.length, allowed: allowance } }) : $_('numbers.selectedCountOnly', { values: { n: selected.length } })}</span></div>
     </div>
