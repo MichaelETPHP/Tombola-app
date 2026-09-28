@@ -171,6 +171,15 @@
     right: 12px;
     display: grid;
     gap: 7px;
+    /* Some Android WebView versions leave a translated compositing layer's
+       *children* stale — a tap's class:selected change lands in the DOM
+       immediately, but doesn't actually repaint on screen until something
+       else forces that layer to recomposite, which scrolling happens to
+       do. Keeping this permanently promoted to its own layer (rather than
+       only during the translateY change itself, which is all scrolling
+       ever triggers) keeps child repaints synced to real state changes
+       instead of leaning on scroll as an accidental repaint trigger. */
+    will-change: transform;
   }
   .grid-window > button {
     position: relative;
