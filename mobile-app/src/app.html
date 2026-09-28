@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, minimum-scale=1, user-scalable=no" />
     <meta name="description" content="251ሎተሪ አሁኑኑ ዕድሎን ይሞክሩ በየትኛውም ሰዓት በማንኛውም ቦታ ግዙፍ ሽልማቶች እና ብሮችን ያሸንፉ !" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://251lottery.et/" />
     <meta name="theme-color" content="#0135C6" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.png" type="image/png" />
@@ -16,9 +15,16 @@
     <meta name="apple-mobile-web-app-title" content="251 Lottery" />
     <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
 
-    <!-- Open Graph — this is what Telegram, WhatsApp, Facebook, and
-         Messenger actually read for a link preview card (they check these
-         before ever looking at the plain <meta name="description"> above). -->
+    <!-- Open Graph — what Telegram, WhatsApp, Facebook, and Messenger read
+         for a link preview card. This app builds as a pure SPA fallback
+         (svelte.config.js: fallback: 'index.html', nothing marked
+         prerender=true) — every route serves this exact same file, so
+         these tags are necessarily identical everywhere (/, /home, every
+         raffle page). True per-route previews would need either a
+         different SPA fallback filename (which the actual web server/
+         Coolify config also has to be told about, or every non-prerendered
+         route 404s instead of falling back — not something to change
+         blind) or a real edge/server layer injecting tags per-URL. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://251lottery.et/" />
     <meta property="og:site_name" content="251 Lottery" />
