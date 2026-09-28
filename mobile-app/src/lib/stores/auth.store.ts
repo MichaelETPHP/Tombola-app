@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import { tickets } from './tickets.store.js';
 import { payouts } from './wins.store.js';
 import { payments } from './payments.store.js';
+import { resetUnreadRooms } from './unreadRooms.js';
 
 interface AuthState {
   accessToken: string | null;
@@ -60,6 +61,7 @@ export function clearAuth(): void {
   tickets.set([]);
   payouts.set([]);
   payments.set([]);
+  resetUnreadRooms();
 }
 
 /**

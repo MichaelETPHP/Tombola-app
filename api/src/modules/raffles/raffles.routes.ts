@@ -10,6 +10,9 @@ import { deleteUploadedImage, saveUploadedImage, uploadedImagePathFromPublicUrl 
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 import { generateSecureLink, sendDrawTrigger, resendDrawTrigger, reassignDrawTrigger, getRaffleEngine, assignDrawRepresentative, reassignDrawRepresentative } from '../draws/draws.service.js';
+import { availabilitySchema } from '../tickets/selection.js';
+import { getTicketAvailability } from '../../db/queries/ticket-availability.queries.js';
+import { z } from 'zod';
 
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024; // raw upload cap, well above any real photo — compression happens after
 
@@ -28,6 +31,12 @@ rafflesRoutes.get('/', async (c) => {
   // Sales filters belong to the admin list; paused open raffles stay public.
   const raffles = await listRaffles({ status: input.status ?? 'open', featured: input.featured, limit: input.limit, offset: input.offset });
   return c.json({ raffles });
+});
+
+rafflesRoutes.get('/:id/public-ticket-availability', async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const query = availabilitySchema.parse(c.req.query());
+  return c.json(await getTicketAvailability(id, null, query.start, query.limit));
 });
 
 /**

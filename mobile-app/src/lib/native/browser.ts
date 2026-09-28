@@ -12,8 +12,8 @@ import { clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
  * own back button. Cancels the payment server-side — atomically
  * conditioned on it still being 'pending', so this can never race a
  * webhook/verify call that completed it in the same instant — then routes
- * accordingly: to its receipt if payment completed, otherwise a fresh
- * number selection. A released reservation does not assert that a gateway
+ * accordingly: to its receipt if payment completed, otherwise back to the
+ * raffle's embedded number selection. A released reservation does not assert that a gateway
  * could never report a late debit; those payments go to refund review.
  */
 export async function cancelPaymentAndReturnHome(paymentId: string): Promise<void> {
@@ -21,7 +21,7 @@ export async function cancelPaymentAndReturnHome(paymentId: string): Promise<voi
     const { payment } = await api.post<{ payment: { status: string; raffleId: string } }>(`/payments/${paymentId}/cancel`);
     if (payment.status === 'failed') {
       clearPendingPurchase();
-      await goto(`/raffles/${payment.raffleId}/numbers`, { replaceState: true });
+      await goto(`/raffles/${payment.raffleId}`, { replaceState: true });
       showBanner(get(_)('apiErrors.reservationCancelled'));
     } else {
       await goto(`/payments/${paymentId}`, { replaceState: true });

@@ -10,12 +10,42 @@
   export let autoRedirect: boolean = true;
   export let redirectDelayMs: number = 4000;
 
+  const SPLASH_CACHE_KEY = 'yeneeta:splash-images:v1';
+
   // Slides are admin-editable (see /admin/splash) and live only in the
   // database now — no bundled fallback images ship with the app, so this
   // starts empty and the screen shows a plain branded loading state until
   // the real slide images arrive.
   let slideImages: [string | null, string | null] = [null, null];
   let slidesLoaded = false;
+  let imageReady: [boolean, boolean] = [false, false];
+
+  function readCachedSlideImages(): [string | null, string | null] | null {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SPLASH_CACHE_KEY) ?? 'null');
+      if (!Array.isArray(parsed) || parsed.length !== 2) return null;
+      return parsed.map((value) => typeof value === 'string' ? value : null) as [string | null, string | null];
+    } catch {
+      return null;
+    }
+  }
+
+  function cacheSlideImages(images: [string | null, string | null]) {
+    try {
+      localStorage.setItem(SPLASH_CACHE_KEY, JSON.stringify(images));
+    } catch {
+      // Storage can be unavailable in private WebViews; the live fetch still works.
+    }
+  }
+
+  function markImageReady(index: number) {
+    imageReady = imageReady.map((ready, i) => ready || i === index) as [boolean, boolean];
+  }
+
+  function markImageFailed(index: number) {
+    slideImages = slideImages.map((url, i) => i === index ? null : url) as [string | null, string | null];
+    imageReady = imageReady.map((ready, i) => ready || i === index) as [boolean, boolean];
+  }
 
   async function loadSlideImages() {
     try {
@@ -34,7 +64,9 @@
         const resolved = resolveImageUrl(slide.imageUrl);
         if (resolved && (slide.slot === 1 || slide.slot === 2)) next[slide.slot - 1] = resolved;
       }
+      imageReady = next.map((url, index) => url === slideImages[index] && imageReady[index]) as [boolean, boolean];
       slideImages = next;
+      cacheSlideImages(next);
     } catch {
       // Leaves slideImages empty — the branded loading state stays up
       // rather than showing a broken image.
@@ -72,10 +104,15 @@
     if (isNavigating) return;
     isNavigating = true;
     clearInterval(intervalId);
-    goto('/home', { replaceState: true });
+    void goto('/home', { replaceState: true });
   }
 
   onMount(() => {
+    const cached = readCachedSlideImages();
+    if (cached?.some(Boolean)) {
+      slideImages = cached;
+      slidesLoaded = true;
+    }
     void loadSlideImages();
 
     // Auto-swap slides every half of total delay
@@ -99,7 +136,7 @@
 </script>
 
 <div class="relative flex min-h-dvh w-full flex-col justify-between overflow-hidden bg-black text-white select-none">
-  {#if !slidesLoaded}
+  {#if !slidesLoaded || (slides[currentSlide].image && !imageReady[currentSlide])}
     <!-- Branded loading state — no bundled fallback images ship with the
          app anymore, slides only exist in the database, so this covers
          the moment before that fetch resolves. -->
@@ -108,17 +145,32 @@
     </div>
   {/if}
 
-  <!-- Background Images with Crossfade -->
+  <!-- Real images receive browser priority and decoding signals that CSS
+       backgrounds cannot, while preserving the same crossfade treatment. -->
   {#each slides as slide, index}
     <div
-      class="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
+      class="absolute inset-0 overflow-hidden transition-opacity duration-1000 ease-in-out"
       style="
-        {slide.image ? `background-image: url('${slide.image}');` : `background: linear-gradient(135deg, ${slide.color}55, #000 80%);`}
         opacity: {slidesLoaded && currentSlide === index ? 1 : 0};
         transform: scale({currentSlide === index ? 1.03 : 1});
         transition: opacity 1s ease-in-out, transform 4s ease-out;
       "
     >
+      {#if slide.image}
+        <img
+          src={slide.image}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          fetchpriority={index === 0 ? 'high' : 'auto'}
+          decoding="async"
+          class="h-full w-full object-cover object-center transition-opacity duration-300 {imageReady[index] ? 'opacity-100' : 'opacity-0'}"
+          on:load={() => markImageReady(index)}
+          on:error={() => markImageFailed(index)}
+        />
+      {:else}
+        <div class="h-full w-full" style="background: linear-gradient(135deg, {slide.color}55, #000 80%);"></div>
+      {/if}
       <!-- Gradient overlays for readability -->
       <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/95"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
@@ -209,6 +261,8 @@
       <button
         type="button"
         on:click={handleStart}
+        disabled={isNavigating}
+        aria-busy={isNavigating}
         class="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary font-bold text-base text-white shadow-lg shadow-primary/30 transition-transform active:scale-[0.98]"
       >
         {#if isNavigating}

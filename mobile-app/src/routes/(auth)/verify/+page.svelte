@@ -21,55 +21,28 @@
   let loading = false;
   let returnTo = '';
   let demoOtpEnabled = false;
-  let otpAbortController: AbortController | undefined;
 
-  interface OtpCredential extends Credential {
-    code: string;
-  }
-
-  /**
-   * WebOTP (Android Chrome only — no standard lib.dom.d.ts types exist for
-   * it, hence the `as any` on the request options) reads the incoming SMS
-   * directly: the code fills in with a single tap on the system's own
-   * confirmation sheet, no manual copy/paste or app-switching at all.
-   * iOS Safari has no equivalent API; its best available behavior is the
-   * QuickType suggestion bar, already covered by OtpInput's own
-   * autocomplete="one-time-code" on its first box. Requires the SMS's own
-   * text to end with the matching "@domain #code" line — see sms.ts's
-   * sendOtp — so this silently does nothing (falls through to manual
-   * entry) on a browser without the API or an SMS missing that line.
-   */
-  async function tryWebOtpAutofill() {
-    if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
-    otpAbortController = new AbortController();
-    try {
-      const cred = (await navigator.credentials.get({
-        otp: { transport: ['sms'] },
-        signal: otpAbortController.signal,
-      } as any)) as OtpCredential | null;
-      if (cred?.code) {
-        code = cred.code;
-        await tick();
-        await verifyCode(cred.code);
-      }
-    } catch {
-      // Aborted on navigation away, or the user dismissed the system
-      // prompt — the OTP boxes are always right there as the fallback.
-    }
-  }
-
-  const RESEND_COOLDOWN_S = 30;
+  const RESEND_COOLDOWN_S = 60;
   let resendCooldown = RESEND_COOLDOWN_S;
+  let resendAvailableAt = 0;
   let resendTimer: ReturnType<typeof setInterval> | undefined;
   let resending = false;
 
+  function updateResendCooldown() {
+    resendCooldown = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+    if (resendCooldown === 0) clearInterval(resendTimer);
+  }
+
   function startResendCooldown() {
-    resendCooldown = RESEND_COOLDOWN_S;
     clearInterval(resendTimer);
-    resendTimer = setInterval(() => {
-      resendCooldown -= 1;
-      if (resendCooldown <= 0) clearInterval(resendTimer);
-    }, 1000);
+    resendAvailableAt = Date.now() + RESEND_COOLDOWN_S * 1000;
+    updateResendCooldown();
+    resendTimer = setInterval(updateResendCooldown, 1000);
+  }
+
+  function formatCountdown(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
   }
 
   async function resend() {
@@ -119,15 +92,11 @@
       // through the exact same verification endpoint as a manually typed OTP.
       await tick();
       await verifyCode(code);
-    } else {
-      // Never race a real SMS listener against the instant demo-code path.
-      tryWebOtpAutofill();
     }
   });
 
   onDestroy(() => {
     clearInterval(resendTimer);
-    otpAbortController?.abort();
   });
 
   // No submit button — 6 digits is the whole input, so the code being
@@ -219,7 +188,7 @@
         ? 'text-muted'
         : 'text-primary-dark'}"
     >
-      {resendCooldown > 0 ? $_('verify.resendIn', { values: { s: resendCooldown } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
+      {resendCooldown > 0 ? $_('verify.resendIn', { values: { time: formatCountdown(resendCooldown) } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
     </button>
   </div>
 </div>

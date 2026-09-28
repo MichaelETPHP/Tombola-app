@@ -63,10 +63,10 @@ export async function reservePayment(data: {
         return { ok: true as const, payment: existing, raffle };
       }
     }
-    // Only unstarted checkouts expire automatically. Once payment is exposed,
-    // retain its exact numbers until the gateway gives an authoritative result.
+    // Every unpaid checkout has a bounded hold. Gateway callbacks still win
+    // atomically if payment completes before this expiry cleanup acquires the lock.
     await tx`UPDATE payments SET status = 'failed' WHERE raffle_id = ${data.raffleId}
-      AND status = 'pending' AND checkout_started_at IS NULL AND reservation_expires_at <= NOW()`;
+      AND status = 'pending' AND NOT review_required AND reservation_expires_at <= NOW()`;
     await tx`DELETE FROM ticket_number_claims c USING payments p WHERE c.payment_id = p.id
       AND c.raffle_id = ${data.raffleId} AND NOT c.sold AND p.status IN ('failed', 'refunded') AND NOT p.review_required`;
     const [active] = await tx<DbPayment[]>`SELECT * FROM payments WHERE raffle_id = ${data.raffleId}
@@ -496,11 +496,10 @@ export async function updatePaymentStatus(id: string, status: PaymentStatus, met
   return transitionPendingPayment(id, status, false, meta);
 }
 
-export async function expireUnstartedPayments(): Promise<void> {
+export async function expirePendingPayments(): Promise<void> {
   const rows = await sql<{ id: string }[]>`SELECT id FROM payments WHERE status = 'pending'
-    AND NOT review_required AND checkout_started_at IS NULL AND reservation_expires_at <= NOW() LIMIT 100`;
-  // Recheck unstarted under lock: checkout may start after the sweep's SELECT.
-  for (const row of rows) await transitionPendingPayment(row.id, 'failed', true);
+    AND NOT review_required AND reservation_expires_at <= NOW() LIMIT 100`;
+  for (const row of rows) await transitionPendingPayment(row.id, 'failed');
 }
 
 export interface DbPaymentWithDetails {

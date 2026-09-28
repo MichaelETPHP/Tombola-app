@@ -19,6 +19,7 @@
   const ROOMS_POLL_INTERVAL_MS = 5000;
   let roomsPollTimer: ReturnType<typeof setInterval> | undefined;
   let roomsPollInFlight = false;
+  let hasStartedRoomPolling = false;
 
   function openRoomIdFromPath(pathname: string): string | undefined {
     return /^\/rooms\/([^/]+)/.exec(pathname)?.[1];
@@ -42,6 +43,13 @@
   function handleVisibilityChange() {
     if (!document.hidden) void pollGlobalRooms();
   }
+
+  $: if ($auth.isAuthenticated && !hasStartedRoomPolling) {
+    hasStartedRoomPolling = true;
+    void pollGlobalRooms();
+  }
+
+  $: if (!$auth.isAuthenticated) hasStartedRoomPolling = false;
 
   onMount(() => {
     initChatSound();

@@ -15,6 +15,7 @@ import { payoutsRoutes, adminPayoutsRoutes } from './modules/payouts/payouts.rou
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { adminContactsRoutes } from './modules/contacts/contacts.routes.js';
 import { splashRoutes, adminSplashRoutes } from './modules/splash/splash.routes.js';
+import { i18nRoutes, adminI18nRoutes } from './modules/i18n/i18n.routes.js';
 import { roomsRoutes, myRoomsRoutes, adminRoomsRoutes } from './modules/rooms/rooms.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { diagnosticsRoutes } from './modules/diagnostics/diagnostics.routes.js';
@@ -151,6 +152,7 @@ app.route('/raffles', rafflesRoutes);
 app.route('/draws', drawsRoutes);
 app.route('/payments', paymentsRoutes);
 app.route('/splash', splashRoutes);
+app.route('/translations', i18nRoutes);
 
 // ─── Authenticated User Routes ────────────────────────────────────
 
@@ -171,6 +173,7 @@ app.route('/admin/payouts', adminPayoutsRoutes);
 app.route('/admin/payments', adminPaymentsRoutes);
 app.route('/admin/contacts', adminContactsRoutes);
 app.route('/admin/splash', adminSplashRoutes);
+app.route('/admin/translations', adminI18nRoutes);
 
 app.notFound((c) => c.json({
   error: c.get('t')('common.notFound'),

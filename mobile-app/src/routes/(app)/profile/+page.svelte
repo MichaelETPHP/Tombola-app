@@ -19,6 +19,7 @@
   import { payments as paymentsStore, type PaymentHistoryItem } from '$lib/stores/payments.store.js';
   import { tickets as ticketsStore, type Ticket } from '$lib/stores/tickets.store.js';
   import { toEthiopianDateTime } from '$lib/utils/ethiopianDate.js';
+  import { unreadRoomCount } from '$lib/stores/unreadRooms.js';
 
   const pullRefresh = getPullRefreshContext();
 
@@ -46,6 +47,7 @@
   let fullName = $auth.user?.fullName ?? '';
   let preferredLanguage: AppLanguage = $auth.user?.preferredLanguage ?? ($language === 'am' ? 'am' : 'en');
   let saving = false;
+  let loggingOut = false;
   let error = '';
   let editOpen = false;
 
@@ -112,6 +114,7 @@
   $: pullRefresh.set($auth.isAuthenticated ? refreshAll : null);
 
   async function save() {
+    if (saving) return;
     error = '';
     saving = true;
     try {
@@ -137,6 +140,8 @@
   }
 
   async function logout() {
+    if (loggingOut) return;
+    loggingOut = true;
     hapticLight();
     try {
       // Best-effort — clears the httpOnly refresh cookie server-side so
@@ -278,6 +283,12 @@
         <p class="text-sm font-semibold text-ink">{$_('profile.myRooms')}</p>
         <p class="text-xs text-muted">{$_('profile.myRoomsBody')}</p>
       </div>
+      <span
+        class="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-coral-start px-1.5 font-mono text-[11px] font-bold leading-none text-white"
+        aria-label={$_('nav.unreadChats', { values: { count: $unreadRoomCount } })}
+      >
+        {$unreadRoomCount > 99 ? '99+' : $unreadRoomCount}
+      </span>
       <ChevronRight size={16} class="shrink-0 text-muted" />
     </a>
 
@@ -394,6 +405,6 @@
       {/if}
     </section>
 
-    <Button variant="danger" on:click={logout}>{$_('profile.logOut')}</Button>
+    <Button variant="danger" loading={loggingOut} on:click={logout}>{$_('profile.logOut')}</Button>
   </div>
 {/if}
