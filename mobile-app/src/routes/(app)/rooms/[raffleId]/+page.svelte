@@ -9,7 +9,7 @@
   import { auth } from '$lib/stores/auth.store.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { hapticLight } from '$lib/native/haptics.js';
-  import { dicebearAvatarUri } from '$lib/utils/avatar.js';
+  import DicebearAvatar from '$lib/components/DicebearAvatar.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { ChevronLeft, Lock, Send, Ticket, Bell, BellOff, ChevronDown, Check, ExternalLink, MessageCircle } from 'lucide-svelte';
   import type { Raffle, RoomMessage } from '$lib/schemas/index.js';
@@ -367,10 +367,15 @@
                       <span
                         class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-gold to-[#e0921a] text-white shadow-sm"
                       ><Ticket size={13} /></span>
-                    {:else}
+                    {:else if message.senderTelegramPhotoUrl}
                       <img
-                        src={message.senderTelegramPhotoUrl || (message.senderAvatarSeed ? dicebearAvatarUri(message.senderAvatarSeed) : '')}
+                        src={message.senderTelegramPhotoUrl}
                         alt=""
+                        class="h-7 w-7 rounded-full border-2 border-card bg-bg-start object-cover shadow-sm"
+                      />
+                    {:else if message.senderAvatarSeed}
+                      <DicebearAvatar
+                        seed={message.senderAvatarSeed}
                         class="h-7 w-7 rounded-full border-2 border-card bg-bg-start object-cover shadow-sm"
                       />
                     {/if}

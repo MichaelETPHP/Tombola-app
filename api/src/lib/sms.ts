@@ -64,7 +64,10 @@ export function toE164(phone: string): string {
  * itself replaced.
  */
 function messageForLog(event: string, message: string): string {
-  return event === 'otp' ? message.replace(/\d{4,8}/, '••••••') : message;
+  // Global, not just the first match — the OTP text now repeats the code a
+  // second time in its WebOTP domain-binding suffix (see sendOtp below), so
+  // a single-match replace would leave that second copy readable in the log.
+  return event === 'otp' ? message.replace(/\d{4,8}/g, '••••••') : message;
 }
 
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
@@ -292,12 +295,22 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
     return { success: true, messageId: 'demo-mode' };
   }
 
+  const body = locale === 'am'
+    ? `የ251 Lottery ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
+    : `Your 251 Lottery verification code is ${code}. It is valid for 5 minutes.`;
+
+  // The WebOTP API (Android Chrome) auto-fills the code with no manual
+  // copy/paste at all, but only when the SMS's *last* line is exactly this
+  // "@domain #code" format, and only when that domain matches the origin
+  // calling navigator.credentials.get() exactly — no protocol, no path, no
+  // trailing slash (see verify/+page.svelte). Every other SMS app/OS just
+  // shows it as a harmless trailing line, so it's safe to always append.
+  const domain = new URL(env.MOBILE_APP_URL).hostname;
+
   return sendSms({
     to: phone,
     event: 'otp',
-    message: locale === 'am'
-      ? `የ251 Lottery ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
-      : `Your 251 Lottery verification code is ${code}. It is valid for 5 minutes.`,
+    message: `${body}\n\n@${domain} #${code}`,
   });
 }
 

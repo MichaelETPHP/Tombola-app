@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { _ } from 'svelte-i18n';
@@ -18,6 +18,24 @@
   let flashMessage: string | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let appliedFocusNonce = -1;
+  let resizeObserver: ResizeObserver | undefined;
+  let columns = 4;
+  let scrollTop = 0;
+  let viewportHeight = 440;
+
+  const CELL_MIN_WIDTH = 72;
+  const CELL_HEIGHT = 42;
+  const GRID_GAP = 7;
+  const GRID_PADDING = 12;
+  const ROW_HEIGHT = CELL_HEIGHT + GRID_GAP;
+  const OVERSCAN_ROWS = 4;
+
+  $: rowCount = Math.ceil(rows.length / columns);
+  $: firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS);
+  $: lastVisibleRow = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN_ROWS);
+  $: visibleRows = rows.slice(firstVisibleRow * columns, lastVisibleRow * columns);
+  $: gridHeight = GRID_PADDING * 2 + Math.max(0, rowCount * ROW_HEIGHT - GRID_GAP);
+  $: visibleTop = GRID_PADDING + firstVisibleRow * ROW_HEIGHT;
 
   const isSelected = (number: number) => selectedNumbers.includes(number);
   const isPickable = (row: { number: number; state: NumberState }) => row.state === 'available' || isSelected(row.number);
@@ -51,6 +69,7 @@
 
   function handleScroll() {
     if (!container) return;
+    scrollTop = container.scrollTop;
     if (performance.now() < suppressTicksUntil) {
       lastTickScrollTop = container.scrollTop;
       return;
@@ -63,18 +82,36 @@
   }
 
   async function scrollToFocused() {
-    await tick();
     if (!container || focusNumber === null) return;
-    const el = container.querySelector<HTMLElement>(`[data-number="${focusNumber}"]`);
-    if (!el) return;
+    const index = rows.findIndex((row) => row.number === focusNumber);
+    if (index < 0) return;
+    const targetRow = Math.floor(index / columns);
+    const targetTop = GRID_PADDING + targetRow * ROW_HEIGHT - (container.clientHeight - CELL_HEIGHT) / 2;
     suppressTicksUntil = performance.now() + 700;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
   }
 
   $: if (focusNonce > 0 && focusNonce !== appliedFocusNonce) {
     appliedFocusNonce = focusNonce;
     void scrollToFocused();
   }
+
+  onMount(() => {
+    const measure = () => {
+      if (!container) return;
+      viewportHeight = container.clientHeight;
+      const innerWidth = Math.max(0, container.clientWidth - GRID_PADDING * 2);
+      columns = Math.max(1, Math.floor((innerWidth + GRID_GAP) / (CELL_MIN_WIDTH + GRID_GAP)));
+    };
+    measure();
+    resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(container);
+  });
+
+  onDestroy(() => {
+    resizeObserver?.disconnect();
+    clearTimeout(flashTimer);
+  });
 </script>
 
 <div class="grid-shell">
@@ -91,40 +128,51 @@
     aria-multiselectable="true"
     on:scroll={handleScroll}
   >
-    {#each rows as row (row.number)}
-      <button
-        type="button"
-        data-number={row.number}
-        role="option"
-        aria-selected={isSelected(row.number)}
-        aria-disabled={!isPickable(row)}
-        class:unavailable={!isPickable(row)}
-        class:sold={row.state === 'sold' && !isSelected(row.number)}
-        class:held-elsewhere={row.state === 'held' && !isSelected(row.number)}
-        class:yours={(row.state === 'owned' || row.state === 'held_by_you') && !isSelected(row.number)}
-        class:selected={isSelected(row.number)}
-        on:click={() => tap(row)}
-      >
-        {row.displayNumber}
-        {#if isSelected(row.number)}<Check size={11} strokeWidth={3} aria-hidden="true" />{/if}
-      </button>
-    {/each}
+    <div class="grid-spacer" style:height="{gridHeight}px" aria-hidden="true"></div>
+    <div class="grid-window" style:transform="translateY({visibleTop}px)" style:grid-template-columns="repeat({columns}, minmax(0, 1fr))">
+      {#each visibleRows as row, visibleIndex (row.number)}
+        <button
+          type="button"
+          data-number={row.number}
+          role="option"
+          aria-posinset={firstVisibleRow * columns + visibleIndex + 1}
+          aria-setsize={rows.length}
+          aria-selected={isSelected(row.number)}
+          aria-disabled={!isPickable(row)}
+          class:unavailable={!isPickable(row)}
+          class:sold={row.state === 'sold' && !isSelected(row.number)}
+          class:held-elsewhere={row.state === 'held' && !isSelected(row.number)}
+          class:yours={(row.state === 'owned' || row.state === 'held_by_you') && !isSelected(row.number)}
+          class:selected={isSelected(row.number)}
+          on:click={() => tap(row)}
+        >
+          {row.displayNumber}
+          {#if isSelected(row.number)}<Check size={11} strokeWidth={3} aria-hidden="true" />{/if}
+        </button>
+      {/each}
+    </div>
   </div>
 </div>
 
 <style>
   .grid-shell { position: relative; border-radius: 14px; background: rgba(255,255,255,.82); box-shadow: 0 13px 30px -24px rgba(8,14,73,.55); }
   .grid-scroll {
+    position: relative;
     max-height: min(46vh, 440px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-    gap: 7px;
-    padding: 12px;
   }
-  .grid-scroll > button {
+  .grid-spacer { width: 1px; pointer-events: none; }
+  .grid-window {
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 12px;
+    display: grid;
+    gap: 7px;
+  }
+  .grid-window > button {
     position: relative;
     display: flex;
     align-items: center;
@@ -140,14 +188,14 @@
     font-variant-numeric: tabular-nums;
     transition: transform 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
   }
-  .grid-scroll > button:not(:disabled):active { transform: scale(.95); }
-  .grid-scroll > button.selected { background: #0129A3; border-color: #0129A3; color: #fff; }
-  .grid-scroll > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #F1F3FA; }
+  .grid-window > button:not(:disabled):active { transform: scale(.95); }
+  .grid-window > button.selected { background: #0129A3; border-color: #0129A3; color: #fff; }
+  .grid-window > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #F1F3FA; }
   /* Sold — gone for good, to someone else — reads as the loudest "no" of
      the three unavailable states: a red strike, not just a muted one. */
-  .grid-scroll > button.sold { color: #CC1421; opacity: .85; background: #fdecee; border-color: rgba(204,20,33,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
-  .grid-scroll > button.held-elsewhere { color: #B23A45; background: #FBE7E8; opacity: 1; text-decoration: none; border-color: rgba(178,58,69,.2); }
-  .grid-scroll > button.yours { color: #0129A3; background: #D6E1F9; opacity: 1; text-decoration: none; border-color: rgba(1,41,163,.25); }
+  .grid-window > button.sold { color: #CC1421; opacity: .85; background: #fdecee; border-color: rgba(204,20,33,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+  .grid-window > button.held-elsewhere { color: #B23A45; background: #FBE7E8; opacity: 1; text-decoration: none; border-color: rgba(178,58,69,.2); }
+  .grid-window > button.yours { color: #0129A3; background: #D6E1F9; opacity: 1; text-decoration: none; border-color: rgba(1,41,163,.25); }
   .grid-flash { position: absolute; z-index: 6; top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 6px 11px; border-radius: 999px; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 8px 18px -8px rgba(0,0,0,.45); pointer-events: none; }
   /* iOS-picker-style edge fades — signal "there's more above/below" the
      same way a UIPickerView's top/bottom mask does, without a hard visual
@@ -155,5 +203,5 @@
   .grid-fade { position: absolute; z-index: 3; pointer-events: none; left: 1px; right: 1px; height: 28px; }
   .grid-fade.top { top: 1px; background: linear-gradient(to bottom, rgba(255,255,255,.88) 15%, rgba(255,255,255,0)); border-radius: 14px 14px 0 0; }
   .grid-fade.bottom { bottom: 1px; background: linear-gradient(to top, rgba(255,255,255,.88) 15%, rgba(255,255,255,0)); border-radius: 0 0 14px 14px; }
-  @media (prefers-reduced-motion: reduce) { .grid-scroll > button { transition: none; } .grid-scroll > button:not(:disabled):active { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .grid-window > button { transition: none; } .grid-window > button:not(:disabled):active { transform: none; } }
 </style>
