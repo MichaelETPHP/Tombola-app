@@ -18,13 +18,15 @@
   // the Profile tab no matter what screen the user is actually looking at.
   const ROOMS_POLL_INTERVAL_MS = 5000;
   let roomsPollTimer: ReturnType<typeof setInterval> | undefined;
+  let roomsPollInFlight = false;
 
   function openRoomIdFromPath(pathname: string): string | undefined {
     return /^\/rooms\/([^/]+)/.exec(pathname)?.[1];
   }
 
   async function pollGlobalRooms() {
-    if (!$auth.isAuthenticated) return;
+    if (!$auth.isAuthenticated || document.hidden || roomsPollInFlight) return;
+    roomsPollInFlight = true;
     try {
       const res = await api.get<{ rooms: RoomSummary[] }>('/rooms');
       const openRoomId = openRoomIdFromPath($page.url.pathname);
@@ -32,16 +34,24 @@
       if (hasNew) playChatSound();
     } catch {
       // A missed poll just gets picked up on the next tick.
+    } finally {
+      roomsPollInFlight = false;
     }
+  }
+
+  function handleVisibilityChange() {
+    if (!document.hidden) void pollGlobalRooms();
   }
 
   onMount(() => {
     initChatSound();
     roomsPollTimer = setInterval(pollGlobalRooms, ROOMS_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   });
 
   onDestroy(() => {
     clearInterval(roomsPollTimer);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
   });
 
   // No blanket auth gate here — home, raffles, and raffle detail are all

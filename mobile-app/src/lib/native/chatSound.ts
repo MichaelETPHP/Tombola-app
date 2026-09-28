@@ -12,7 +12,9 @@ let unlocked = false;
 export function initChatSound(): void {
   if (audio || typeof window === 'undefined') return;
   audio = new Audio(SOUND_URL);
-  audio.preload = 'auto';
+  // Do not spend startup bandwidth on optional audio. The first real user
+  // gesture below both unlocks playback and starts loading the tiny clip.
+  audio.preload = 'none';
   // Mobile WebKit/Chrome refuse any programmatic play() that didn't
   // originate in a real gesture — including one fired from a poll timer —
   // until the same element has been played once inside an actual tap.
