@@ -1,5 +1,6 @@
 import { locale } from 'svelte-i18n';
 import { initI18n } from '$lib/i18n/index.js';
+import { loadLiveTranslations } from '$lib/i18n/liveTranslations.js';
 
 export type AppLanguage = 'en' | 'am';
 const STORAGE_KEY = 'yeneeta:language';
@@ -38,14 +39,19 @@ function detectInitial(): AppLanguage {
  * SPA, so top-level localStorage/navigator access would run during
  * prerendering, where they don't exist.
  */
-export function initLanguage(): Promise<void> {
+export async function initLanguage(): Promise<void> {
   const detected = detectInitial();
   document.documentElement.lang = detected;
-  return initI18n(detected);
+  await initI18n(detected);
+  // Fire-and-forget, deliberately not part of this function's own promise
+  // — see loadLiveTranslations' own doc comment for why it must never
+  // hold up boot.
+  void loadLiveTranslations(detected);
 }
 
 export function setLanguage(value: AppLanguage): void {
   locale.set(value);
   localStorage.setItem(STORAGE_KEY, value);
   document.documentElement.lang = value;
+  void loadLiveTranslations(value);
 }

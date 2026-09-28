@@ -88,6 +88,29 @@
     clearTimeout(scriptTimeout);
   }
 
+  // Chapa's own inline.js queries the DOM by id for its own status-text
+  // updates without a null check first. Retrying (container.replaceChildren()
+  // above) wipes those nodes out from under a still-settling *previous*
+  // widget instance's async internals (icon fetches, etc.) — its own later
+  // callback then throws "Cannot set properties of null (setting
+  // 'textContent')" as an unhandled rejection we have no call stack to
+  // catch, since it fires from Chapa's own code, not ours. It never affects
+  // our payment flow (confirmation is entirely server-side, via webhook/
+  // polling, not this widget's own DOM updates succeeding) — narrowly
+  // matched by message + originating file so this can never mask an
+  // unrelated real bug.
+  function isKnownChapaInlineNoise(reason: unknown): boolean {
+    const err = reason instanceof Error ? reason : null;
+    return (
+      !!err &&
+      err.message.includes("Cannot set properties of null (setting 'textContent')") &&
+      (err.stack ?? '').includes('inline.js')
+    );
+  }
+  function suppressChapaInlineNoise(event: PromiseRejectionEvent): void {
+    if (isKnownChapaInlineNoise(event.reason)) event.preventDefault();
+  }
+
   function loadChapaScript(forceReload = false): Promise<void> {
     return new Promise((resolve, reject) => {
       if (window.ChapaCheckout && !forceReload) {
@@ -290,6 +313,7 @@
 
   onMount(async () => {
     pullRefresh.set(null);
+    window.addEventListener('unhandledrejection', suppressChapaInlineNoise);
     const params = $page.url.searchParams;
     paymentId = params.get('paymentId') ?? '';
     invalid = !/^[0-9a-f-]{36}$/i.test(paymentId);
@@ -304,6 +328,7 @@
   onDestroy(() => {
     clearRuntimeChecks();
     clearInterval(countdownTimer);
+    window.removeEventListener('unhandledrejection', suppressChapaInlineNoise);
     // Navigation is not proof that a gateway charge failed. Keep server state.
   });
 </script>

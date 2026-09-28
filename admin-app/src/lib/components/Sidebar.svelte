@@ -5,7 +5,7 @@
   import { toast } from '../stores/toast.store.js';
   import { afterNavigate, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { AlertTriangle, Bug, ChartNoAxesCombined, ChevronDown, Contact, CreditCard, DatabaseBackup, FileClock, Image, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, Ticket, Users, X } from 'lucide-svelte';
+  import { AlertTriangle, Bug, ChartNoAxesCombined, ChevronDown, Contact, CreditCard, DatabaseBackup, FileClock, Image, Languages, LogOut, Menu, MessageSquareText, PackageCheck, Plug, Settings, Ticket, Users, X } from 'lucide-svelte';
 
   let drawer: HTMLDialogElement;
   let menuButton: HTMLButtonElement;
@@ -24,6 +24,7 @@
     { href: '/payments/chapa-transactions', label: 'Chapa transactions', icon: CreditCard },
     { href: '/audit-log', label: 'Audit trail', icon: FileClock },
     { href: '/splash', label: 'Splash screen', icon: Image },
+    { href: '/translations', label: 'Translations', icon: Languages },
     ...($auth.admin?.role === 'owner' ? [
       { href: '/integrations', label: 'Integrations', icon: Plug },
       { href: '/sms', label: 'SMS log', icon: MessageSquareText },
