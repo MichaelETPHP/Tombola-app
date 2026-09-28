@@ -25,6 +25,8 @@ node_modules/
 # Local dev scripts and notes — personal environment tooling, not app code
 *.bat
 *.txt
+# ...except real static assets the site actually serves.
+!mobile-app/static/robots.txt
 
 # Local sample/test data (contact imports, etc.) — never meant for the repo
 *.csv
