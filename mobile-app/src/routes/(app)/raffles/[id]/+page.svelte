@@ -8,19 +8,18 @@
   import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
-  import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
+  import { setPendingPurchase } from '$lib/stores/pendingPurchase.js';
   import { raffles, type Raffle } from '$lib/stores/raffles.store.js';
   import Button from '$lib/components/Button.svelte';
   import PrizeImage from '$lib/components/PrizeImage.svelte';
   import RaffleDetailSkeleton from '$lib/components/RaffleDetailSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
-  import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { shareYeneEtaContent, copyText } from '$lib/native/capabilities.js';
   import { showBanner } from '$lib/stores/banner.store.js';
-  import { CalendarClock, Check, ChevronLeft, Info, Minus, Phone, Plus, Share2, ShieldCheck, Ticket, X } from 'lucide-svelte';
+  import { CalendarClock, Check, ChevronLeft, Info, Phone, Share2, ShieldCheck, X } from 'lucide-svelte';
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   const RAFFLE_BOT_LINK = 'https://t.me/lottery251_bot';
@@ -53,11 +52,8 @@
   // (ticketsSold, status) without ever flashing a loading state.
   let raffle: Raffle | null = get(raffles).find((r) => r.id === $page.params.id) ?? null;
   let loading = !raffle;
-  let quantity = 1;
   let purchasing = false;
-  let purchaseStage: 'reserving' | 'opening' = 'reserving';
   let error = '';
-  let resumedFromAuth = false;
   let agreedToTerms = false;
   let termsOpen = false;
   let termsShake = false;
@@ -65,6 +61,13 @@
   let descEl: HTMLParagraphElement | undefined;
   let descExpanded = false;
   let descOverflowing = false;
+  let TicketNumberSelector: (typeof import('$lib/components/TicketNumberSelector.svelte'))['default'] | null = null;
+
+  $: if ($auth.isAuthenticated && !TicketNumberSelector) {
+    void import('$lib/components/TicketNumberSelector.svelte').then((module) => {
+      TicketNumberSelector = module.default;
+    });
+  }
 
   async function checkDescOverflow() {
     await tick();
@@ -180,7 +183,6 @@
   }
 
   onMount(async () => {
-    document.documentElement.classList.add('raffle-detail-lock');
     pageVisible = !document.hidden;
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -197,49 +199,26 @@
       await tick();
       startAutoAdvance();
     }
-    const pending = getPendingPurchase();
-    if (pending && raffle && pending.raffleId === raffle.id) {
-      quantity = Math.min(pending.quantity, raffle.maxTicketsPerUser, 4);
-      resumedFromAuth = $auth.isAuthenticated;
-    }
   });
 
   onDestroy(() => {
     stopAutoAdvance();
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.documentElement.classList.remove('raffle-detail-lock');
     }
   });
 
   function handleBuyClick() {
-    if (purchasing) return;
-    if (!agreedToTerms) {
-      termsShake = false;
-      requestAnimationFrame(() => (termsShake = true));
-      hapticLight();
-      return;
-    }
-    purchase();
-  }
-
-  async function purchase() {
-    if (!raffle || !agreedToTerms || purchasing) return;
+    if (!raffle || purchasing) return;
     purchasing = true;
     hapticMedium();
-    try {
-      await goto(`/raffles/${raffle.id}/numbers`);
-    } finally {
-      purchasing = false;
-    }
+    setPendingPurchase({ raffleId: raffle.id, quantity: 0, selectedNumbers: [] });
+    void goto(`/login?returnTo=${encodeURIComponent(`/raffles/${raffle.id}`)}`);
   }
 
   // Ticket availability still gates purchasing internally — just never
   // rendered as a "N left" figure per the no-scarcity-numbers direction.
   $: ticketsRemaining = raffle ? Math.max(0, raffle.ticketCap - raffle.ticketsSold) : 0;
-  $: maxAllowed = raffle ? Math.max(1, Math.min(4, raffle.maxTicketsPerUser, ticketsRemaining || 1)) : 4;
-  $: odds = raffle && raffle.ticketsSold + quantity > 0 ? (quantity / (raffle.ticketsSold + quantity)) * 100 : 0;
-  $: oddsDisplay = odds === 0 ? '0%' : odds < 0.1 ? '<0.1%' : `${odds.toFixed(1)}%`;
   $: rankedPrizes = raffle?.prizes && raffle.prizes.length > 1 ? [...raffle.prizes].sort((a, b) => a.tier - b.tier) : [];
 </script>
 
@@ -339,11 +318,13 @@
       {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
         <div class="raffle-actions px-4 pb-3.5 pt-3">
           {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
-          <div class="mt-3">
-            <Button variant="glass" size="lg" shine loading={purchasing} on:click={handleBuyClick}>
-              <Ticket size={17} /> {$_('raffle.chooseTicketNumbers')}
-            </Button>
-          </div>
+          {#if !$auth.isAuthenticated}
+            <div class="mt-3">
+              <Button variant="glass" size="lg" shine loading={purchasing} on:click={handleBuyClick}>
+                <Phone size={17} /> {$_('raffle.signInToChoose')}
+              </Button>
+            </div>
+          {/if}
 
           <div class="terms-consent mt-2.5 flex min-h-11 items-stretch overflow-hidden rounded-[14px] bg-bg-start/65">
             <button type="button" role="checkbox" aria-checked={agreedToTerms} on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable flex min-h-11 min-w-0 flex-1 items-center gap-2.5 px-3 text-left">
@@ -378,6 +359,16 @@
         </div>
       {/if}
     </section>
+
+    {#if $auth.isAuthenticated && raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
+      <section class="number-selector-section py-4">
+        {#if TicketNumberSelector}
+          <svelte:component this={TicketNumberSelector} {raffle} {agreedToTerms} />
+        {:else}
+          <div class="h-80 animate-pulse rounded-[14px] bg-bg-start" aria-label={$_('numbers.loadingWheelsAria')}></div>
+        {/if}
+      </section>
+    {/if}
   </article>
 {/if}
 
@@ -438,9 +429,7 @@
 {/if}
 
 <style>
-  :global(html.raffle-detail-lock),
-  :global(html.raffle-detail-lock body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
-  .raffle-screen { display: flex; height: calc(100dvh - max(44px, var(--safe-top)) - 120px - var(--safe-bottom)); min-height: 0; flex-direction: column; gap: 10px; overflow: hidden; touch-action: pan-x; overscroll-behavior-y: none; }
+  .raffle-screen { display: flex; min-height: 0; flex-direction: column; gap: 10px; padding-bottom: 20px; }
   .raffle-cover { width: 100%; aspect-ratio: var(--raffle-artwork-ratio); flex: 0 0 auto; }
   .prize-glass-flash {
     z-index: 1;

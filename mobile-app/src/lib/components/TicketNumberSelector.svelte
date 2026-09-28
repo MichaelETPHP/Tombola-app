@@ -12,12 +12,14 @@
   import { playSelectionSound } from '$lib/native/selectionSound.js';
   import { cancelPaymentAndReturnHome } from '$lib/native/browser.js';
   import { hapticLight } from '$lib/native/haptics.js';
-  import { navigateBack } from '$lib/native/navigateBack.js';
   import { openCheckout, paymentReturnTarget } from '$lib/native/browser.js';
   import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
   import TicketNumberGrid from '$lib/components/TicketNumberGrid.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
-  import { ArrowLeft, ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Search, Ticket, X } from 'lucide-svelte';
+  import { ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Search, Ticket, X } from 'lucide-svelte';
+
+  export let raffle: Raffle;
+  export let agreedToTerms = false;
 
   type NumberState = 'available' | 'sold' | 'owned' | 'held' | 'held_by_you';
   type Availability = {
@@ -34,7 +36,6 @@
   // 6-digit range (this raffle's own reserved slice of it).
   const DISPLAY_DIGIT_LENGTH = 6;
   const pageSize = 5000;
-  let raffle: Raffle | null = null;
   let availability: Availability | null = null;
   let selected: number[] = [];
   let start = 1;
@@ -104,11 +105,6 @@
   $: allowance = availability?.allowance ?? 0;
   $: total = selected.length * Number(raffle?.ticketPrice ?? 0);
 
-  function goBack() {
-    hapticLight();
-    navigateBack();
-  }
-
   function saveDraft() {
     if (!$page.params.id) return;
     setPendingPurchase({ raffleId: $page.params.id, quantity: selected.length, selectedNumbers: selected, idempotencyKey: requestKey });
@@ -151,18 +147,11 @@
   }
 
   onMount(() => {
-    if (!$auth.isAuthenticated) {
-      goto(`/login?returnTo=${encodeURIComponent($page.url.pathname)}`, { replaceState: true });
-      return;
-    }
     const draft = getPendingPurchase();
     if (draft && draft.raffleId === $page.params.id && Array.isArray(draft.selectedNumbers)) {
       selected = [...new Set(draft.selectedNumbers.filter((n) => Number.isInteger(n) && n > 0))].slice(0, 4);
       requestKey = draft.idempotencyKey ?? '';
     }
-    api.get<{ raffle: Raffle }>(`/raffles/${$page.params.id}`, { skipAuth: true })
-      .then((data) => { raffle = data.raffle; })
-      .catch(() => { error = $_('numbers.loadRaffleError'); });
     refresh();
     // No pullRefresh.set() here, deliberately: this page is a fixed
     // full-screen overlay (see .number-picker below) with its own internal
@@ -288,7 +277,7 @@
   }
 
   async function continueToCheckout() {
-    if (!selected.length || purchasing || !raffle) return;
+    if (!selected.length || purchasing || !raffle || !agreedToTerms) return;
     purchasing = true;
     error = '';
     requestKey ||= crypto.randomUUID();
@@ -321,16 +310,7 @@
   }
 </script>
 
-<svelte:head><title>{$_('numbers.pageTitle')}</title></svelte:head>
-
 <div class="number-picker" data-no-pull-refresh>
- <div class="picker-scroll">
-  <header class="picker-header">
-    <button type="button" class="icon-button" on:click={goBack} aria-label={$_('numbers.backAria')}><ArrowLeft size={21} /></button>
-    <div><p>{raffle?.title ?? $_('numbers.defaultRaffleTitle')}</p><span>{$_('numbers.chooseTickets')}</span></div>
-    <span class="header-ticket" aria-hidden="true"><Ticket size={18} /></span>
-  </header>
-
   <section class="picker-intro">
     <h1>{@html $_('numbers.heading')}</h1>
     <p>{$_('numbers.subheading')}</p>
@@ -407,15 +387,14 @@
       <p class="grid-note">{$_('numbers.gridNote')}</p>
     {/if}
   </section>
- </div>
-
   <footer class="selection-footer">
     <div class="selection-caption">
       <div class="selection-caption-row"><strong>{$_('numbers.yourSelection')}</strong><span aria-live="polite">{availability ? $_('numbers.selectedSummary', { values: { n: selected.length, allowed: allowance } }) : $_('numbers.selectedCountOnly', { values: { n: selected.length } })}</span></div>
       {#if raffle}<p class="price-per-ticket">{formatEtb(raffle.ticketPrice)} {$_('numbers.perTicket')}</p>{/if}
     </div>
     <div class="selected-chips">{#if !selected.length}<span class="selection-placeholder">{$_('numbers.chipsPlaceholder')}</span>{:else}{#each selected as n (n)}<button class:chip-conflict={conflicts.includes(n)} on:click={() => toggle(n)} disabled={purchasing} aria-label={$_('numbers.removeTicketAria', { values: { number: numberLabel(n) } })}>{numberLabel(n)}<X size={14} /></button>{/each}{/if}</div>
-    <div class="footer-action"><div><span>{$_('numbers.total')}</span><strong>{formatEtb(total)} <small>ETB</small></strong></div><button class="continue-button" class:is-purchasing={purchasing} on:click={continueToCheckout} disabled={!selected.length || selected.length > allowance || conflicts.length > 0 || purchasing || !availability?.salesOpen || !!resumePaymentId || !raffle}>{purchasing ? $_('numbers.reserving') : $_('numbers.continue')}{#if purchasing}<IosSpinner size={16} color="#ffffff" />{:else}<ArrowRight size={16} />{/if}</button></div>
+    <div class="footer-action"><div><span>{$_('numbers.total')}</span><strong>{formatEtb(total)} <small>ETB</small></strong></div><button class="continue-button" class:is-purchasing={purchasing} on:click={continueToCheckout} disabled={!selected.length || selected.length > allowance || conflicts.length > 0 || purchasing || !availability?.salesOpen || !!resumePaymentId || !raffle || !agreedToTerms}>{purchasing ? $_('numbers.reserving') : $_('numbers.continue')}{#if purchasing}<IosSpinner size={16} color="#ffffff" />{:else}<ArrowRight size={16} />{/if}</button></div>
+    {#if selected.length && !agreedToTerms}<p class="terms-reminder">{$_('raffle.agreeConditions')}</p>{/if}
     <p><LockKeyhole size={11} /> {$_('numbers.changeMindNote')}</p>
   </footer>
 </div>
@@ -429,17 +408,8 @@
      the whole page scroll again. Being fixed makes this page immune to the
      parent layout entirely: it always exactly fills the screen, so only
      .picker-scroll (never the page itself) can ever need to scroll. */
-  .number-picker { --picker-ink: var(--color-ink); --picker-muted: var(--color-muted); --picker-border: var(--color-dot-inactive); position: fixed; inset: 0; z-index: 15; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%); padding-top: max(44px, var(--safe-top)); color: var(--picker-ink); }
-  :global(html.telegram-mini-app.telegram-mini-app-fullscreen) .number-picker { padding-top: var(--telegram-content-start); }
-  .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; width: 100%; max-width: var(--app-max-width); margin: 0 auto; padding: 20px 16px 210px; }
-  :global(html:has(.number-picker)) { background: var(--app-frame-backdrop); }
-  :global(html:has(.number-picker) body) { background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%); }
-  :global(html:has(.number-picker) .bottom-nav) { display: none; }
-  :global(html:has(.number-picker) .native-bottom-nav-clearance) { padding-bottom: 0; }
-  .picker-header { display: flex; align-items: center; gap: 12px; padding-bottom: 20px; }
-  .picker-header > div { flex: 1; min-width: 0; } .picker-header p { overflow: hidden; color: var(--picker-ink); font-size: 15px; font-weight: 800; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; } .picker-header span { display: block; margin-top: 3px; font-size: 10px; font-weight: 600; color: var(--picker-muted); }
+  .number-picker { --picker-ink: var(--color-ink); --picker-muted: var(--color-muted); --picker-border: var(--color-dot-inactive); color: var(--picker-ink); }
   .icon-button { display: inline-flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; color: var(--picker-ink); }
-  .picker-header .icon-button { background: var(--color-card); box-shadow: var(--shadow-card-light); } .header-ticket { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 50%; background: var(--color-action-bg); color: var(--color-primary-dark) !important; }
   .icon-button-labeled { width: auto; min-height: 36px; gap: 5px; padding: 0 12px; border-radius: 12px; background: rgba(255,255,255,.72); font-size: 11px; font-weight: 700; }
   h1 { font-size: 24px; line-height: 1.12; font-weight: 800; letter-spacing: -.03em; } .picker-intro > p { max-width: 340px; margin-top: 8px; color: var(--picker-muted); font-size: 12px; line-height: 1.6; }
   .number-search { display: flex; gap: 8px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid rgba(255,255,255,.8); border-radius: 16px; background: var(--color-card); box-shadow: var(--shadow-card-light); } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: var(--color-primary); } input::placeholder { color: var(--picker-muted); font-size: 13px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; color: var(--color-primary-dark); }
@@ -458,7 +428,7 @@
   .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #E7ECFA 20%, #F5F7FC 45%, #E7ECFA 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
   @keyframes grid-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; width: 100%; max-width: var(--app-max-width); margin: auto; padding: 12px 16px max(12px, var(--safe-bottom), env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: rgba(255,255,255,.96); box-shadow: 0 -10px 28px rgba(1,41,163,.10); backdrop-filter: blur(16px); }
+  .selection-footer { position: sticky; z-index: 10; bottom: calc(72px + var(--safe-bottom)); margin: 16px -4px 0; padding: 12px 16px; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 10px 28px rgba(1,41,163,.12); backdrop-filter: blur(16px); }
   .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
   .price-per-ticket { margin-top: 1px; font-size: 10px; color: var(--picker-muted); }
   .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 4px; min-height: 36px; overflow: hidden; border-radius: 10px; background: var(--color-action-bg); color: var(--color-primary-dark); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: var(--color-pink-bg); color: var(--color-red); } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
@@ -493,6 +463,7 @@
   }
   .allowance-limit-cta:active { transform: scale(0.96); }
   button:disabled { cursor: default; } .continue-button:disabled { background: #E7EBFA; color: #627168; box-shadow: none; } .continue-button.is-purchasing:disabled { background: var(--color-primary); color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid var(--color-primary-dark); outline-offset: 3px; } ::selection { background: var(--color-bg-end); color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
-  @media (max-width: 359px) { .picker-scroll { padding-inline: 14px; } .selection-footer { padding-inline: 14px; } .footer-action { gap: 8px; } .footer-action > div { min-width: 72px; } .continue-button { font-size: 12px; } }
+  .terms-reminder { color: var(--color-red) !important; font-weight: 700; }
+  @media (max-width: 359px) { .selection-footer { padding-inline: 14px; } .footer-action { gap: 8px; } .footer-action > div { min-width: 72px; } .continue-button { font-size: 12px; } }
   @media (prefers-reduced-motion: reduce) { .grid-skeleton { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>
