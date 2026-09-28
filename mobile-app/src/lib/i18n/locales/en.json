@@ -212,7 +212,7 @@
     "sentCode": "We sent a 6-digit code to {phone}",
     "testCodeFilled": "Test code filled automatically",
     "verifying": "Verifying…",
-    "resendIn": "Resend code in {s}s",
+    "resendIn": "Resend code in {time}",
     "sending": "Sending…",
     "resendCode": "Resend code"
   },

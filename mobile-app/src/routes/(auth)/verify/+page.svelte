@@ -22,18 +22,27 @@
   let returnTo = '';
   let demoOtpEnabled = false;
 
-  const RESEND_COOLDOWN_S = 30;
+  const RESEND_COOLDOWN_S = 60;
   let resendCooldown = RESEND_COOLDOWN_S;
+  let resendAvailableAt = 0;
   let resendTimer: ReturnType<typeof setInterval> | undefined;
   let resending = false;
 
+  function updateResendCooldown() {
+    resendCooldown = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+    if (resendCooldown === 0) clearInterval(resendTimer);
+  }
+
   function startResendCooldown() {
-    resendCooldown = RESEND_COOLDOWN_S;
     clearInterval(resendTimer);
-    resendTimer = setInterval(() => {
-      resendCooldown -= 1;
-      if (resendCooldown <= 0) clearInterval(resendTimer);
-    }, 1000);
+    resendAvailableAt = Date.now() + RESEND_COOLDOWN_S * 1000;
+    updateResendCooldown();
+    resendTimer = setInterval(updateResendCooldown, 1000);
+  }
+
+  function formatCountdown(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
   }
 
   async function resend() {
@@ -179,7 +188,7 @@
         ? 'text-muted'
         : 'text-primary-dark'}"
     >
-      {resendCooldown > 0 ? $_('verify.resendIn', { values: { s: resendCooldown } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
+      {resendCooldown > 0 ? $_('verify.resendIn', { values: { time: formatCountdown(resendCooldown) } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
     </button>
   </div>
 </div>

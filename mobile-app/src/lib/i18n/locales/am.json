@@ -212,7 +212,7 @@
     "sentCode": "የ6 አሃዝ ኮድ ወደ {phone} ልከናል",
     "testCodeFilled": "የሙከራ ኮድ በራስ-ሰር ተሞልቷል",
     "verifying": "በማረጋገጥ ላይ…",
-    "resendIn": "ኮድ በ{s} ሰከንድ ውስጥ እንደገና ይላካል",
+    "resendIn": "ኮዱን በ{time} ውስጥ እንደገና ላክ",
     "sending": "በመላክ ላይ…",
     "resendCode": "ኮድ እንደገና ላክ"
   },
