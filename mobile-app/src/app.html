@@ -212,15 +212,10 @@
     </style>
     %sveltekit.head%
   </head>
-  <!-- "hover" never fires on a touch device — every navigation was a cold,
-       unprimed fetch on every tap. "tap" starts preloading the instant a
-       finger touches the link (touchstart fires well before the tap
-       actually completes), hiding a slow route-chunk fetch behind the
-       natural down-to-up time of the gesture instead of after it. This app
-       has no +page.ts load functions anywhere, so preload-code (the route's
-       JS chunk) is what actually matters here — preload-data is set too in
-       case that ever changes. -->
-  <body data-sveltekit-preload-data="tap" data-sveltekit-preload-code="tap">
+  <!-- Preload visible route code after paint so common mobile and desktop
+       destinations are ready before the first interaction. Route data stays
+       tap-triggered to avoid speculative API traffic. -->
+  <body data-sveltekit-preload-data="tap" data-sveltekit-preload-code="viewport">
     <div style="display: contents">%sveltekit.body%</div>
     <div id="boot-splash" aria-hidden="true">
       <div class="boot-splash__scrim"></div>

@@ -15,6 +15,13 @@ function recompute() {
   unreadRoomCount.set(unreadRoomIds.size);
 }
 
+export function resetUnreadRooms(): void {
+  lastSeenByRoom.clear();
+  unreadRoomIds.clear();
+  baselined = false;
+  recompute();
+}
+
 /** Call when the user actually opens a room (or sends/receives a message
  *  while already inside it) — that room's activity is now "seen", clearing
  *  its contribution to the badge. */

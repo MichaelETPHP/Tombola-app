@@ -6,9 +6,16 @@
 
   let paymentId = '';
   let invalid = false;
+  let navigating = false;
 
-  function continueToReceipt() {
-    if (paymentId) goto(`/payments/${paymentId}`, { replaceState: true });
+  async function continueToReceipt() {
+    if (!paymentId || navigating) return;
+    navigating = true;
+    try {
+      await goto(`/payments/${paymentId}`, { replaceState: true });
+    } finally {
+      navigating = false;
+    }
   }
 
   onMount(() => {
@@ -40,7 +47,7 @@
       {invalid ? 'This payment link is incomplete.' : 'Your payment is being securely verified. Tickets are issued only after confirmation.'}
     </p>
     {#if !invalid}
-      <button type="button" class="pressable mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-extrabold text-white" on:click={continueToReceipt}>
+      <button type="button" disabled={navigating} aria-busy={navigating} class="pressable mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-button bg-primary text-sm font-extrabold text-white disabled:opacity-70" on:click={continueToReceipt}>
         View payment status <ArrowRight size={17} />
       </button>
     {/if}

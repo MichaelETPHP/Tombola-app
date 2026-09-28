@@ -213,6 +213,7 @@
   });
 
   function handleBuyClick() {
+    if (purchasing) return;
     if (!agreedToTerms) {
       termsShake = false;
       requestAnimationFrame(() => (termsShake = true));
@@ -222,10 +223,15 @@
     purchase();
   }
 
-  function purchase() {
-    if (!raffle || !agreedToTerms) return;
+  async function purchase() {
+    if (!raffle || !agreedToTerms || purchasing) return;
+    purchasing = true;
     hapticMedium();
-    goto(`/raffles/${raffle.id}/numbers`);
+    try {
+      await goto(`/raffles/${raffle.id}/numbers`);
+    } finally {
+      purchasing = false;
+    }
   }
 
   // Ticket availability still gates purchasing internally — just never

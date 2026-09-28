@@ -36,6 +36,7 @@
   let agreedToTerms = false;
   let termsOpen = false;
   let termsShake = false;
+  let phoneInput: HTMLInputElement;
 
   // Inside the bot there is no OTP fallback at all — Telegram supplies
   // the phone number itself (see $lib/telegram.js), never a typed code.
@@ -54,10 +55,21 @@
   const CONTACT_POLL_INTERVAL_MS = 1500;
   const CONTACT_POLL_TIMEOUT_MS = 25_000;
 
-  function toE164(raw: string): string {
+  function normalizeNationalPhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');
-    const national = digits.startsWith('0') ? digits.slice(1) : digits;
-    return `+251${national}`;
+    const national = digits.startsWith('251') ? digits.slice(3) : digits;
+    if (national.startsWith('9')) return `0${national.slice(0, 9)}`;
+    return national.slice(0, 10);
+  }
+
+  function toE164(raw: string): string | null {
+    const normalized = normalizeNationalPhone(raw);
+    return /^09\d{8}$/.test(normalized) ? `+251${normalized.slice(1)}` : null;
+  }
+
+  function handlePhoneInput(event: Event) {
+    phone = normalizeNationalPhone((event.currentTarget as HTMLInputElement).value);
+    if (phone.length === 10) phoneInput?.blur();
   }
 
   function shakeTerms() {
@@ -101,6 +113,7 @@
   }
 
   async function submit() {
+    if (loading) return;
     error = '';
     if (!agreedToTerms) {
       shakeTerms();
@@ -108,7 +121,7 @@
     }
 
     const fullPhone = toE164(phone);
-    if (fullPhone.length !== 13) {
+    if (!fullPhone) {
       error = $_('login.invalidPhone');
       return;
     }
@@ -136,6 +149,7 @@
   }
 
   async function telegramLogin() {
+    if (telegramLoading) return;
     error = '';
     if (!agreedToTerms) {
       shakeTerms();
@@ -308,13 +322,14 @@
             +251
           </span>
           <input
+            bind:this={phoneInput}
             id="phone"
             type="tel"
             inputmode="numeric"
             enterkeyhint="send"
             placeholder={$_('login.phonePlaceholder')}
             value={phone}
-            on:input={(e) => (phone = e.currentTarget.value.replace(/\D/g, '').slice(0, 10))}
+            on:input={handlePhoneInput}
             autocomplete="tel-national"
             autocapitalize="none"
             spellcheck="false"

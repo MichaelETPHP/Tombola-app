@@ -104,7 +104,7 @@
   }
 
   async function submit() {
-    if (!canSubmit || !selectedMethod) return;
+    if (submitting || !canSubmit || !selectedMethod) return;
     submitting = true;
     submitError = '';
     try {

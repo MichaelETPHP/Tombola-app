@@ -16,6 +16,7 @@
     value = digits.join('');
     if (value.length === length && value !== dispatchedFor) {
       dispatchedFor = value;
+      boxes.forEach((box) => box?.blur());
       dispatch('complete', value);
     }
   }
@@ -30,9 +31,10 @@
       // maxlength below) via a plain `input` event, not `paste`, so the
       // explicit paste handler below doesn't see it. Fill from *this* box
       // forward.
-      const chars = raw.slice(0, length - i).split('');
+      const start = raw.length >= length ? 0 : i;
+      const chars = raw.slice(0, length - start).split('');
       chars.forEach((c, offset) => {
-        digits[i + offset] = c;
+        digits[start + offset] = c;
       });
       digits = digits;
       const nextEmpty = digits.findIndex((d) => !d);
@@ -64,6 +66,7 @@
     if (!raw) return;
     e.preventDefault();
 
+    digits = Array(length).fill('');
     const chars = raw.slice(0, length).split('');
     chars.forEach((c, index) => {
       digits[index] = c;
