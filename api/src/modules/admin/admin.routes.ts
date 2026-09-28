@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { ticketInventory, recordReviewedRefund, findTicketBuyer, adminReleaseHeldTicket } from '../tickets/ticket-admin.js';
 import { findPaymentById } from '../../db/queries/payments.queries.js';
 import { verifyAndReconcileChapaPayment } from '../payments/payments.service.js';
+import { ChapaVerifyError } from '../../lib/payment-gateway.js';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { env } from '../../config/env.js';
 import { adminOrigin } from '../../middleware/admin-origin.middleware.js';
@@ -145,7 +146,23 @@ adminRoutes.post('/raffles/:id/tickets/:number/release', requireRole('owner'), r
 adminRoutes.post('/payments/:id/reconcile', requireRole('owner'), rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const payment = await findPaymentById(z.string().uuid().parse(c.req.param('id')));
   if (!payment?.gatewayRef || payment.gateway !== 'chapa') return c.json({ error: 'No supported gateway transaction found' }, 409);
-  await verifyAndReconcileChapaPayment(payment.gatewayRef);
+  try {
+    await verifyAndReconcileChapaPayment(payment.gatewayRef);
+  } catch (error) {
+    // Same distinction the background reconciliation job already makes
+    // (stale-payment-check.job.ts): a 400/404 from Chapa means it simply
+    // has no record of this tx_ref — an old/never-completed attempt, not
+    // a real failure of this admin action — worth telling the admin
+    // plainly rather than surfacing as a generic server error. Any other
+    // status (401/403/5xx) is a genuine problem reaching Chapa at all.
+    if (error instanceof ChapaVerifyError && (error.httpStatus === 400 || error.httpStatus === 404)) {
+      return c.json({ message: "Chapa has no record of this transaction — it was never completed on their end. No update was needed." });
+    }
+    if (error instanceof ChapaVerifyError) {
+      throw new AppError(502, 'Could not reach Chapa to verify this transaction. Try again shortly.');
+    }
+    throw error;
+  }
   return c.json({ message: 'Gateway status checked' });
 });
 adminRoutes.post('/payments/:id/record-refund', requireRole('owner'), rateLimit({ max: 10, windowSeconds: 60 }), async (c) => {
