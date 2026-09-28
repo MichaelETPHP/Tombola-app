@@ -58,6 +58,10 @@
   let requestKey = '';
   let conflicts: number[] = [];
   let resumePaymentId: string | null = null;
+  // Payment ids already confirmed against Chapa this session — re-verifying
+  // on every 15s poll would waste the endpoint's rate limit for no reason
+  // once we already know the true status.
+  const verifiedPaymentIds = new Set<string>();
   let requestVersion = 0;
   // The server is the only source of truth for what a ticket number looks
   // like (see Availability.displayNumber above) — this is a pure lookup,
@@ -84,13 +88,57 @@
       const data = await api.get<Availability>(`/raffles/${$page.params.id}/${path}?start=${start}&limit=${pageSize}`, { skipAuth: !$auth.isAuthenticated });
       if (version !== requestVersion) return;
       availability = data;
-      resumePaymentId = data.activePaymentId;
       conflicts = selected.filter((n) => data.numbers.some((row) => row.number === n && row.state !== 'available'));
       error = '';
+
+      const activeId = data.activePaymentId;
+      if (activeId && !verifiedPaymentIds.has(activeId)) {
+        // Don't trust a "pending" checkout we haven't personally confirmed
+        // yet — a USSD decline on Chapa's side doesn't always reach us via
+        // webhook right away, so our own status can lag reality by minutes.
+        // Hide the resume prompt until a fresh check comes back, instead of
+        // risking "Continue checkout" on a payment that's secretly already
+        // dead. void, not awaited: refresh() itself shouldn't stall on this.
+        resumePaymentId = null;
+        void verifyResumable(activeId);
+      } else {
+        resumePaymentId = activeId;
+      }
     } catch {
       if (version === requestVersion) error = $_('numbers.refreshError');
     } finally {
       if (version === requestVersion) { refreshing = false; loading = false; }
+    }
+  }
+
+  /**
+   * Asks Chapa directly whether a "pending" checkout is actually still
+   * alive, rather than trusting our own possibly-stale status. If it's
+   * already failed/cancelled, this call itself is what triggers the
+   * numbers being released server-side (see api's transitionPendingPayment)
+   * — refreshing afterwards just picks up that already-clean state, so the
+   * user lands straight on a normal, ready-to-pick grid with no manual
+   * "Cancel & release" tap required.
+   */
+  async function verifyResumable(id: string) {
+    try {
+      const { payment } = await api.post<{ payment: { status: string } }>(`/payments/${id}/verify`);
+      verifiedPaymentIds.add(id);
+      if (payment.status === 'pending') {
+        resumePaymentId = id;
+      } else if (payment.status === 'completed' || payment.status === 'review') {
+        // Rare — a delayed webhook, not a real stuck reservation. The
+        // receipt page already knows how to show either outcome correctly.
+        await goto(`/payments/${id}`);
+      } else {
+        await refresh();
+      }
+    } catch {
+      // Verification itself failed (network blip, rate limit) — fall back
+      // to trusting our own last-known status rather than blocking the
+      // user indefinitely on neither state.
+      verifiedPaymentIds.add(id);
+      resumePaymentId = id;
     }
   }
 

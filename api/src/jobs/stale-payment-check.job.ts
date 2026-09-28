@@ -5,8 +5,13 @@ import { logger } from '../lib/logger.js';
 
 const CHECK_INTERVAL_MS = 60_000;
 // Give Chapa's own webhook/callback a fair head start before actively
-// re-querying on a payment's behalf.
-const RECONCILE_AFTER_MS = 3 * 60_000;
+// re-querying on a payment's behalf. Shortened from 3 minutes — a USSD
+// decline doesn't always reach us via webhook, and every minute a failed
+// payment's numbers stay held is a minute someone else genuinely waiting
+// online can't pick them. This costs nothing extra for a payment that's
+// still legitimately in flight: verifying only ever acts on a definitive
+// answer from Chapa, never infers failure from age alone.
+const RECONCILE_AFTER_MS = 90_000;
 // Unknown gateway outcomes remain pending; never infer a failed charge from age.
 async function checkStalePayments(): Promise<void> {
   try {

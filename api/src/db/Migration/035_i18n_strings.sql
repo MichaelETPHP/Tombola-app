@@ -1,7 +1,7 @@
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '15s';
-SET search_path TO "Tombola_DB", public;
+SET search_path TO "Tombola_DB_DEV", public;
 
 -- Backs the admin-editable translation strings (see the Translations page
 -- in admin-app). Every row is one dot-path key from the mobile app's
