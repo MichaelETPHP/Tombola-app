@@ -223,6 +223,7 @@
       <div class="prize-glass-flash pointer-events-none absolute inset-y-0 left-0 w-[38%] {pageVisible ? '' : 'is-paused'}" aria-hidden="true"></div>
       <div class="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#080E49]/45 to-transparent"></div>
       <button type="button" aria-label={$_('raffle.backAria')} on:click={goBack} class="tappable pressable absolute left-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light"><ChevronLeft size={20} /></button>
+      <button type="button" aria-label={$_('raffle.shareAria')} disabled={sharingRaffle} on:click={shareRaffle} class="tappable pressable absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-card text-ink shadow-card-light disabled:opacity-60"><Share2 size={18} /></button>
     </section>
 
     <header class="min-w-0 px-0.5">
@@ -282,37 +283,17 @@
       </div>
     {/if}
 
-    <section class="ticket-sheet relative overflow-hidden rounded-[24px] bg-card shadow-[0_10px_26px_rgba(1,41,163,0.08)]">
-      <button
-        type="button"
-        class="tappable pressable absolute right-2.5 top-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-bg-start text-primary-dark"
-        disabled={sharingRaffle}
-        aria-label={$_('raffle.shareAria')}
-        on:click={shareRaffle}
-      >
-        <Share2 size={14} />
-      </button>
-      <div class="grid grid-cols-[1fr_auto_1fr] items-center py-3.5 pl-4 pr-12">
-        <div><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.price')}</p><p class="mt-1 text-sm font-extrabold text-ink">{formatEtb(raffle.ticketPrice)} <span class="text-[10px] text-muted">ETB</span></p></div>
-        <div class="h-8 w-px bg-dot-inactive"></div>
-        <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.yourChoice')}</p><p class="mt-1 text-sm font-extrabold text-ink">{$_('raffle.upToTickets', { values: { n: raffle.maxTicketsPerUser } })}</p></div>
+    {#if error}
+      <p class="rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>
+    {/if}
+    {#if raffle.status !== 'open' || ticketsRemaining === 0 || raffle.salesEnabled === false || raffle.isDemo}
+      <div class="flex items-center gap-3 rounded-[14px] bg-card px-4 py-4 text-xs text-muted shadow-card-light">
+        {#if raffle.status === 'open' && ticketsRemaining > 0}<Info size={17} class="shrink-0 text-primary-dark" /><span>{raffle.isDemo ? $_('raffle.demoNotice') : $_('raffle.pausedNotice')}</span>{:else}<CalendarClock size={17} class="shrink-0 text-primary-dark" /><span>{$_('raffle.closedNotice', { values: { status: $_(`raffle.status.${raffle.status}`) } })}</span>{/if}
       </div>
+    {/if}
 
-      <div class="ticket-perforation"></div>
-      {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
-        {#if error}<p class="mx-4 my-3 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
-      {:else if raffle.status === 'open' && ticketsRemaining > 0}
-        <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted">
-          <Info size={17} class="shrink-0 text-primary-dark" />
-          <span>{raffle.isDemo ? $_('raffle.demoNotice') : $_('raffle.pausedNotice')}</span>
-        </div>
-      {:else}
-        <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted"><CalendarClock size={17} class="shrink-0 text-primary-dark" /><span>{$_('raffle.closedNotice', { values: { status: $_(`raffle.status.${raffle.status}`) } })}</span></div>
-      {/if}
-
-      {#if raffle.representatives && raffle.representatives.length > 0}
-        <div class="ticket-perforation"></div>
-        <div class="px-4 py-3.5">
+    {#if raffle.representatives && raffle.representatives.length > 0}
+      <section class="rounded-[14px] bg-card px-4 py-3.5 shadow-card-light">
           <p class="mb-1.5 text-[9px] font-bold uppercase tracking-[0.11em] text-muted">{$_('raffle.witnessedByHeading')}</p>
           <div class="flex flex-col gap-1.5">
             {#each raffle.representatives as rep (rep.tier)}
@@ -322,9 +303,8 @@
               </div>
             {/each}
           </div>
-        </div>
-      {/if}
-    </section>
+      </section>
+    {/if}
 
     {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
       <section class="number-selector-section py-4">

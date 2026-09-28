@@ -16,7 +16,7 @@
   import { getPendingPurchase, setPendingPurchase, clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
   import TicketNumberGrid from '$lib/components/TicketNumberGrid.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
-  import { ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Search, Ticket, X } from 'lucide-svelte';
+  import { ArrowRight, Check, CircleAlert, LockKeyhole, RefreshCw, Ticket, X } from 'lucide-svelte';
 
   export let raffle: Raffle;
 
@@ -38,7 +38,6 @@
   let availability: Availability | null = null;
   let selected: number[] = [];
   let start = 1;
-  let search = '';
   let error = '';
   let notice = '';
   // True only for the "you're at your ticket limit" warning — everything
@@ -53,17 +52,6 @@
   let conflicts: number[] = [];
   let resumePaymentId: string | null = null;
   let requestVersion = 0;
-  let focusNumber: number | null = null;
-  let focusNonce = 0;
-  // Unlike the old per-wheel scroller (which set scrollTop directly and
-  // needed a separate explicit scroll to bring the whole wheel section into
-  // view), TicketNumberGrid centers a focused cell via the standard
-  // Element.scrollIntoView, which already walks up and scrolls every
-  // scrollable ancestor — including this page's own scroll container — in
-  // one motion. No second, separate scroll call needed here.
-  let searchFocused = false;
-  let searching = false;
-  let searchFeedback = '';
   // The server is the only source of truth for what a ticket number looks
   // like (see Availability.displayNumber above) — this is a pure lookup,
   // never a computation, so it can't drift from whatever scramble the
@@ -71,36 +59,6 @@
   // number this page hasn't loaded availability for yet.
   $: displayNumberByInternal = new Map((availability?.numbers ?? []).map((r) => [r.number, r.displayNumber]));
   $: numberLabel = (n: number) => displayNumberByInternal.get(n) ?? String(n).padStart(DISPLAY_DIGIT_LENGTH, '0');
-  const canPick = (row: { number: number; state: NumberState }) => row.state === 'available' || selected.includes(row.number);
-  // All numbers up to the raffle's cap are already in memory (see the
-  // pageSize=5000 fetch below) — autocomplete filters that client-side
-  // list rather than round-tripping to the server on every keystroke. Any
-  // digit sequence matches anywhere in the displayed number (not just a
-  // prefix) — typing "9" for a ticket showing "23896" finds it just as
-  // "896" would. Taken/held numbers are included too (not hidden) so the
-  // reason a number can't be picked is visible right in the dropdown,
-  // instantly.
-  $: suggestions = (() => {
-    if (!availability || !searchFocused) return [];
-    const query = search.replace(/\D/g, '');
-    if (!query) return [];
-    return availability.numbers
-      .filter((row) => row.displayNumber.includes(query))
-      .slice(0, 8);
-  })();
-  // Instant "already taken" / "doesn't exist" feedback the moment a full,
-  // unambiguous display number has been typed — no need to press search.
-  $: {
-    const query = search.replace(/\D/g, '');
-    if (!availability || query.length < DISPLAY_DIGIT_LENGTH) {
-      searchFeedback = '';
-    } else {
-      const row = availability.numbers.find((item) => item.displayNumber === query);
-      if (!row) searchFeedback = $_('numbers.notExist');
-      else if (!canPick(row)) searchFeedback = $_('numbers.occupied');
-      else searchFeedback = '';
-    }
-  }
   $: allowance = availability?.allowance ?? 0;
   $: total = selected.length * Number(raffle?.ticketPrice ?? 0);
 
@@ -200,74 +158,6 @@
     playSelectionSound(selecting);
   }
 
-  function selectFoundNumber(n: number) {
-    if (!availability) return;
-    const row = availability.numbers.find((item) => item.number === n);
-    if (!row) {
-      searchFeedback = $_('numbers.notExist');
-      return;
-    }
-    if (!canPick(row)) {
-      searchFeedback = $_('numbers.occupied');
-      return;
-    }
-    searchFeedback = '';
-    if (!selected.includes(n)) {
-      if (selected.length >= allowance) {
-        notice = $_('numbers.allFilled', { values: { allowance } });
-        noticeIsWarning = true;
-        return;
-      }
-      selected = [...selected, n];
-      requestKey = '';
-      conflicts = conflicts.filter((number) => selected.includes(number));
-      saveDraft();
-      playSelectionSound(true);
-      void hapticLight();
-    }
-    focusNumber = n;
-    focusNonce += 1;
-    noticeIsWarning = false;
-    notice = $_('numbers.selectedInChoice', { values: { number: numberLabel(n), slot: selected.indexOf(n) + 1 } });
-  }
-
-  async function findNumber() {
-    if (!availability || searching) return;
-    searching = true;
-    // The lookup itself is instant (client-side), but a bare 0ms flash on
-    // tap reads as "did that even register?" — this short, honest pause
-    // gives the button real, visible feedback without adding noticeable
-    // delay to the actual selection.
-    await new Promise((resolve) => setTimeout(resolve, 220));
-    try {
-      const query = search.replace(/\D/g, '');
-      const row = query.length === DISPLAY_DIGIT_LENGTH
-        ? availability.numbers.find((item) => item.displayNumber === query)
-        : undefined;
-      if (!row) {
-        searchFeedback = $_('numbers.notExist');
-        return;
-      }
-      selectFoundNumber(row.number);
-    } finally {
-      searching = false;
-    }
-  }
-
-  function pickSuggestion(n: number) {
-    selectFoundNumber(n);
-    search = '';
-    searchFocused = false;
-  }
-
-  // Strips anything that isn't a digit as the user types — pasted text,
-  // stray letters from a hardware keyboard, etc. — so this field can only
-  // ever hold a number, matching its numeric-only keyboard.
-  function onSearchInput() {
-    const digitsOnly = search.replace(/\D/g, '').slice(0, DISPLAY_DIGIT_LENGTH);
-    if (digitsOnly !== search) search = digitsOnly;
-  }
-
   async function releaseCheckout() {
     if (!resumePaymentId || releasing) return;
     releasing = true;
@@ -320,55 +210,9 @@
 </script>
 
 <div class="number-picker" data-no-pull-refresh>
-  <section class="picker-intro">
-    <h1>{@html $_('numbers.heading')}</h1>
-  </section>
-
   {#if resumePaymentId}
     <section class="resume-panel"><LockKeyhole size={20} /><div><h2>{$_('numbers.resumeTitle')}</h2><p>{$_('numbers.resumeBody')}</p><div class="resume-actions"><button on:click={resume} disabled={releasing}>{$_('numbers.continueCheckout')} <ArrowRight size={16} /></button><button on:click={releaseCheckout} disabled={releasing}>{releasing ? $_('numbers.releasing') : $_('numbers.cancelRelease')}</button></div></div></section>
   {/if}
-
-  <section class="selection-tools" aria-label={$_('numbers.searchSectionAria')}>
-    <form class="number-search" on:submit|preventDefault={findNumber}>
-      <Search size={19} aria-hidden="true" /><input
-        aria-label={$_('numbers.findInputAria')}
-        placeholder={$_('numbers.placeholder')}
-        type="text"
-        inputmode="numeric"
-        pattern="[0-9]*"
-        autocomplete="off"
-        maxlength={DISPLAY_DIGIT_LENGTH}
-        bind:value={search}
-        on:input={onSearchInput}
-        on:focus={() => (searchFocused = true)}
-        on:blur={() => setTimeout(() => (searchFocused = false), 120)}
-      /><button type="submit" aria-label={$_('numbers.findSubmitAria')} disabled={searching}>{#if searching}<IosSpinner size={16} color="#0a0a0a" />{:else}<ArrowRight size={19} />{/if}</button>
-    </form>
-    {#if searchFeedback}<p class="search-feedback" role="status">{searchFeedback}</p>{/if}
-    {#if suggestions.length}
-      <ul class="search-suggestions" role="listbox" aria-label={$_('numbers.suggestionsAria')}>
-        {#each suggestions as row (row.number)}
-          <li>
-            <button
-              type="button"
-              role="option"
-              aria-selected={selected.includes(row.number)}
-              aria-disabled={!canPick(row)}
-              disabled={!canPick(row)}
-              class:unavailable={!canPick(row)}
-              on:click={() => pickSuggestion(row.number)}
-            >
-              <span>{numberLabel(row.number)}</span>
-              {#if selected.includes(row.number)}<span class="suggestion-tag">{$_('numbers.selectedTag')}</span>
-              {:else if row.state === 'owned' || row.state === 'held_by_you'}<span class="suggestion-tag yours">{$_('numbers.yoursTag')}</span>
-              {:else if !canPick(row)}<span class="suggestion-tag taken">{$_('numbers.takenTag')}</span>
-              {/if}
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </section>
 
   {#if error}<div class="picker-message error" role="alert"><CircleAlert size={18} /><div>{error}<button on:click={refresh} disabled={refreshing}>{$_('numbers.refreshButton')}</button></div></div>{/if}
   {#if notice && noticeIsWarning}
@@ -379,7 +223,7 @@
   {#if availability && !availability.salesOpen}<p class="picker-message">{$_('numbers.salesClosed')}</p>{:else if availability && allowance === 0 && !resumePaymentId}<div class="picker-message allowance-limit" role="alert"><CircleAlert size={18} /><div><p class="allowance-limit-text">{$_('numbers.allowanceReached')}</p><a href="/tickets" class="allowance-limit-cta"><Ticket size={14} />{$_('numbers.viewMyTickets')}<ArrowRight size={14} /></a></div></div>{/if}
 
   <section class="numbers-section" aria-label={$_('numbers.gridSectionAria')} aria-busy={refreshing}>
-    <div class="grid-heading"><div><h2>{$_('numbers.wheelsHeading')}</h2><p>{$_('numbers.wheelsSub')}</p></div><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
+    <div class="grid-heading"><h2>{$_('numbers.wheelsHeading')}</h2><button class="icon-button icon-button-labeled" on:click={manualRefresh} disabled={refreshing || !!selected.length} aria-label={$_('numbers.refreshAria')}><RefreshCw size={15} class={manualRefreshing ? 'spin' : ''} />{$_('numbers.refreshLabel')}</button></div>
     <div class="legend"><span><i class="available-dot"></i>{$_('numbers.legendAvailable')}</span><span><i class="selected-dot"><Check size={9} /></i>{$_('numbers.legendChosen')}</span><span><i class="taken-dot"><X size={9} /></i>{$_('numbers.legendTaken')}</span></div>
     {#if loading || manualRefreshing}
       <div class="grid-skeleton" aria-label={$_('numbers.loadingWheelsAria')}></div>
@@ -388,58 +232,37 @@
         rows={availability.numbers}
         selectedNumbers={selected}
         disabled={purchasing || refreshing || !availability.salesOpen}
-        {focusNumber}
-        {focusNonce}
         onToggle={toggle}
       />
       <p class="grid-note">{$_('numbers.gridNote')}</p>
     {/if}
   </section>
+  {#if selected.length}
   <footer class="selection-footer">
     <div class="selection-caption">
       <div class="selection-caption-row"><strong>{$_('numbers.yourSelection')}</strong><span aria-live="polite">{availability ? $_('numbers.selectedSummary', { values: { n: selected.length, allowed: allowance } }) : $_('numbers.selectedCountOnly', { values: { n: selected.length } })}</span></div>
-      {#if raffle}<p class="price-per-ticket">{formatEtb(raffle.ticketPrice)} {$_('numbers.perTicket')}</p>{/if}
     </div>
-    <div class="selected-chips">{#if !selected.length}<span class="selection-placeholder">{$_('numbers.chipsPlaceholder')}</span>{:else}{#each selected as n (n)}<button class:chip-conflict={conflicts.includes(n)} on:click={() => toggle(n)} disabled={purchasing} aria-label={$_('numbers.removeTicketAria', { values: { number: numberLabel(n) } })}>{numberLabel(n)}<X size={14} /></button>{/each}{/if}</div>
+    <div class="selected-chips">{#each selected as n (n)}<button class:chip-conflict={conflicts.includes(n)} on:click={() => toggle(n)} disabled={purchasing} aria-label={$_('numbers.removeTicketAria', { values: { number: numberLabel(n) } })}>{numberLabel(n)}<X size={14} /></button>{/each}</div>
     <div class="footer-action"><div><span>{$_('numbers.total')}</span><strong>{formatEtb(total)} <small>ETB</small></strong></div><button class="continue-button" class:is-purchasing={purchasing} on:click={continueToCheckout} disabled={!selected.length || selected.length > allowance || conflicts.length > 0 || purchasing || !availability?.salesOpen || !!resumePaymentId || !raffle}>{purchasing ? $_('numbers.reserving') : $_('numbers.continue')}{#if purchasing}<IosSpinner size={16} color="#ffffff" />{:else}<ArrowRight size={16} />{/if}</button></div>
     <p><LockKeyhole size={11} /> {$_('numbers.changeMindNote')}</p>
   </footer>
+  {/if}
 </div>
 
 <style>
-  /* Pinned directly to the real viewport (position: fixed; inset: 0) rather
-     than sized via calc(100dvh - <guessed offset>) against whatever the
-     shared layout's <main> padding happens to be — that guess broke as
-     soon as the actual top offset differed (e.g. the Telegram Mini App's
-     much taller content-safe-area vs a plain phone's status bar), letting
-     the whole page scroll again. Being fixed makes this page immune to the
-     parent layout entirely: it always exactly fills the screen, so only
-     .picker-scroll (never the page itself) can ever need to scroll. */
   .number-picker { --picker-ink: var(--color-ink); --picker-muted: var(--color-muted); --picker-border: var(--color-dot-inactive); color: var(--picker-ink); }
   .icon-button { display: inline-flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; color: var(--picker-ink); }
   .icon-button-labeled { width: auto; min-height: 36px; gap: 5px; padding: 0 12px; border-radius: 12px; background: rgba(255,255,255,.72); font-size: 11px; font-weight: 700; }
-  h1 { font-size: 18px; line-height: 1.25; font-weight: 800; letter-spacing: -.02em; }
-  .number-search { display: flex; gap: 8px; align-items: center; min-height: 52px; padding-left: 14px; border: 1px solid rgba(255,255,255,.8); border-radius: 16px; background: var(--color-card); box-shadow: var(--shadow-card-light); } input { flex: 1; width: 0; min-width: 0; font: inherit; font-size: 16px; min-height: 48px; outline: none; caret-color: var(--color-primary); } input::placeholder { color: var(--picker-muted); font-size: 13px; } .number-search button { width: 48px; min-height: 48px; display: grid; place-items: center; color: var(--color-primary-dark); }
-  .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .grid-heading p { margin-top: 3px; color: var(--picker-muted); font-size: 10px; line-height: 1.45; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 10px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid var(--color-dot-inactive); } .selected-dot { background: var(--color-primary-dark); color: white; } .taken-dot { background: var(--color-pink-bg); color: var(--color-red); }
-  .selection-tools { position: relative; margin-top: 16px; margin-bottom: 22px; }
-  .search-feedback { margin-top: 7px; font-size: 11px; font-weight: 650; color: #B23A45; }
-  .search-suggestions { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(300px, 38vh); overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; background: #fff; border: 1px solid var(--picker-border); border-radius: 14px; box-shadow: 0 14px 34px -12px rgba(8,14,73,.28); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-  .search-suggestions button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; }
-  .search-suggestions button:not(:disabled):active { background: #EDF2FA; }
-  .search-suggestions button.unavailable { color: var(--picker-muted); text-decoration: line-through; opacity: .7; cursor: default; }
-  .suggestion-tag { font-size: 10px; font-weight: 700; color: #0129A3; background: #D6E1F9; padding: 2px 7px; border-radius: 999px; }
-  .suggestion-tag.taken { color: #B23A45; background: #FBE7E8; }
-  .suggestion-tag.yours { color: #0129A3; background: #D6E1F9; }
+  .grid-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; } h2 { font-size: 15px; font-weight: 750; } .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 10px; font-size: 10px; color: var(--picker-muted); } .legend span { display: flex; align-items: center; gap: 5px; } .legend i { width: 12px; height: 12px; border-radius: 3px; display: grid; place-items: center; } .available-dot { background: white; border: 1px solid var(--color-dot-inactive); } .selected-dot { background: #22A35A; color: white; } .taken-dot { background: var(--color-pink-bg); color: var(--color-red); }
   .resume-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .resume-actions button:last-child { color: #8C2530; }
   .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #E7ECFA 20%, #F5F7FC 45%, #E7ECFA 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
   @keyframes grid-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { position: sticky; z-index: 10; bottom: calc(72px + var(--safe-bottom)); margin: 16px -4px 0; padding: 12px 16px; border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 10px 28px rgba(1,41,163,.12); backdrop-filter: blur(16px); }
+  .selection-footer { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--color-card); box-shadow: var(--shadow-card-light); }
   .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
-  .price-per-ticket { margin-top: 1px; font-size: 10px; color: var(--picker-muted); }
-  .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 38px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 4px; min-height: 36px; overflow: hidden; border-radius: 10px; background: var(--color-action-bg); color: var(--color-primary-dark); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: var(--color-pink-bg); color: var(--color-red); } .selection-placeholder { grid-column: 1 / -1; color: var(--picker-muted); font-size: 11px; }
-  .footer-action { display: flex; align-items: center; gap: 12px; } .footer-action > div { min-width: 82px; display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 17px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { flex: 1; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 48px; border-radius: 16px; background: var(--color-primary); color: white; font-size: 13px; font-weight: 800; box-shadow: 0 10px 22px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.55); } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 9px; color: var(--picker-muted); line-height: 1.5; margin-top: 8px; }
+  .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 36px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 4px; min-height: 34px; overflow: hidden; border-radius: 9px; background: var(--color-action-bg); color: var(--color-primary-dark); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: var(--color-pink-bg); color: var(--color-red); }
+  .footer-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .footer-action > div { display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 16px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { display: flex; gap: 6px; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: var(--color-primary); color: white; font-size: 12px; font-weight: 800; box-shadow: 0 8px 18px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.55); } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 9px; color: var(--picker-muted); line-height: 1.5; margin-top: 7px; }
   .picker-message, .resume-panel { display: flex; gap: 10px; padding: 16px; border-radius: 12px; background: #DFEBFA; margin: 16px 0; font-size: 12px; line-height: 1.6; } .resume-panel h2 { font-size: 13px; } .resume-panel p { margin-top: 4px; } .resume-panel button, .picker-message button { display: flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-weight: 700; } .error { background: #FDE8E9; color: #A10F1B; } .picker-notice { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; padding-bottom: 12px; color: var(--picker-muted); }
   /* The one notice that means "stop, you can't do that" (ticket-limit
      reached) gets the same loud red treatment as .allowance-limit below —
@@ -469,7 +292,7 @@
     transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
   }
   .allowance-limit-cta:active { transform: scale(0.96); }
-  button:disabled { cursor: default; } .continue-button:disabled { background: #E7EBFA; color: #627168; box-shadow: none; } .continue-button.is-purchasing:disabled { background: var(--color-primary); color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible, .number-search:focus-within { outline: 2px solid var(--color-primary-dark); outline-offset: 3px; } ::selection { background: var(--color-bg-end); color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+  button:disabled { cursor: default; } .continue-button:disabled { background: #E7EBFA; color: #627168; box-shadow: none; } .continue-button.is-purchasing:disabled { background: var(--color-primary); color: white; } .icon-button:disabled { opacity: .45; } button:not(:disabled):active { transform: scale(.97); } button:focus-visible, a:focus-visible { outline: 2px solid var(--color-primary-dark); outline-offset: 3px; } ::selection { background: var(--color-bg-end); color: var(--picker-ink); } :global(.spin) { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 359px) { .selection-footer { padding-inline: 14px; } .footer-action { gap: 8px; } .footer-action > div { min-width: 72px; } .continue-button { font-size: 12px; } }
   @media (prefers-reduced-motion: reduce) { .grid-skeleton { animation: none; } :global(.spin) { animation: none; } button:not(:disabled):active { transform: none; } }
 </style>
