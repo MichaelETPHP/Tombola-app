@@ -13,6 +13,7 @@
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
   import { navigateBack } from '$lib/native/navigateBack.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
+  import { clearPendingPurchase } from '$lib/stores/pendingPurchase.js';
   import { shareYeneEtaContent, copyText } from '$lib/native/capabilities.js';
   import { showBanner } from '$lib/stores/banner.store.js';
   import { CalendarClock, ChevronLeft, Info, Share2, ShieldCheck, X } from 'lucide-svelte';
@@ -59,6 +60,23 @@
     void import('$lib/components/TicketNumberSelector.svelte').then((module) => {
       TicketNumberSelector = module.default;
     });
+  }
+
+  // Picking a number is the primary action on this page, so it lands
+  // already scrolled to the numbers grid rather than requiring a scroll
+  // past the hero image/description/carousel first — those stay reachable
+  // by scrolling up, nothing is removed. Waits for TicketNumberSelector to
+  // actually be mounted (not just the pulse-skeleton placeholder above it,
+  // whose height differs) so this jumps straight to the real layout instead
+  // of scrolling once, then jumping again when the real component's
+  // different height loads in underneath it. Naturally never fires for a
+  // closed/demo/sold-out raffle, since #ticketNumber_list doesn't render
+  // there at all and numbersSectionEl stays unset.
+  let numbersSectionEl: HTMLElement | undefined;
+  let scrolledToNumbers = false;
+  $: if (TicketNumberSelector && numbersSectionEl && !scrolledToNumbers) {
+    scrolledToNumbers = true;
+    tick().then(() => numbersSectionEl?.scrollIntoView({ behavior: 'auto', block: 'start' }));
   }
 
   async function checkDescOverflow() {
@@ -113,6 +131,11 @@
 
   function goBack() {
     hapticLight();
+    // Leaving the raffle back to Home is treated as abandoning whatever
+    // numbers were picked, not a pause to resume later — next visit (this
+    // raffle or any other) starts from a clean grid instead of silently
+    // restoring a stale sessionStorage draft.
+    clearPendingPurchase();
     navigateBack();
   }
 
@@ -307,7 +330,7 @@
     {/if}
 
     {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
-      <section class="number-selector-section py-4">
+      <section id="ticketNumber_list" bind:this={numbersSectionEl} class="number-selector-section py-4">
         {#if TicketNumberSelector}
           <svelte:component this={TicketNumberSelector} {raffle} />
         {:else}

@@ -259,7 +259,13 @@
   .grid-skeleton { margin-top: 12px; height: 300px; border-radius: 14px; background: linear-gradient(100deg, #E7ECFA 20%, #F5F7FC 45%, #E7ECFA 70%); background-size: 220% 100%; animation: grid-loading 1.15s linear infinite; }
   @keyframes grid-loading { to { background-position: -220% 0; } }
   .grid-note { font-size: 11px; line-height: 1.7; color: var(--picker-muted); margin: 20px 0; }
-  .selection-footer { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--color-card); box-shadow: var(--shadow-card-light); }
+  /* Only in the DOM once selected.length > 0 (see the {#if} above), so
+     sticking it unconditionally here is already scoped to "once a number
+     is picked" for free. bottom matches .native-bottom-nav-clearance's own
+     100px reserved space (app.css) — the same distance every scrollable
+     page in this app already keeps clear above the bottom tab bar, so this
+     sits right above it instead of overlapping or leaving an odd gap. */
+  .selection-footer { position: sticky; bottom: calc(100px + var(--safe-bottom)); z-index: 5; margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--color-card); box-shadow: var(--shadow-card-light); }
   .selection-caption-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; } .selection-caption-row > span { color: var(--picker-muted); }
   .selected-chips { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; min-height: 36px; align-items: center; margin: 6px 0 8px; } .selected-chips button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 0 4px; min-height: 34px; overflow: hidden; border-radius: 9px; background: var(--color-action-bg); color: var(--color-primary-dark); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; } .selected-chips .chip-conflict { background: var(--color-pink-bg); color: var(--color-red); }
   .footer-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .footer-action > div { display: flex; flex-direction: column; gap: 1px; } .footer-action > div > span { font-size: 10px; color: var(--picker-muted); } .footer-action strong { font-size: 16px; font-variant-numeric: tabular-nums; } .footer-action small { font-size: 10px; font-weight: 500; } .continue-button { display: flex; gap: 6px; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: var(--color-primary); color: white; font-size: 12px; font-weight: 800; box-shadow: 0 8px 18px -14px rgba(1,41,163,.72), inset 0 1px 0 rgba(255,255,255,.55); } .selection-footer > p { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 9px; color: var(--picker-muted); line-height: 1.5; margin-top: 7px; }
