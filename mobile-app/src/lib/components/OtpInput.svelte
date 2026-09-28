@@ -32,20 +32,20 @@
       // explicit paste handler below doesn't see it. Fill from *this* box
       // forward.
       const start = raw.length >= length ? 0 : i;
-      const chars = raw.slice(0, length - start).split('');
-      chars.forEach((c, offset) => {
-        digits[start + offset] = c;
+      const next = [...digits];
+      raw.slice(0, length - start).split('').forEach((c, offset) => {
+        next[start + offset] = c;
       });
-      digits = digits;
-      const nextEmpty = digits.findIndex((d) => !d);
-      await tick();
-      (boxes[nextEmpty === -1 ? length - 1 : nextEmpty] ?? boxes[length - 1])?.focus();
+      digits = next;
       syncValue();
+      const nextEmpty = digits.findIndex((d) => !d);
+      if (nextEmpty === -1) return;
+      await tick();
+      boxes[nextEmpty]?.focus();
       return;
     }
 
-    digits[i] = raw;
-    digits = digits;
+    digits = digits.map((digit, index) => index === i ? raw : digit);
     syncValue();
 
     if (raw && i < length - 1) {
@@ -66,22 +66,18 @@
     if (!raw) return;
     e.preventDefault();
 
-    digits = Array(length).fill('');
-    const chars = raw.slice(0, length).split('');
-    chars.forEach((c, index) => {
-      digits[index] = c;
-    });
-    digits = digits;
-    const nextEmpty = digits.findIndex((d) => !d);
-    await tick();
-    (boxes[nextEmpty === -1 ? length - 1 : nextEmpty] ?? boxes[length - 1])?.focus();
+    const pasted = raw.slice(0, length);
+    digits = Array.from({ length }, (_, index) => pasted[index] ?? '');
     syncValue();
+    const nextEmpty = digits.findIndex((d) => !d);
+    if (nextEmpty === -1) return;
+    await tick();
+    boxes[nextEmpty]?.focus();
   }
 
   function onKeydown(i: number, e: KeyboardEvent) {
     if (e.key === 'Backspace' && !digits[i] && i > 0) {
-      digits[i - 1] = '';
-      digits = digits;
+      digits = digits.map((digit, index) => index === i - 1 ? '' : digit);
       boxes[i - 1]?.focus();
       syncValue();
     }
