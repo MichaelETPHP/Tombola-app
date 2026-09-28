@@ -189,13 +189,14 @@
     transition: transform 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
   }
   .grid-window > button:not(:disabled):active { transform: scale(.95); }
-  .grid-window > button.selected { background: #0129A3; border-color: #0129A3; color: #fff; }
+  .grid-window > button.selected { background: #ECFDF3; border-color: #22A35A; color: #14532D; box-shadow: inset 0 0 0 1px rgba(34,163,90,.18); }
+  .grid-window > button.selected :global(svg) { position: absolute; top: -5px; right: -5px; width: 17px; height: 17px; padding: 3px; border-radius: 50%; background: #22A35A; color: #fff; box-shadow: 0 2px 6px rgba(20,83,45,.24); }
   .grid-window > button.unavailable { color: #6b6b6b; opacity: .62; font-weight: 800; text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; background: #F1F3FA; }
   /* Sold — gone for good, to someone else — reads as the loudest "no" of
      the three unavailable states: a red strike, not just a muted one. */
   .grid-window > button.sold { color: #CC1421; opacity: .85; background: #fdecee; border-color: rgba(204,20,33,.22); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: currentColor; }
   .grid-window > button.held-elsewhere { color: #B23A45; background: #FBE7E8; opacity: 1; text-decoration: none; border-color: rgba(178,58,69,.2); }
-  .grid-window > button.yours { color: #0129A3; background: #D6E1F9; opacity: 1; text-decoration: none; border-color: rgba(1,41,163,.25); }
+  .grid-window > button.yours { color: #166534; background: #F3FCF6; opacity: 1; text-decoration: none; border-color: rgba(34,163,90,.52); box-shadow: inset 0 0 0 1px rgba(34,163,90,.08); }
   .grid-flash { position: absolute; z-index: 6; top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 6px 11px; border-radius: 999px; background: #1a1a1a; color: #fff; font-size: 10px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 8px 18px -8px rgba(0,0,0,.45); pointer-events: none; }
   /* iOS-picker-style edge fades — signal "there's more above/below" the
      same way a UIPickerView's top/bottom mask does, without a hard visual

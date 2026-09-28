@@ -38,7 +38,7 @@ export async function ticketInventory(raffleId: string, start: number, find?: st
 
   const rows = await sql<{ number: number; state: string }[]>`SELECT n AS number,
     CASE WHEN c.sold THEN 'sold' WHEN c.payment_id IS NOT NULL AND (p.review_required OR
-      (p.status = 'pending' AND (p.checkout_started_at IS NOT NULL OR p.reservation_expires_at > NOW()))) THEN 'held' ELSE 'available' END AS state
+      (p.status = 'pending' AND (p.reservation_expires_at > NOW() OR p.review_required))) THEN 'held' ELSE 'available' END AS state
     FROM generate_series(${pageStart}::int, LEAST(${pageStart + 59}::int, ${raffle.ticketCap}::int)) n
     LEFT JOIN ticket_number_claims c ON c.raffle_id = ${raffleId} AND c.ticket_number = n
     LEFT JOIN payments p ON p.id = c.payment_id ORDER BY n`;

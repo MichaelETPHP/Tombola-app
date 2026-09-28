@@ -1,4 +1,4 @@
-import { findStalePendingChapaPayments, expireUnstartedPayments, markPaymentReviewRequired } from '../db/queries/payments.queries.js';
+import { findStalePendingChapaPayments, expirePendingPayments, markPaymentReviewRequired } from '../db/queries/payments.queries.js';
 import { verifyAndReconcileChapaPayment } from '../modules/payments/payments.service.js';
 import { ChapaVerifyError } from '../lib/payment-gateway.js';
 import { logger } from '../lib/logger.js';
@@ -10,7 +10,7 @@ const RECONCILE_AFTER_MS = 3 * 60_000;
 // Unknown gateway outcomes remain pending; never infer a failed charge from age.
 async function checkStalePayments(): Promise<void> {
   try {
-    await expireUnstartedPayments();
+    await expirePendingPayments();
     const stale = await findStalePendingChapaPayments(RECONCILE_AFTER_MS);
     for (const payment of stale) {
       try {

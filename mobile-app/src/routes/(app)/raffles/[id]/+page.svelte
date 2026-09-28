@@ -5,12 +5,8 @@
   import { cubicOut } from 'svelte/easing';
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/api/client.js';
-  import { auth } from '$lib/stores/auth.store.js';
-  import { setPendingPurchase } from '$lib/stores/pendingPurchase.js';
   import { raffles, type Raffle } from '$lib/stores/raffles.store.js';
-  import Button from '$lib/components/Button.svelte';
   import PrizeImage from '$lib/components/PrizeImage.svelte';
   import RaffleDetailSkeleton from '$lib/components/RaffleDetailSkeleton.svelte';
   import { formatEtb } from '$lib/utils/currency.js';
@@ -19,7 +15,7 @@
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
   import { shareYeneEtaContent, copyText } from '$lib/native/capabilities.js';
   import { showBanner } from '$lib/stores/banner.store.js';
-  import { CalendarClock, Check, ChevronLeft, Info, Phone, Share2, ShieldCheck, X } from 'lucide-svelte';
+  import { CalendarClock, ChevronLeft, Info, Share2, ShieldCheck, X } from 'lucide-svelte';
   import { resolveImageUrl } from '$lib/utils/imageUrl.js';
 
   const RAFFLE_BOT_LINK = 'https://t.me/lottery251_bot';
@@ -52,18 +48,14 @@
   // (ticketsSold, status) without ever flashing a loading state.
   let raffle: Raffle | null = get(raffles).find((r) => r.id === $page.params.id) ?? null;
   let loading = !raffle;
-  let purchasing = false;
   let error = '';
-  let agreedToTerms = false;
-  let termsOpen = false;
-  let termsShake = false;
   let pageVisible = true;
   let descEl: HTMLParagraphElement | undefined;
   let descExpanded = false;
   let descOverflowing = false;
   let TicketNumberSelector: (typeof import('$lib/components/TicketNumberSelector.svelte'))['default'] | null = null;
 
-  $: if ($auth.isAuthenticated && !TicketNumberSelector) {
+  $: if (!TicketNumberSelector) {
     void import('$lib/components/TicketNumberSelector.svelte').then((module) => {
       TicketNumberSelector = module.default;
     });
@@ -208,14 +200,6 @@
     }
   });
 
-  function handleBuyClick() {
-    if (!raffle || purchasing) return;
-    purchasing = true;
-    hapticMedium();
-    setPendingPurchase({ raffleId: raffle.id, quantity: 0, selectedNumbers: [] });
-    void goto(`/login?returnTo=${encodeURIComponent(`/raffles/${raffle.id}`)}`);
-  }
-
   // Ticket availability still gates purchasing internally — just never
   // rendered as a "N left" figure per the no-scarcity-numbers direction.
   $: ticketsRemaining = raffle ? Math.max(0, raffle.ticketCap - raffle.ticketsSold) : 0;
@@ -316,25 +300,7 @@
 
       <div class="ticket-perforation"></div>
       {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
-        <div class="raffle-actions px-4 pb-3.5 pt-3">
-          {#if error}<p class="mt-2 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
-          {#if !$auth.isAuthenticated}
-            <div class="mt-3">
-              <Button variant="glass" size="lg" shine loading={purchasing} on:click={handleBuyClick}>
-                <Phone size={17} /> {$_('raffle.signInToChoose')}
-              </Button>
-            </div>
-          {/if}
-
-          <div class="terms-consent mt-2.5 flex min-h-11 items-stretch overflow-hidden rounded-[14px] bg-bg-start/65">
-            <button type="button" role="checkbox" aria-checked={agreedToTerms} on:click={() => (agreedToTerms = !agreedToTerms)} on:animationend={() => (termsShake = false)} class="tappable flex min-h-11 min-w-0 flex-1 items-center gap-2.5 px-3 text-left">
-              <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border {agreedToTerms ? 'border-primary-dark/45 bg-action-bg' : termsShake ? 'border-pink bg-pink-bg' : 'border-dot-inactive bg-card'} {termsShake ? 'terms-shake' : ''}" aria-hidden="true">{#if agreedToTerms}<Check size={12} class="text-primary-dark" strokeWidth={3.5} />{/if}</span>
-              <span class="truncate text-[10px] font-semibold text-[#586660]">{$_('raffle.agreeConditions')}</span>
-            </button>
-            <button type="button" class="tappable min-h-11 shrink-0 border-l border-primary-dark/10 px-3 text-[10px] font-extrabold text-primary-dark underline underline-offset-2" on:click={() => (termsOpen = true)}>{$_('raffle.readTerms')}</button>
-          </div>
-          <p class="purchase-note mt-2 flex items-center justify-center gap-1.5 text-center text-[9px] text-muted">{#if !$auth.isAuthenticated}<Phone size={10} /> {$_('raffle.signInBeforePayment')}{:else}<ShieldCheck size={10} /> {$_('raffle.securedAtCheckout')}{/if}</p>
-        </div>
+        {#if error}<p class="mx-4 my-3 rounded-xl bg-pink-bg px-3 py-2 text-center text-[10px] font-semibold text-pink" role="alert">{error}</p>{/if}
       {:else if raffle.status === 'open' && ticketsRemaining > 0}
         <div class="flex items-center gap-3 px-4 py-4 text-xs text-muted">
           <Info size={17} class="shrink-0 text-primary-dark" />
@@ -360,25 +326,16 @@
       {/if}
     </section>
 
-    {#if $auth.isAuthenticated && raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
+    {#if raffle.status === 'open' && ticketsRemaining > 0 && raffle.salesEnabled !== false && !raffle.isDemo}
       <section class="number-selector-section py-4">
         {#if TicketNumberSelector}
-          <svelte:component this={TicketNumberSelector} {raffle} {agreedToTerms} />
+          <svelte:component this={TicketNumberSelector} {raffle} />
         {:else}
           <div class="h-80 animate-pulse rounded-[14px] bg-bg-start" aria-label={$_('numbers.loadingWheelsAria')}></div>
         {/if}
       </section>
     {/if}
   </article>
-{/if}
-
-{#if termsOpen}
-  <button type="button" class="fixed inset-0 z-40 cursor-default bg-[#080E49]/45" aria-label={$_('raffle.closeAria')} on:click={() => (termsOpen = false)} transition:fade={{ duration: 160 }}></button>
-  <section class="app-frame-fixed no-scrollbar fixed inset-x-5 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-y-auto overscroll-y-contain rounded-card bg-card p-5 shadow-card" transition:scale={{ duration: 180, start: 0.95, opacity: 0, easing: cubicOut }}>
-    <div class="mb-3 flex items-center justify-between"><h2 class="text-[15px] font-extrabold text-ink">{$_('raffle.termsTitle')}</h2><button type="button" aria-label={$_('raffle.closeAria')} class="tappable pressable flex h-11 w-11 items-center justify-center rounded-full bg-bg-start text-primary-dark" on:click={() => (termsOpen = false)}><X size={16} /></button></div>
-    <ul class="flex flex-col gap-2.5 text-[12px] leading-snug text-muted"><li>{$_('raffle.termsList.age')}</li><li>{$_('raffle.termsList.final')}</li><li>{$_('raffle.termsList.independent')}</li><li>{$_('raffle.termsList.max')}</li><li>{$_('raffle.termsList.fairness')}</li></ul>
-    <div class="mt-4"><Button size="md" on:click={() => (termsOpen = false)}>{$_('raffle.understood')}</Button></div>
-  </section>
 {/if}
 
 {#if lightboxIndex !== null}
@@ -442,13 +399,11 @@
   .prize-glass-flash.is-paused { animation-play-state: paused; }
   .prize-carousel { flex: 0 0 64px; min-height: 64px; overflow: hidden; }
   .ticket-sheet { flex: 0 0 auto; }
-  .terms-shake { animation: terms-shake 380ms var(--ease-out); }
   @keyframes prize-glass-flash {
     0%, 72% { transform: translate3d(-150%, 0, 0) skewX(-18deg); }
     88%, 100% { transform: translate3d(380%, 0, 0) skewX(-18deg); }
   }
-  @keyframes terms-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
-  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-description, .purchase-note { display: none; } .raffle-actions { padding-top: 8px; padding-bottom: 8px; } }
+  @media (max-height: 720px) { .raffle-screen { gap: 7px; } .raffle-description { display: none; } }
   @media (max-height: 630px) { .raffle-screen header p { display: none; } .prize-carousel { display: none; } }
-  @media (prefers-reduced-motion: reduce) { .terms-shake, .prize-glass-flash { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .prize-glass-flash { animation: none; } }
 </style>

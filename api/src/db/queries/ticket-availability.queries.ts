@@ -2,7 +2,7 @@ import { sql } from '../client.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 
-export async function getTicketAvailability(raffleId: string, userId: string, start: number, limit: number) {
+export async function getTicketAvailability(raffleId: string, userId: string | null, start: number, limit: number) {
   const [raffle] = await sql<{ ticketCap: number; maxTicketsPerUser: number; status: string; salesEnabled: boolean; isDemo: boolean; deadlineAt: Date; numberBlockStart: number | null }[]>`
     SELECT ticket_cap, max_tickets_per_user, status, sales_enabled, is_demo, deadline_at, number_block_start FROM raffles WHERE id = ${raffleId} AND status <> 'draft'`;
   if (!raffle) throw new AppError(404, 'Raffle not found');
@@ -11,7 +11,7 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
   const rows = await sql<{ number: number; state: 'available' | 'sold' | 'owned' | 'held' | 'held_by_you' }[]>`
     SELECT n AS number, CASE WHEN c.sold THEN CASE WHEN p.user_id = ${userId} THEN 'owned' ELSE 'sold' END
       WHEN c.payment_id IS NOT NULL AND p.status = 'pending' AND
-        (p.checkout_started_at IS NOT NULL OR p.reservation_expires_at > NOW() OR p.review_required)
+        (p.reservation_expires_at > NOW() OR p.review_required)
         THEN CASE WHEN p.user_id = ${userId} THEN 'held_by_you' ELSE 'held' END
       WHEN p.review_required THEN 'held'
       ELSE 'available' END AS state
@@ -32,10 +32,10 @@ export async function getTicketAvailability(raffleId: string, userId: string, st
   const [usage] = await sql<{ owned: number; held: number }[]>`SELECT
     (SELECT COUNT(*)::int FROM tickets WHERE raffle_id = ${raffleId} AND user_id = ${userId}) AS owned,
     (SELECT COALESCE(SUM(ticket_count), 0)::int FROM payments WHERE raffle_id = ${raffleId} AND user_id = ${userId}
-      AND status = 'pending' AND (checkout_started_at IS NOT NULL OR reservation_expires_at > NOW() OR review_required)) AS held`;
+      AND status = 'pending' AND (reservation_expires_at > NOW() OR review_required)) AS held`;
   const [active] = await sql<{ id: string; checkoutStartedAt: Date | null }[]>`SELECT id, checkout_started_at FROM payments
     WHERE raffle_id = ${raffleId} AND user_id = ${userId} AND status = 'pending'
-    AND (checkout_started_at IS NOT NULL OR reservation_expires_at > NOW() OR review_required) ORDER BY created_at LIMIT 1`;
+    AND (reservation_expires_at > NOW() OR review_required) ORDER BY created_at LIMIT 1`;
   return {
     numbers, start, end: Math.min(start + limit - 1, raffle.ticketCap), ticketCap: raffle.ticketCap,
     allowance: Math.max(0, Math.min(4, raffle.maxTicketsPerUser - usage.owned - usage.held)),
