@@ -22,6 +22,7 @@ import { diagnosticsRoutes } from './modules/diagnostics/diagnostics.routes.js';
 import { startRaffleDeadlineCheck } from './jobs/raffle-deadline-check.job.js';
 import { startTriggerExpiryCheck } from './jobs/trigger-expiry-check.job.js';
 import { startStalePaymentCheck } from './jobs/stale-payment-check.job.js';
+import { startSmsDeliveryCheck } from './jobs/sms-delivery-check.job.js';
 import { startAutoDrawTriggerCheck } from './jobs/auto-draw-trigger.job.js';
 import { startNightlyDbBackup } from './jobs/db-backup.job.js';
 import { closeDb } from './db/client.js';
@@ -187,6 +188,7 @@ if (env.NODE_ENV !== 'test') {
   startRaffleDeadlineCheck();
   startTriggerExpiryCheck();
   startStalePaymentCheck();
+  startSmsDeliveryCheck();
   startAutoDrawTriggerCheck();
   startNightlyDbBackup();
 }

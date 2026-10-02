@@ -122,14 +122,20 @@ export interface LiveCheckResult {
   message: string;
 }
 
+function smsAuthHeader(): string {
+  return `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`;
+}
+
 /**
  * Reachability probe for the admin Integrations page — deliberately never
- * sends an actual message. A GET against the gateway's own base URL isn't
- * a documented endpoint of this 3rdparty API, but that's fine: any HTTP
- * response at all (even a 404) proves the host is up and answering, which
- * is everything this needs to know. Only a network-level failure (refused,
- * timed out, DNS failure) means "unreachable" — this never touches
- * integration_logs, since a synthetic check isn't a real send attempt.
+ * sends an actual message. Hits GET /messages specifically (confirmed to
+ * return 200 with real data), not just the bare base URL: this gateway
+ * relays through a real Android phone's own SIM, and that phone's own
+ * software layer (Tasker/battery optimization/connectivity) can go dark
+ * for hours while the gateway's own HTTP server keeps answering requests
+ * fine — a bare "the host responds" check would say "reachable" the whole
+ * time. /messages is the one endpoint this app actually depends on, so
+ * confirming *it* answers is the only check worth calling "live."
  */
 export async function pingSmsGateway(): Promise<LiveCheckResult> {
   const start = Date.now();
@@ -137,17 +143,15 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
     return { reachable: false, latencyMs: 0, message: 'SMS gateway not configured' };
   }
   try {
-    const response = await fetch(env.SMS_API_URL.replace(/\/$/, ''), {
+    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages?limit=1`, {
       method: 'GET',
-      signal: AbortSignal.timeout(5_000),
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
-      },
+      signal: AbortSignal.timeout(8_000),
+      headers: { 'Authorization': smsAuthHeader() },
     });
     return {
-      reachable: true,
+      reachable: response.ok,
       latencyMs: Date.now() - start,
-      message: `Gateway responded (HTTP ${response.status})`,
+      message: response.ok ? `Gateway responded (HTTP ${response.status})` : `Gateway returned HTTP ${response.status}`,
     };
   } catch (error) {
     return {
@@ -156,6 +160,36 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
       message: error instanceof Error ? error.message : 'Unreachable',
     };
   }
+}
+
+export interface GatewayMessageRecord {
+  id: string;
+  deviceId: string;
+  state: string;
+  recipients: { phoneNumber: string; state: string; error?: string }[];
+  states: Record<string, string>;
+}
+
+/**
+ * The gateway's own recent-message history, state transitions and all —
+ * this is what actually exposes whether a message that was accepted
+ * ("Pending") ever really reached the phone's SIM ("Sent"/"Delivered") or
+ * failed there ("Failed", with the phone's own native error string, e.g.
+ * "RESULT_ERROR_GENERIC_FAILURE"). sendSms()'s own return value only ever
+ * reflects the gateway *accepting the request to queue* a message — it has
+ * no way to know the real outcome, which can resolve minutes or (per
+ * observed real data) hours later. See jobs/sms-delivery-check.job.ts,
+ * the only current caller.
+ */
+export async function listRecentSmsMessages(limit = 50): Promise<GatewayMessageRecord[]> {
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) return [];
+  const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages?limit=${limit}`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(10_000),
+    headers: { 'Authorization': smsAuthHeader() },
+  });
+  if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status} listing messages`);
+  return (await response.json()) as GatewayMessageRecord[];
 }
 
 /** A phone that survives `toE164` normalization still matching Ethiopian E.164 shape. */
