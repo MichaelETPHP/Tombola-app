@@ -30,12 +30,6 @@ const envSchema = z.object({
   SMS_API_URL: emptyToUndefined(z.string().url().optional()),
   SMS_API_USERNAME: z.string().optional(),
   SMS_API_PASSWORD: z.string().optional(),
-  // Purely a display label for the admin SMS log ("Sender" column) — the
-  // gateway relays through one registered Android phone's own SIM, and its
-  // send API doesn't return a per-message device/SIM identifier to show
-  // instead. Set this to that phone's actual number if you want it shown;
-  // otherwise a generic label is used.
-  SMS_SENDER_LABEL: z.string().optional(),
   DEMO_OTP_ENABLED: z.string().default('false').transform((val) => val === 'true'),
 
   // Comma-separated phone numbers (any format — normalized the same way

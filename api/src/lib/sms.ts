@@ -351,7 +351,7 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
   });
 }
 
-const YENEETA_BOT_LINK = 'https://t.me/lottery251_bot';
+const LOTTERY_BOT_LINK = 'https://t.me/lottery251_bot';
 
 // The gateway relays through a real Android phone's own SIM (see
 // SMS_SENDER_LABEL above), so recipients always see a plain phone number,
@@ -402,7 +402,7 @@ export async function sendTicketPurchaseConfirmation(
     `Your ticket${count === 1 ? '' : 's'}:`,
     ...details.ticketCodes,
     `Good luck! · መልካም እድል!`,
-    YENEETA_BOT_LINK,
+    LOTTERY_BOT_LINK,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'ticket_confirmation' });
 }
@@ -422,7 +422,7 @@ export async function sendDrawWinnerAnnouncement(
     `Ticket ${details.ticketCode} won the ${details.prizeLabel} (${details.prizeName}) in "${details.raffleName}"!`,
     `Our team will reach out soon about claiming your prize.`,
     `Good luck! · መልካም እድል!`,
-    YENEETA_BOT_LINK,
+    LOTTERY_BOT_LINK,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_winner' });
 }

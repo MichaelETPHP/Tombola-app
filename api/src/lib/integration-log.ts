@@ -61,21 +61,41 @@ export function logIntegrationEvent(
 }
 
 /**
- * The most recent delivery state already logged for this gateway message
- * id (e.g. "Processing", "Sent", "Delivered", "Failed"), or null if none
- * yet. Used by sms-delivery-check.job.ts to log a follow-up row for every
- * real state *transition* a message goes through — not just once at the
- * end — without writing a duplicate row on a sweep that finds nothing new
- * (the overwhelmingly common case once a message has already settled).
+ * The delivery state already recorded against this gateway message id
+ * (e.g. "Processing", "Sent", "Delivered", "Failed"), or null if the
+ * gateway sweep hasn't recorded one yet. Used by sms-delivery-check.job.ts
+ * to skip a sweep that finds nothing new for a message (the overwhelmingly
+ * common case once it has settled).
  */
-export async function getLastLoggedSmsState(messageId: string): Promise<string | null> {
-  const rows = await sql<{ state: string }[]>`
+export async function getLoggedSmsState(messageId: string): Promise<string | null> {
+  const rows = await sql<{ state: string | null }[]>`
     SELECT detail->>'state' AS state FROM "Tombola_DB".integration_logs
-    WHERE integration = 'sms' AND event = 'delivery_status' AND detail->>'messageId' = ${messageId}
-    ORDER BY created_at DESC
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
     LIMIT 1
   `;
   return rows[0]?.state ?? null;
+}
+
+/**
+ * Records this gateway message's current delivery state onto its own
+ * original send-time log row — an UPDATE, never a new INSERT. The admin
+ * SMS log must show exactly one line per message (send attempt), whose
+ * status transitions live as the gateway reports Processing -> Sent ->
+ * Delivered/Failed; writing a second row per transition would turn one
+ * message into several duplicate-looking log entries.
+ */
+export async function recordSmsDeliveryState(
+  messageId: string,
+  state: string,
+  status: IntegrationLogStatus,
+  error?: string
+): Promise<void> {
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET status = ${status},
+        detail = detail || jsonb_build_object('state', ${state}, 'error', ${error ?? null})
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+  `;
 }
 
 export interface IntegrationLogFilter {

@@ -1,5 +1,5 @@
 import { listRecentSmsMessages } from '../lib/sms.js';
-import { logIntegrationEvent, getLastLoggedSmsState } from '../lib/integration-log.js';
+import { getLoggedSmsState, recordSmsDeliveryState } from '../lib/integration-log.js';
 import { logger } from '../lib/logger.js';
 
 const CHECK_INTERVAL_MS = 20_000;
@@ -18,10 +18,10 @@ const FAILURE_STATES = new Set(['Failed']);
  *
  * This sweep is read-only reconciliation, not a retry: it pulls the
  * gateway's recent-message history and, for every message whose current
- * state differs from the last state this app already logged for it,
- * records a follow-up row — so the admin SMS log shows the real pipeline
- * (Processing/Sent/Delivered/Failed) as it happens, not just a final
- * verdict once a message settles.
+ * state differs from what's already recorded, updates that message's own
+ * log row in place (see recordSmsDeliveryState) — so the admin SMS log
+ * shows the real pipeline live (Processing/Sent/Delivered/Failed) on one
+ * line per message, never a growing trail of duplicate rows.
  */
 async function checkSmsDeliveryStatus(): Promise<void> {
   let messages;
@@ -33,20 +33,20 @@ async function checkSmsDeliveryStatus(): Promise<void> {
   }
 
   for (const message of messages) {
-    // "Pending" is the gateway's queued-but-not-yet-touched state — logging
-    // it would just be noise, since it's indistinguishable from the
-    // send-time entry every message already gets.
+    // "Pending" is the gateway's queued-but-not-yet-touched state — same
+    // as the send-time entry every message already gets, so there's
+    // nothing new to record.
     if (message.state === 'Pending') continue;
     try {
-      const lastState = await getLastLoggedSmsState(message.id);
-      if (lastState === message.state) continue;
+      const loggedState = await getLoggedSmsState(message.id);
+      if (loggedState === message.state) continue;
       const failedRecipients = message.recipients.filter((r) => FAILURE_STATES.has(r.state));
-      logIntegrationEvent('sms', failedRecipients.length ? 'error' : 'success', 'delivery_status', {
-        messageId: message.id,
-        state: message.state,
-        to: message.recipients[0]?.phoneNumber,
-        error: failedRecipients[0]?.error,
-      });
+      await recordSmsDeliveryState(
+        message.id,
+        message.state,
+        failedRecipients.length ? 'error' : 'success',
+        failedRecipients[0]?.error
+      );
     } catch (error) {
       logger.error(`SMS delivery check failed for message ${message.id}`, error instanceof Error ? error.message : error);
     }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { auth } from '$lib/stores/auth.store.js';
   import { api, ApiError } from '$lib/api/client.js';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -61,15 +61,19 @@
   let statusFilter: SmsStatus | '' = '';
 
   // The gateway only confirms real delivery asynchronously (see the
-  // sms-delivery-check job) — a `send`-time row with no delivery_status
-  // follow-up yet only means the gateway *accepted* the message, not that
-  // it reached the phone. Showing "Delivered" for that case was the exact
-  // bug reported: messages appeared delivered while still in flight or
-  // actually failing silently. A delivery_status row carries the gateway's
-  // real state (Processing/Sent/Delivered/Failed) in deliveryState.
+  // sms-delivery-check job) — a message the gateway has accepted but not
+  // yet resolved to Delivered/Failed is still "in flight" regardless of
+  // which intermediate state (or no state yet) it's currently sitting in.
+  // Showing "Delivered" for that case was the exact bug reported: messages
+  // appeared delivered while still sending or actually failing silently.
+  function isSending(log: SmsLogEntry): boolean {
+    if (log.deliveryState === 'Processing' || log.deliveryState === 'Sent') return true;
+    return !log.deliveryState && log.status === 'success';
+  }
+
   function statusLabel(log: SmsLogEntry): string {
-    if (log.deliveryState) return log.deliveryState.toLowerCase();
-    return log.status === 'success' ? 'sent' : 'failed';
+    if (isSending(log)) return 'sending';
+    return log.deliveryState === 'Delivered' ? 'delivered' : 'failed';
   }
 
   async function loadStats() {
@@ -118,7 +122,37 @@
     void loadLogs(true);
   }
 
-  onMount(refreshAll);
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+  /**
+   * Background live-refresh: updates each already-loaded row's own status
+   * in place (by id) rather than re-fetching/replacing the whole list, so a
+   * "Load more" page stays put while a "Sending..." row above it flips to
+   * "Delivered" on its own. Skips the request entirely once nothing on
+   * screen is still in flight — most of the time, nothing to refresh.
+   */
+  async function refreshLiveStatuses() {
+    if (!logs.some(isSending)) return;
+    try {
+      const params = new URLSearchParams({ limit: String(Math.max(logs.length, 25)) });
+      if (statusFilter) params.set('status', statusFilter);
+      const res = await api.get<{ logs: SmsLogEntry[] }>(`/admin/sms/logs?${params}`);
+      const byId = new Map(res.logs.map((l) => [l.id, l]));
+      logs = logs.map((l) => byId.get(l.id) ?? l);
+    } catch {
+      // Silent — background refresh; the "Try again" flow already covers a
+      // genuinely broken connection on the user-initiated load.
+    }
+  }
+
+  onMount(() => {
+    refreshAll();
+    pollTimer = setInterval(refreshLiveStatuses, 5000);
+  });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
 </script>
 
 <svelte:head><title>SMS log · 251 Lottery Admin</title></svelte:head>
@@ -223,7 +257,7 @@
                     {/if}
                   </td>
                   <td class="whitespace-nowrap border-b border-border px-5 py-4 align-top">
-                    <StatusBadge status={statusLabel(log)} />
+                    <StatusBadge status={statusLabel(log)} pulse={isSending(log)} />
                   </td>
                 </tr>
               {/each}

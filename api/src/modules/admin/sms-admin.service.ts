@@ -1,7 +1,6 @@
 import { listIntegrationLogs, type IntegrationLogStatus } from '../../lib/integration-log.js';
 import { findUsersByPhones } from '../../db/queries/users.queries.js';
 import { sql } from '../../db/client.js';
-import { env } from '../../config/env.js';
 
 export interface SmsLogEntry {
   id: string;
@@ -28,7 +27,11 @@ export interface SmsLogsPage {
   nextBefore: string | null;
 }
 
-const SENDER_LABEL_FALLBACK = '251 Lottery SMS Gateway';
+// Fixed, not environment-configurable: this app only ever has one real SMS
+// identity ("251 Lottery"), and a per-environment override is exactly what
+// let a stale "YeneEta" default survive in dev's compose file after the
+// rebrand. One hardcoded value here can't drift the way an env var can.
+const SENDER_LABEL = '251 Lottery';
 
 /**
  * Paginated, name-enriched read of the SMS slice of integration_logs for
@@ -56,7 +59,7 @@ export async function getSmsLogsPage(filter: {
       id: row.id,
       status: row.status,
       event: row.event,
-      senderLabel: env.SMS_SENDER_LABEL ?? SENDER_LABEL_FALLBACK,
+      senderLabel: SENDER_LABEL,
       receiverPhone,
       receiverName: receiverPhone ? nameByPhone.get(receiverPhone) ?? null : null,
       message: typeof row.detail.message === 'string' ? row.detail.message : null,
@@ -78,12 +81,12 @@ export interface SmsStats {
 }
 
 /**
- * Summary counts for the SMS page's header cards — scoped to the original
- * send attempt (`event != 'delivery_status'`), one row per message. The
- * delivery-check job now logs a follow-up row for every state transition
- * a message goes through (Processing/Sent/Delivered/Failed, see
- * sms-delivery-check.job.ts), which would otherwise double- or triple-
- * count the same message here.
+ * Summary counts for the SMS page's header cards — one row per message,
+ * since recordSmsDeliveryState() (see sms-delivery-check.job.ts) updates a
+ * message's own send-time row in place rather than inserting new ones.
+ * `event != 'delivery_status'` stays as a defensive filter against the
+ * handful of old rows an earlier version of that job inserted separately,
+ * which would otherwise double-count a settled message here.
  */
 export async function getSmsStats(): Promise<SmsStats> {
   const [row] = await sql<{ total: string; delivered: string; failed: string; last24h: string }[]>`
