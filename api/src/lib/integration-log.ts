@@ -90,10 +90,17 @@ export async function recordSmsDeliveryState(
   status: IntegrationLogStatus,
   error?: string
 ): Promise<void> {
+  // The ::text casts are load-bearing, not cosmetic: jsonb_build_object's
+  // "any" signature gives Postgres nothing to infer a bound parameter's
+  // type from, and it refuses the whole query ("could not determine data
+  // type of parameter") rather than guess - confirmed by reproducing this
+  // exact failure live. Every call here was silently erroring (caught by
+  // the job's try/catch) until this cast was added, which is why the admin
+  // log was stuck showing "Sending" forever regardless of the real state.
   await sql`
     UPDATE "Tombola_DB".integration_logs
     SET status = ${status},
-        detail = detail || jsonb_build_object('state', ${state}, 'error', ${error ?? null})
+        detail = detail || jsonb_build_object('state', ${state}::text, 'error', ${error ?? null}::text)
     WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
   `;
 }
@@ -132,10 +139,11 @@ export async function getSmsRetryCandidate(messageId: string): Promise<{
  * regardless of how the retry itself turns out.
  */
 export async function rebindSmsRetry(oldMessageId: string, newMessageId: string): Promise<void> {
+  // See the ::text note on recordSmsDeliveryState above - same requirement here.
   await sql`
     UPDATE "Tombola_DB".integration_logs
     SET status = 'success',
-        detail = (detail || jsonb_build_object('messageId', ${newMessageId}, 'retried', true)) - 'state' - 'error'
+        detail = (detail || jsonb_build_object('messageId', ${newMessageId}::text, 'retried', true)) - 'state' - 'error'
     WHERE integration = 'sms' AND detail->>'messageId' = ${oldMessageId}
   `;
 }
@@ -144,7 +152,7 @@ export async function rebindSmsRetry(oldMessageId: string, newMessageId: string)
 export async function markSmsRetryFailed(messageId: string, error: string): Promise<void> {
   await sql`
     UPDATE "Tombola_DB".integration_logs
-    SET detail = detail || jsonb_build_object('retried', true, 'error', ${error})
+    SET detail = detail || jsonb_build_object('retried', true, 'error', ${error}::text)
     WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
   `;
 }
