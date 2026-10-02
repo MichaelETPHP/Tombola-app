@@ -98,6 +98,57 @@ export async function recordSmsDeliveryState(
   `;
 }
 
+/**
+ * The original send's recipient/message/event for a failed gateway message,
+ * plus whether it's already been retried once — sms-delivery-check.job.ts's
+ * only source of truth for "can/should this be retried," since the retry
+ * itself (see retrySms in sms.ts) needs the exact original text, and must
+ * never fire more than once per message.
+ */
+export async function getSmsRetryCandidate(messageId: string): Promise<{
+  to: string;
+  message: string;
+  event: string;
+  retried: boolean;
+} | null> {
+  const rows = await sql<{ to: string | null; message: string | null; event: string; retried: boolean | null }[]>`
+    SELECT detail->>'to' AS to, detail->>'message' AS message, event, (detail->>'retried')::boolean AS retried
+    FROM "Tombola_DB".integration_logs
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row || !row.to || !row.message) return null;
+  return { to: row.to, message: row.message, event: row.event, retried: row.retried ?? false };
+}
+
+/**
+ * Rebinds a message's log row to the gateway message id created by its one
+ * retry attempt, and resets state/status back to "in flight" — the next
+ * delivery-check sweep then tracks the RETRY's own progress against this
+ * same row (Processing/Sent/Delivered/Failed), so a retried send still
+ * reads as one compact line that recovered, not a second log entry.
+ * `retried: true` is set unconditionally so this row is never retried again
+ * regardless of how the retry itself turns out.
+ */
+export async function rebindSmsRetry(oldMessageId: string, newMessageId: string): Promise<void> {
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET status = 'success',
+        detail = (detail || jsonb_build_object('messageId', ${newMessageId}, 'retried', true)) - 'state' - 'error'
+    WHERE integration = 'sms' AND detail->>'messageId' = ${oldMessageId}
+  `;
+}
+
+/** The retry attempt itself never reached the gateway — mark it retried (so it's never tried again) and keep the original failure visible. */
+export async function markSmsRetryFailed(messageId: string, error: string): Promise<void> {
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET detail = detail || jsonb_build_object('retried', true, 'error', ${error})
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+  `;
+}
+
 export interface IntegrationLogFilter {
   integration?: IntegrationKey;
   status?: IntegrationLogStatus;

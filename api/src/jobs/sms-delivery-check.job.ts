@@ -1,10 +1,36 @@
-import { listRecentSmsMessages } from '../lib/sms.js';
-import { getLoggedSmsState, recordSmsDeliveryState } from '../lib/integration-log.js';
+import { listRecentSmsMessages, retrySms } from '../lib/sms.js';
+import {
+  getLoggedSmsState,
+  recordSmsDeliveryState,
+  getSmsRetryCandidate,
+  rebindSmsRetry,
+  markSmsRetryFailed,
+} from '../lib/integration-log.js';
 import { logger } from '../lib/logger.js';
 
 const CHECK_INTERVAL_MS = 20_000;
 
 const FAILURE_STATES = new Set(['Failed']);
+
+/**
+ * Events eligible for the one automatic retry below. Deliberately an
+ * allowlist of single-recipient transactional sends only, not every event
+ * name — 'otp' is excluded because its logged message has the code
+ * redacted (see messageForLog in sms.ts), so there's no real text left to
+ * resend; 'bulk_send'/'contacts_broadcast'/the default 'send' bucket are
+ * excluded because those can share one gateway message id across many
+ * recipients, where retrying off a single log row could resend to the
+ * wrong person.
+ */
+const RETRYABLE_EVENTS = new Set([
+  'ticket_confirmation',
+  'trigger_link',
+  'draw_invitation',
+  'draw_winner',
+  'representative_invitation',
+  'welcome',
+  'admin_direct_send',
+]);
 
 /**
  * sendSms()'s own return value only reflects the gateway *accepting* a
@@ -22,6 +48,12 @@ const FAILURE_STATES = new Set(['Failed']);
  * log row in place (see recordSmsDeliveryState) — so the admin SMS log
  * shows the real pipeline live (Processing/Sent/Delivered/Failed) on one
  * line per message, never a growing trail of duplicate rows.
+ *
+ * A message that lands on Failed gets exactly one automatic retry (see
+ * retryFailedSms) — the android-sms-gateway project's own production
+ * guidance recommends retry logic, and real gateway data showed most
+ * failures are a few-second radio hiccup (SIM mid-reacquisition), not a
+ * persistent problem, so a single retry a moment later clears most of them.
  */
 async function checkSmsDeliveryStatus(): Promise<void> {
   let messages;
@@ -47,9 +79,32 @@ async function checkSmsDeliveryStatus(): Promise<void> {
         failedRecipients.length ? 'error' : 'success',
         failedRecipients[0]?.error
       );
+
+      if (message.state === 'Failed') {
+        await retryFailedSms(message.id);
+      }
     } catch (error) {
       logger.error(`SMS delivery check failed for message ${message.id}`, error instanceof Error ? error.message : error);
     }
+  }
+}
+
+async function retryFailedSms(messageId: string): Promise<void> {
+  const candidate = await getSmsRetryCandidate(messageId);
+  if (!candidate || candidate.retried) return;
+  if (!RETRYABLE_EVENTS.has(candidate.event)) return;
+  // Defensive: a real recipient always normalizes to E.164 (+2519... or a
+  // bare 10-digit local number) — anything else (e.g. contacts_broadcast's
+  // "N contacts" summary placeholder) isn't a phone number to retry.
+  if (!/^\+?\d{9,15}$/.test(candidate.to)) return;
+
+  const result = await retrySms(candidate.to, candidate.message);
+  if (result.success && result.messageId) {
+    await rebindSmsRetry(messageId, result.messageId);
+    logger.info(`SMS retry succeeded for ${messageId} -> new message ${result.messageId}`);
+  } else {
+    await markSmsRetryFailed(messageId, result.error ?? 'retry failed');
+    logger.warn(`SMS retry failed for ${messageId}: ${result.error ?? 'unknown error'}`);
   }
 }
 

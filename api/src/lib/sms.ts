@@ -13,6 +13,7 @@ export interface SmsGatewayResponse {
   success: boolean;
   messageId?: string;
   error?: string;
+  httpStatus?: number;
 }
 
 interface GatewaySendSuccess {
@@ -70,6 +71,36 @@ function messageForLog(event: string, message: string): string {
   return event === 'otp' ? message.replace(/\d{4,8}/g, '••••••') : message;
 }
 
+/**
+ * The bare gateway POST, no logging — shared by sendSms() (which logs the
+ * normal way) and sms-delivery-check.job.ts's single retry-on-failure
+ * (which instead rebinds the *existing* log row to the retry's new
+ * messageId, so a retried send still shows as one line in the admin log,
+ * not a second one).
+ */
+async function postSmsToGateway(to: string, message: string): Promise<SmsGatewayResponse> {
+  const response = await fetch(`${env.SMS_API_URL!.replace(/\/$/, '')}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
+    },
+    body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: [toE164(to)] }),
+  });
+
+  const data = await response.json().catch(() => null) as
+    | GatewaySendSuccess
+    | { message: string }
+    | null;
+
+  if (!response.ok || !data || !('id' in data)) {
+    const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
+    return { success: false, error: errorMessage, httpStatus: response.status };
+  }
+
+  return { success: true, messageId: data.id };
+}
+
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
   const { to, message, event = 'send' } = options;
   const loggedMessage = messageForLog(event, message);
@@ -85,34 +116,39 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
   }
 
   try {
-    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
-      },
-      body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: [toE164(to)] }),
-    });
+    const result = await postSmsToGateway(to, message);
 
-    const data = await response.json().catch(() => null) as
-      | GatewaySendSuccess
-      | { message: string }
-      | null;
-
-    if (!response.ok || !data || !('id' in data)) {
-      const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
-      logger.error(`SMS send failed (${response.status}): ${errorMessage}`);
-      logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, httpStatus: response.status, error: errorMessage });
-      return { success: false, error: errorMessage };
+    if (!result.success) {
+      logger.error(`SMS send failed: ${result.error}`);
+      logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, httpStatus: result.httpStatus, error: result.error });
+      return result;
     }
 
-    logIntegrationEvent('sms', 'success', event, { to, message: loggedMessage, messageId: data.id });
-    return { success: true, messageId: data.id };
+    logIntegrationEvent('sms', 'success', event, { to, message: loggedMessage, messageId: result.messageId });
+    return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`SMS send exception: ${errorMessage}`);
     logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, error: errorMessage });
     return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Retries exactly one failed send, in place: posts the same `to`/`message`
+ * to the gateway again and reports the outcome, with no logging of its
+ * own — the caller (sms-delivery-check.job.ts) owns rebinding the
+ * original log row, since this is a continuation of that same message,
+ * not a new one.
+ */
+export async function retrySms(to: string, message: string): Promise<SmsGatewayResponse> {
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
+    return { success: false, error: 'SMS gateway not configured' };
+  }
+  try {
+    return await postSmsToGateway(to, message);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown SMS error' };
   }
 }
 
