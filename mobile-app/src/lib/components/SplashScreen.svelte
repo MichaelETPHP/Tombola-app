@@ -183,7 +183,7 @@
       <div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
         <Dices size={14} class="stroke-[2.5]" />
       </div>
-      <span class="font-bold tracking-wider text-xs uppercase text-white">YENEETA</span>
+      <span class="font-bold tracking-wider text-xs uppercase text-white">251 Lottery</span>
     </div>
 
     <!-- Small iPhone Spinning Icon Loader -->

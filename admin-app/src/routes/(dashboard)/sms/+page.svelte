@@ -25,6 +25,7 @@
     receiverName: string | null;
     message: string | null;
     error: string | null;
+    deliveryState: string | null;
     createdAt: string;
   }
 
@@ -46,6 +47,7 @@
     bulk_send: 'Admin broadcast',
     contacts_broadcast: 'Contacts broadcast',
     send: 'Message',
+    delivery_status: 'Delivery update',
   };
 
   let stats: SmsStats | null = null;
@@ -57,6 +59,18 @@
   let logsLoadingMore = false;
   let nextBefore: string | null = null;
   let statusFilter: SmsStatus | '' = '';
+
+  // The gateway only confirms real delivery asynchronously (see the
+  // sms-delivery-check job) — a `send`-time row with no delivery_status
+  // follow-up yet only means the gateway *accepted* the message, not that
+  // it reached the phone. Showing "Delivered" for that case was the exact
+  // bug reported: messages appeared delivered while still in flight or
+  // actually failing silently. A delivery_status row carries the gateway's
+  // real state (Processing/Sent/Delivered/Failed) in deliveryState.
+  function statusLabel(log: SmsLogEntry): string {
+    if (log.deliveryState) return log.deliveryState.toLowerCase();
+    return log.status === 'success' ? 'sent' : 'failed';
+  }
 
   async function loadStats() {
     statsLoading = true;
@@ -209,7 +223,7 @@
                     {/if}
                   </td>
                   <td class="whitespace-nowrap border-b border-border px-5 py-4 align-top">
-                    <StatusBadge status={log.status === 'success' ? 'delivered' : 'failed'} />
+                    <StatusBadge status={statusLabel(log)} />
                   </td>
                 </tr>
               {/each}

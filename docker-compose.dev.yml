@@ -1,4 +1,4 @@
-# YeneEta development stack for the Coolify `dev` resource.
+# 251 Lottery development stack for the Coolify `dev` resource.
 #
 # Every setting is prefixed with DEV_ so project-level/production variables
 # cannot silently leak into this stack. Add these variables only to the dev
@@ -35,7 +35,7 @@ services:
       SMS_API_KEY: ${DEV_SMS_API_KEY:-}
       SMS_API_USERNAME: ${DEV_SMS_API_USERNAME:-}
       SMS_API_PASSWORD: ${DEV_SMS_API_PASSWORD:-}
-      SMS_SENDER_LABEL: ${DEV_SMS_SENDER_LABEL:-YeneEta}
+      SMS_SENDER_LABEL: ${DEV_SMS_SENDER_LABEL:-251 Lottery}
       DEMO_OTP_ENABLED: ${DEV_DEMO_OTP_ENABLED:-true}
       # Short window for fast manual testing of the draw-trigger auto-reassign
       # cycle — production defaults to a real 60-minute window instead (see

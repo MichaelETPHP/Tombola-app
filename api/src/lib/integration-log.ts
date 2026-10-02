@@ -61,18 +61,21 @@ export function logIntegrationEvent(
 }
 
 /**
- * Has a delivery-outcome follow-up already been recorded for this gateway
- * message id? Used by sms-delivery-check.job.ts so re-running the sweep
- * (every few minutes) never writes a duplicate row for a message whose
- * final state it already resolved and logged.
+ * The most recent delivery state already logged for this gateway message
+ * id (e.g. "Processing", "Sent", "Delivered", "Failed"), or null if none
+ * yet. Used by sms-delivery-check.job.ts to log a follow-up row for every
+ * real state *transition* a message goes through — not just once at the
+ * end — without writing a duplicate row on a sweep that finds nothing new
+ * (the overwhelmingly common case once a message has already settled).
  */
-export async function hasLoggedDeliveryOutcome(messageId: string): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    SELECT id FROM "Tombola_DB".integration_logs
+export async function getLastLoggedSmsState(messageId: string): Promise<string | null> {
+  const rows = await sql<{ state: string }[]>`
+    SELECT detail->>'state' AS state FROM "Tombola_DB".integration_logs
     WHERE integration = 'sms' AND event = 'delivery_status' AND detail->>'messageId' = ${messageId}
+    ORDER BY created_at DESC
     LIMIT 1
   `;
-  return rows.length > 0;
+  return rows[0]?.state ?? null;
 }
 
 export interface IntegrationLogFilter {

@@ -12,6 +12,14 @@ export interface SmsLogEntry {
   receiverName: string | null;
   message: string | null;
   error: string | null;
+  /**
+   * The gateway's own delivery state ("Processing", "Sent", "Delivered",
+   * "Failed") for a `delivery_status` row — the sms-delivery-check job's
+   * reconciliation sweep, not the initial send. Null for every other event,
+   * since those only ever reflect the gateway *accepting* the message, not
+   * what happened to it afterwards.
+   */
+  deliveryState: string | null;
   createdAt: string;
 }
 
@@ -53,6 +61,7 @@ export async function getSmsLogsPage(filter: {
       receiverName: receiverPhone ? nameByPhone.get(receiverPhone) ?? null : null,
       message: typeof row.detail.message === 'string' ? row.detail.message : null,
       error: typeof row.detail.error === 'string' ? row.detail.error : null,
+      deliveryState: typeof row.detail.state === 'string' ? row.detail.state : null,
       createdAt: row.createdAt,
     };
   });
@@ -68,7 +77,14 @@ export interface SmsStats {
   last24h: number;
 }
 
-/** Summary counts for the SMS page's header cards. */
+/**
+ * Summary counts for the SMS page's header cards — scoped to the original
+ * send attempt (`event != 'delivery_status'`), one row per message. The
+ * delivery-check job now logs a follow-up row for every state transition
+ * a message goes through (Processing/Sent/Delivered/Failed, see
+ * sms-delivery-check.job.ts), which would otherwise double- or triple-
+ * count the same message here.
+ */
 export async function getSmsStats(): Promise<SmsStats> {
   const [row] = await sql<{ total: string; delivered: string; failed: string; last24h: string }[]>`
     SELECT
@@ -77,7 +93,7 @@ export async function getSmsStats(): Promise<SmsStats> {
       COUNT(*) FILTER (WHERE status = 'error')::text AS failed,
       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::text AS last24h
     FROM "Tombola_DB".integration_logs
-    WHERE integration = 'sms'
+    WHERE integration = 'sms' AND event != 'delivery_status'
   `;
   return {
     total: Number(row.total),

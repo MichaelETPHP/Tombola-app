@@ -63,7 +63,16 @@
     senderLabel: string;
     message: string | null;
     error: string | null;
+    deliveryState: string | null;
     createdAt: string;
+  }
+
+  // See the dedicated SMS log page for why this can't just be
+  // log.status === 'success' ? 'delivered' : 'failed' — that collapsed
+  // every in-flight state into a false "Delivered".
+  function smsStatusLabel(log: SmsLogEntry): string {
+    if (log.deliveryState) return log.deliveryState.toLowerCase();
+    return log.status === 'success' ? 'sent' : 'failed';
   }
 
   interface LoginEvent {
@@ -98,6 +107,7 @@
     bulk_send: 'Admin broadcast',
     admin_direct_send: 'Sent from profile',
     send: 'Message',
+    delivery_status: 'Delivery update',
   };
 
   const formatEtb = (n: number) => Number(n).toLocaleString();
@@ -523,7 +533,7 @@
                 <div class="rounded-button border border-border/70 bg-bg/40 p-3 text-[11px]">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-ink">{eventLabels[log.event] ?? log.event}</span>
-                    <StatusBadge status={log.status === 'success' ? 'delivered' : 'failed'} />
+                    <StatusBadge status={smsStatusLabel(log)} />
                   </div>
                   <p class="mt-1.5 whitespace-pre-wrap break-words leading-relaxed text-muted">{log.message ?? '—'}</p>
                   {#if log.status === 'error' && log.error}

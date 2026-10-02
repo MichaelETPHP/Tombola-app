@@ -1,24 +1,27 @@
 import { listRecentSmsMessages } from '../lib/sms.js';
-import { logIntegrationEvent, hasLoggedDeliveryOutcome } from '../lib/integration-log.js';
+import { logIntegrationEvent, getLastLoggedSmsState } from '../lib/integration-log.js';
 import { logger } from '../lib/logger.js';
 
-const CHECK_INTERVAL_MS = 2 * 60_000;
+const CHECK_INTERVAL_MS = 20_000;
+
+const FAILURE_STATES = new Set(['Failed']);
 
 /**
  * sendSms()'s own return value only reflects the gateway *accepting* a
  * message to queue — not whether the registered Android phone actually
- * sent it. That phone can sit on "Pending" for minutes or, per observed
- * real data, hours (battery optimization, lost connectivity, the gateway
- * app not running) before resolving to "Sent"/"Delivered" or "Failed"
- * with a native error like RESULT_ERROR_GENERIC_FAILURE — a failure this
- * app would otherwise never find out about, since nothing else ever asks
- * the gateway again after the initial accept.
+ * sent it. The phone itself is confirmed reliably online every day, so a
+ * message sitting unresolved isn't a connectivity question; it still goes
+ * through Pending -> Processing -> Sent -> Delivered (or Failed, with a
+ * native error like RESULT_ERROR_GENERIC_FAILURE) on the gateway's own
+ * clock, and nothing else here ever asks the gateway again after the
+ * initial accept.
  *
- * This sweep is deliberately read-only reconciliation, not a retry: it
- * pulls the gateway's own recent-message history and, for anything that
- * has reached a terminal state (Delivered/Failed) and doesn't already
- * have a logged outcome, records one — giving the admin SMS log a true
- * delivery picture instead of just "the gateway said OK at send time."
+ * This sweep is read-only reconciliation, not a retry: it pulls the
+ * gateway's recent-message history and, for every message whose current
+ * state differs from the last state this app already logged for it,
+ * records a follow-up row — so the admin SMS log shows the real pipeline
+ * (Processing/Sent/Delivered/Failed) as it happens, not just a final
+ * verdict once a message settles.
  */
 async function checkSmsDeliveryStatus(): Promise<void> {
   let messages;
@@ -30,10 +33,14 @@ async function checkSmsDeliveryStatus(): Promise<void> {
   }
 
   for (const message of messages) {
-    if (message.state !== 'Delivered' && message.state !== 'Failed') continue;
+    // "Pending" is the gateway's queued-but-not-yet-touched state — logging
+    // it would just be noise, since it's indistinguishable from the
+    // send-time entry every message already gets.
+    if (message.state === 'Pending') continue;
     try {
-      if (await hasLoggedDeliveryOutcome(message.id)) continue;
-      const failedRecipients = message.recipients.filter((r) => r.state === 'Failed');
+      const lastState = await getLastLoggedSmsState(message.id);
+      if (lastState === message.state) continue;
+      const failedRecipients = message.recipients.filter((r) => FAILURE_STATES.has(r.state));
       logIntegrationEvent('sms', failedRecipients.length ? 'error' : 'success', 'delivery_status', {
         messageId: message.id,
         state: message.state,
