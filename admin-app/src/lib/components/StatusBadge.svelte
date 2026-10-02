@@ -2,12 +2,14 @@
   import { statusColors } from '../theme/tokens.js';
 
   export let status: keyof typeof statusColors | string;
+  /** Animates the badge for a state that's still in progress (e.g. "Sending..."). */
+  export let pulse = false;
 
   $: palette = status in statusColors ? statusColors[status as keyof typeof statusColors] : null;
 </script>
 
 <span
-  class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold capitalize"
+  class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold capitalize {pulse ? 'animate-pulse' : ''}"
   style={palette
     ? `color: ${palette.fg}; background: ${palette.bg};`
     : 'color: var(--color-muted); background: var(--color-border);'}

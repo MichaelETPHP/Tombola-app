@@ -60,6 +60,103 @@ export function logIntegrationEvent(
   })();
 }
 
+/**
+ * The delivery state already recorded against this gateway message id
+ * (e.g. "Processing", "Sent", "Delivered", "Failed"), or null if the
+ * gateway sweep hasn't recorded one yet. Used by sms-delivery-check.job.ts
+ * to skip a sweep that finds nothing new for a message (the overwhelmingly
+ * common case once it has settled).
+ */
+export async function getLoggedSmsState(messageId: string): Promise<string | null> {
+  const rows = await sql<{ state: string | null }[]>`
+    SELECT detail->>'state' AS state FROM "Tombola_DB".integration_logs
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+    LIMIT 1
+  `;
+  return rows[0]?.state ?? null;
+}
+
+/**
+ * Records this gateway message's current delivery state onto its own
+ * original send-time log row — an UPDATE, never a new INSERT. The admin
+ * SMS log must show exactly one line per message (send attempt), whose
+ * status transitions live as the gateway reports Processing -> Sent ->
+ * Delivered/Failed; writing a second row per transition would turn one
+ * message into several duplicate-looking log entries.
+ */
+export async function recordSmsDeliveryState(
+  messageId: string,
+  state: string,
+  status: IntegrationLogStatus,
+  error?: string
+): Promise<void> {
+  // The ::text casts are load-bearing, not cosmetic: jsonb_build_object's
+  // "any" signature gives Postgres nothing to infer a bound parameter's
+  // type from, and it refuses the whole query ("could not determine data
+  // type of parameter") rather than guess - confirmed by reproducing this
+  // exact failure live. Every call here was silently erroring (caught by
+  // the job's try/catch) until this cast was added, which is why the admin
+  // log was stuck showing "Sending" forever regardless of the real state.
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET status = ${status},
+        detail = detail || jsonb_build_object('state', ${state}::text, 'error', ${error ?? null}::text)
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+  `;
+}
+
+/**
+ * The original send's recipient/message/event for a failed gateway message,
+ * plus whether it's already been retried once — sms-delivery-check.job.ts's
+ * only source of truth for "can/should this be retried," since the retry
+ * itself (see retrySms in sms.ts) needs the exact original text, and must
+ * never fire more than once per message.
+ */
+export async function getSmsRetryCandidate(messageId: string): Promise<{
+  to: string;
+  message: string;
+  event: string;
+  retried: boolean;
+} | null> {
+  const rows = await sql<{ to: string | null; message: string | null; event: string; retried: boolean | null }[]>`
+    SELECT detail->>'to' AS to, detail->>'message' AS message, event, (detail->>'retried')::boolean AS retried
+    FROM "Tombola_DB".integration_logs
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row || !row.to || !row.message) return null;
+  return { to: row.to, message: row.message, event: row.event, retried: row.retried ?? false };
+}
+
+/**
+ * Rebinds a message's log row to the gateway message id created by its one
+ * retry attempt, and resets state/status back to "in flight" — the next
+ * delivery-check sweep then tracks the RETRY's own progress against this
+ * same row (Processing/Sent/Delivered/Failed), so a retried send still
+ * reads as one compact line that recovered, not a second log entry.
+ * `retried: true` is set unconditionally so this row is never retried again
+ * regardless of how the retry itself turns out.
+ */
+export async function rebindSmsRetry(oldMessageId: string, newMessageId: string): Promise<void> {
+  // See the ::text note on recordSmsDeliveryState above - same requirement here.
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET status = 'success',
+        detail = (detail || jsonb_build_object('messageId', ${newMessageId}::text, 'retried', true)) - 'state' - 'error'
+    WHERE integration = 'sms' AND detail->>'messageId' = ${oldMessageId}
+  `;
+}
+
+/** The retry attempt itself never reached the gateway — mark it retried (so it's never tried again) and keep the original failure visible. */
+export async function markSmsRetryFailed(messageId: string, error: string): Promise<void> {
+  await sql`
+    UPDATE "Tombola_DB".integration_logs
+    SET detail = detail || jsonb_build_object('retried', true, 'error', ${error}::text)
+    WHERE integration = 'sms' AND detail->>'messageId' = ${messageId}
+  `;
+}
+
 export interface IntegrationLogFilter {
   integration?: IntegrationKey;
   status?: IntegrationLogStatus;

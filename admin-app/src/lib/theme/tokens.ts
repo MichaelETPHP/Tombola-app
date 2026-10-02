@@ -84,6 +84,9 @@ export const statusColors = {
   error: { fg: colors.danger, bg: colors.dangerBg },
   delivered: { fg: colors.success, bg: colors.successBg },
   failed: { fg: colors.danger, bg: colors.dangerBg },
+  // SMS gateway in-flight (admin SMS log) — any pre-delivery state
+  // (Pending/Processing/Sent), shown pulsing via StatusBadge's `pulse` prop.
+  sending: { fg: colors.info, bg: colors.infoBg },
 } as const;
 
 // ── Spacing Scale ────────────────────────────────────────

@@ -13,6 +13,7 @@ export interface SmsGatewayResponse {
   success: boolean;
   messageId?: string;
   error?: string;
+  httpStatus?: number;
 }
 
 interface GatewaySendSuccess {
@@ -70,6 +71,36 @@ function messageForLog(event: string, message: string): string {
   return event === 'otp' ? message.replace(/\d{4,8}/g, '••••••') : message;
 }
 
+/**
+ * The bare gateway POST, no logging — shared by sendSms() (which logs the
+ * normal way) and sms-delivery-check.job.ts's single retry-on-failure
+ * (which instead rebinds the *existing* log row to the retry's new
+ * messageId, so a retried send still shows as one line in the admin log,
+ * not a second one).
+ */
+async function postSmsToGateway(to: string, message: string): Promise<SmsGatewayResponse> {
+  const response = await fetch(`${env.SMS_API_URL!.replace(/\/$/, '')}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
+    },
+    body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: [toE164(to)] }),
+  });
+
+  const data = await response.json().catch(() => null) as
+    | GatewaySendSuccess
+    | { message: string }
+    | null;
+
+  if (!response.ok || !data || !('id' in data)) {
+    const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
+    return { success: false, error: errorMessage, httpStatus: response.status };
+  }
+
+  return { success: true, messageId: data.id };
+}
+
 export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayResponse> {
   const { to, message, event = 'send' } = options;
   const loggedMessage = messageForLog(event, message);
@@ -85,34 +116,39 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsGatewayRespon
   }
 
   try {
-    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
-      },
-      body: JSON.stringify({ textMessage: { text: message }, phoneNumbers: [toE164(to)] }),
-    });
+    const result = await postSmsToGateway(to, message);
 
-    const data = await response.json().catch(() => null) as
-      | GatewaySendSuccess
-      | { message: string }
-      | null;
-
-    if (!response.ok || !data || !('id' in data)) {
-      const errorMessage = data && 'message' in data ? data.message : `HTTP ${response.status}`;
-      logger.error(`SMS send failed (${response.status}): ${errorMessage}`);
-      logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, httpStatus: response.status, error: errorMessage });
-      return { success: false, error: errorMessage };
+    if (!result.success) {
+      logger.error(`SMS send failed: ${result.error}`);
+      logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, httpStatus: result.httpStatus, error: result.error });
+      return result;
     }
 
-    logIntegrationEvent('sms', 'success', event, { to, message: loggedMessage, messageId: data.id });
-    return { success: true, messageId: data.id };
+    logIntegrationEvent('sms', 'success', event, { to, message: loggedMessage, messageId: result.messageId });
+    return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown SMS error';
     logger.error(`SMS send exception: ${errorMessage}`);
     logIntegrationEvent('sms', 'error', event, { to, message: loggedMessage, error: errorMessage });
     return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Retries exactly one failed send, in place: posts the same `to`/`message`
+ * to the gateway again and reports the outcome, with no logging of its
+ * own — the caller (sms-delivery-check.job.ts) owns rebinding the
+ * original log row, since this is a continuation of that same message,
+ * not a new one.
+ */
+export async function retrySms(to: string, message: string): Promise<SmsGatewayResponse> {
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) {
+    return { success: false, error: 'SMS gateway not configured' };
+  }
+  try {
+    return await postSmsToGateway(to, message);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown SMS error' };
   }
 }
 
@@ -122,14 +158,20 @@ export interface LiveCheckResult {
   message: string;
 }
 
+function smsAuthHeader(): string {
+  return `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`;
+}
+
 /**
  * Reachability probe for the admin Integrations page — deliberately never
- * sends an actual message. A GET against the gateway's own base URL isn't
- * a documented endpoint of this 3rdparty API, but that's fine: any HTTP
- * response at all (even a 404) proves the host is up and answering, which
- * is everything this needs to know. Only a network-level failure (refused,
- * timed out, DNS failure) means "unreachable" — this never touches
- * integration_logs, since a synthetic check isn't a real send attempt.
+ * sends an actual message. Hits GET /messages specifically (confirmed to
+ * return 200 with real data), not just the bare base URL: this gateway
+ * relays through a real Android phone's own SIM, and that phone's own
+ * software layer (Tasker/battery optimization/connectivity) can go dark
+ * for hours while the gateway's own HTTP server keeps answering requests
+ * fine — a bare "the host responds" check would say "reachable" the whole
+ * time. /messages is the one endpoint this app actually depends on, so
+ * confirming *it* answers is the only check worth calling "live."
  */
 export async function pingSmsGateway(): Promise<LiveCheckResult> {
   const start = Date.now();
@@ -137,17 +179,15 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
     return { reachable: false, latencyMs: 0, message: 'SMS gateway not configured' };
   }
   try {
-    const response = await fetch(env.SMS_API_URL.replace(/\/$/, ''), {
+    const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages?limit=1`, {
       method: 'GET',
-      signal: AbortSignal.timeout(5_000),
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${env.SMS_API_USERNAME}:${env.SMS_API_PASSWORD}`).toString('base64')}`,
-      },
+      signal: AbortSignal.timeout(8_000),
+      headers: { 'Authorization': smsAuthHeader() },
     });
     return {
-      reachable: true,
+      reachable: response.ok,
       latencyMs: Date.now() - start,
-      message: `Gateway responded (HTTP ${response.status})`,
+      message: response.ok ? `Gateway responded (HTTP ${response.status})` : `Gateway returned HTTP ${response.status}`,
     };
   } catch (error) {
     return {
@@ -156,6 +196,36 @@ export async function pingSmsGateway(): Promise<LiveCheckResult> {
       message: error instanceof Error ? error.message : 'Unreachable',
     };
   }
+}
+
+export interface GatewayMessageRecord {
+  id: string;
+  deviceId: string;
+  state: string;
+  recipients: { phoneNumber: string; state: string; error?: string }[];
+  states: Record<string, string>;
+}
+
+/**
+ * The gateway's own recent-message history, state transitions and all —
+ * this is what actually exposes whether a message that was accepted
+ * ("Pending") ever really reached the phone's SIM ("Sent"/"Delivered") or
+ * failed there ("Failed", with the phone's own native error string, e.g.
+ * "RESULT_ERROR_GENERIC_FAILURE"). sendSms()'s own return value only ever
+ * reflects the gateway *accepting the request to queue* a message — it has
+ * no way to know the real outcome, which can resolve minutes or (per
+ * observed real data) hours later. See jobs/sms-delivery-check.job.ts,
+ * the only current caller.
+ */
+export async function listRecentSmsMessages(limit = 50): Promise<GatewayMessageRecord[]> {
+  if (!env.SMS_API_URL || !env.SMS_API_USERNAME || !env.SMS_API_PASSWORD) return [];
+  const response = await fetch(`${env.SMS_API_URL.replace(/\/$/, '')}/messages?limit=${limit}`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(10_000),
+    headers: { 'Authorization': smsAuthHeader() },
+  });
+  if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status} listing messages`);
+  return (await response.json()) as GatewayMessageRecord[];
 }
 
 /** A phone that survives `toE164` normalization still matching Ethiopian E.164 shape. */
@@ -317,7 +387,7 @@ export async function sendTriggerLink(phone: string, link: string): Promise<SmsG
   });
 }
 
-const YENEETA_BOT_LINK = 'https://t.me/lottery251_bot';
+const LOTTERY_BOT_LINK = 'https://t.me/lottery251_bot';
 
 // The gateway relays through a real Android phone's own SIM (see
 // SMS_SENDER_LABEL above), so recipients always see a plain phone number,
@@ -368,7 +438,7 @@ export async function sendTicketPurchaseConfirmation(
     `Your ticket${count === 1 ? '' : 's'}:`,
     ...details.ticketCodes,
     `Good luck! · መልካም እድል!`,
-    YENEETA_BOT_LINK,
+    LOTTERY_BOT_LINK,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'ticket_confirmation' });
 }
@@ -388,7 +458,7 @@ export async function sendDrawWinnerAnnouncement(
     `Ticket ${details.ticketCode} won the ${details.prizeLabel} (${details.prizeName}) in "${details.raffleName}"!`,
     `Our team will reach out soon about claiming your prize.`,
     `Good luck! · መልካም እድል!`,
-    YENEETA_BOT_LINK,
+    LOTTERY_BOT_LINK,
   ].join('\n');
   return sendSms({ to: phone, message, event: 'draw_winner' });
 }

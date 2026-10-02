@@ -1,7 +1,6 @@
 import { listIntegrationLogs, type IntegrationLogStatus } from '../../lib/integration-log.js';
 import { findUsersByPhones } from '../../db/queries/users.queries.js';
 import { sql } from '../../db/client.js';
-import { env } from '../../config/env.js';
 
 export interface SmsLogEntry {
   id: string;
@@ -12,6 +11,14 @@ export interface SmsLogEntry {
   receiverName: string | null;
   message: string | null;
   error: string | null;
+  /**
+   * The gateway's own delivery state ("Processing", "Sent", "Delivered",
+   * "Failed") for a `delivery_status` row — the sms-delivery-check job's
+   * reconciliation sweep, not the initial send. Null for every other event,
+   * since those only ever reflect the gateway *accepting* the message, not
+   * what happened to it afterwards.
+   */
+  deliveryState: string | null;
   createdAt: string;
 }
 
@@ -20,7 +27,11 @@ export interface SmsLogsPage {
   nextBefore: string | null;
 }
 
-const SENDER_LABEL_FALLBACK = '251 Lottery SMS Gateway';
+// Fixed, not environment-configurable: this app only ever has one real SMS
+// identity ("251 Lottery"), and a per-environment override is exactly what
+// let a stale "YeneEta" default survive in dev's compose file after the
+// rebrand. One hardcoded value here can't drift the way an env var can.
+const SENDER_LABEL = '251 Lottery';
 
 /**
  * Paginated, name-enriched read of the SMS slice of integration_logs for
@@ -48,11 +59,12 @@ export async function getSmsLogsPage(filter: {
       id: row.id,
       status: row.status,
       event: row.event,
-      senderLabel: env.SMS_SENDER_LABEL ?? SENDER_LABEL_FALLBACK,
+      senderLabel: SENDER_LABEL,
       receiverPhone,
       receiverName: receiverPhone ? nameByPhone.get(receiverPhone) ?? null : null,
       message: typeof row.detail.message === 'string' ? row.detail.message : null,
       error: typeof row.detail.error === 'string' ? row.detail.error : null,
+      deliveryState: typeof row.detail.state === 'string' ? row.detail.state : null,
       createdAt: row.createdAt,
     };
   });
@@ -68,7 +80,14 @@ export interface SmsStats {
   last24h: number;
 }
 
-/** Summary counts for the SMS page's header cards. */
+/**
+ * Summary counts for the SMS page's header cards — one row per message,
+ * since recordSmsDeliveryState() (see sms-delivery-check.job.ts) updates a
+ * message's own send-time row in place rather than inserting new ones.
+ * `event != 'delivery_status'` stays as a defensive filter against the
+ * handful of old rows an earlier version of that job inserted separately,
+ * which would otherwise double-count a settled message here.
+ */
 export async function getSmsStats(): Promise<SmsStats> {
   const [row] = await sql<{ total: string; delivered: string; failed: string; last24h: string }[]>`
     SELECT
@@ -77,7 +96,7 @@ export async function getSmsStats(): Promise<SmsStats> {
       COUNT(*) FILTER (WHERE status = 'error')::text AS failed,
       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::text AS last24h
     FROM "Tombola_DB".integration_logs
-    WHERE integration = 'sms'
+    WHERE integration = 'sms' AND event != 'delivery_status'
   `;
   return {
     total: Number(row.total),

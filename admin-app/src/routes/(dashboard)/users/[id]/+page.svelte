@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
@@ -63,7 +63,21 @@
     senderLabel: string;
     message: string | null;
     error: string | null;
+    deliveryState: string | null;
     createdAt: string;
+  }
+
+  // See the dedicated SMS log page for why this can't just be
+  // log.status === 'success' ? 'delivered' : 'failed' — that collapsed
+  // every in-flight state into a false "Delivered".
+  function smsIsSending(log: SmsLogEntry): boolean {
+    if (log.deliveryState === 'Processing' || log.deliveryState === 'Sent') return true;
+    return !log.deliveryState && log.status === 'success';
+  }
+
+  function smsStatusLabel(log: SmsLogEntry): string {
+    if (smsIsSending(log)) return 'sending';
+    return log.deliveryState === 'Delivered' ? 'delivered' : 'failed';
   }
 
   interface LoginEvent {
@@ -98,6 +112,7 @@
     bulk_send: 'Admin broadcast',
     admin_direct_send: 'Sent from profile',
     send: 'Message',
+    delivery_status: 'Delivery update',
   };
 
   const formatEtb = (n: number) => Number(n).toLocaleString();
@@ -211,7 +226,30 @@
     void loadPayments();
   }
 
-  onMount(refreshAll);
+  let smsPollTimer: ReturnType<typeof setInterval> | undefined;
+
+  /** Same live-refresh approach as the dedicated SMS log page — updates
+   * each loaded row's own status by id, skips the request once nothing
+   * shown is still in flight. */
+  async function refreshSmsStatuses() {
+    if (!smsLogs.some(smsIsSending)) return;
+    try {
+      const res = await api.get<{ logs: SmsLogEntry[] }>(`/admin/users/${userId}/sms?limit=50`);
+      const byId = new Map(res.logs.map((l) => [l.id, l]));
+      smsLogs = smsLogs.map((l) => byId.get(l.id) ?? l);
+    } catch {
+      // Silent background refresh.
+    }
+  }
+
+  onMount(() => {
+    refreshAll();
+    smsPollTimer = setInterval(refreshSmsStatuses, 5000);
+  });
+
+  onDestroy(() => {
+    if (smsPollTimer) clearInterval(smsPollTimer);
+  });
 
   async function toggleSuspend() {
     if (!profile || updatingSuspend) return;
@@ -523,7 +561,7 @@
                 <div class="rounded-button border border-border/70 bg-bg/40 p-3 text-[11px]">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-ink">{eventLabels[log.event] ?? log.event}</span>
-                    <StatusBadge status={log.status === 'success' ? 'delivered' : 'failed'} />
+                    <StatusBadge status={smsStatusLabel(log)} pulse={smsIsSending(log)} />
                   </div>
                   <p class="mt-1.5 whitespace-pre-wrap break-words leading-relaxed text-muted">{log.message ?? '—'}</p>
                   {#if log.status === 'error' && log.error}
