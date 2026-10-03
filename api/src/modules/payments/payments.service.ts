@@ -1,5 +1,6 @@
 import {
   cancelPendingPayment,
+  startPaymentCheckout,
   completePaymentAndIssueTickets,
   findPaymentByTxRef,
   findPaymentReceiptById,
@@ -12,13 +13,31 @@ import {
   type ChapaTransactionStatusFilter,
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
-import { chapaVerify } from '../../lib/payment-gateway.js';
+import { chapaChargeMobile, chapaVerify, type ChapaMobileMethod } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
 import { sendTelegramTicketConfirmation } from '../../lib/telegram-bot.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
 import { broadcastTicketsSold } from '../../lib/ticket-broadcast.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
+
+export async function chargePaymentForUser(id: string, userId: string, mobile: string, method: ChapaMobileMethod) {
+  const payment = await findPaymentReceiptById(id);
+  if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
+  if (payment.gateway !== 'chapa' || !payment.gatewayRef) throw new AppError(409, 'Payment gateway mismatch');
+  if (env.MOCK_PAYMENTS) throw new AppError(409, 'Use mock checkout for this payment');
+  // Claim under the existing reservation locks before making any external request.
+  // Retries and concurrent submissions must not send another phone payment prompt.
+  await startPaymentCheckout(id, userId, true);
+  try {
+    await chapaChargeMobile({ amount: Number(payment.amount), mobile, txRef: payment.gatewayRef, method });
+  } catch {
+    // A timeout is not proof that Chapa rejected the charge. Keep the reservation
+    // for reconciliation instead of releasing numbers after a possible debit.
+    throw new AppError(502, 'Unable to confirm payment submission. Check payment status before trying again.');
+  }
+  return getPaymentStatus(id, userId);
+}
 
 /** Atomically confirms a payment and assigns its ticket numbers. */
 export async function processPaymentSuccess(txRef: string, meta?: ChapaPaymentMeta): Promise<void> {

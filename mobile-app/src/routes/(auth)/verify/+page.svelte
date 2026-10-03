@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { api, ApiError } from '$lib/api/client.js';
+  import { otpRequestCooldown, otpVerifyCooldown, formatCooldown } from '$lib/stores/otpCooldown.js';
   import { setAuth } from '$lib/stores/auth.store.js';
   import { showBanner } from '$lib/stores/banner.store.js';
   import { hapticLight, hapticMedium } from '$lib/native/haptics.js';
@@ -22,48 +23,39 @@
   let returnTo = '';
   let demoOtpEnabled = false;
 
-  const RESEND_COOLDOWN_S = 60;
-  let resendCooldown = RESEND_COOLDOWN_S;
-  let resendAvailableAt = 0;
-  let resendTimer: ReturnType<typeof setInterval> | undefined;
   let resending = false;
-
-  function updateResendCooldown() {
-    resendCooldown = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
-    if (resendCooldown === 0) clearInterval(resendTimer);
-  }
-
-  function startResendCooldown() {
-    clearInterval(resendTimer);
-    resendAvailableAt = Date.now() + RESEND_COOLDOWN_S * 1000;
-    updateResendCooldown();
-    resendTimer = setInterval(updateResendCooldown, 1000);
-  }
-
-  function formatCountdown(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
-  }
+  let requestRateLimited = false;
+  let attemptsExhausted = false;
+  $: resendCooldown = $otpRequestCooldown;
+  $: if (resendCooldown === 0) requestRateLimited = false;
 
   async function resend() {
     if (resendCooldown > 0 || resending) return;
     hapticLight();
     resending = true;
+    error = '';
     try {
       const otp = await api.post<{ demoOtpEnabled?: boolean }>(
         '/auth/otp/request',
         { phone },
         { skipAuth: true }
       );
-      startResendCooldown();
+      otpRequestCooldown.start(60);
+      attemptsExhausted = false;
+      code = '';
       if (otp.demoOtpEnabled) {
         demoOtpEnabled = true;
         code = '123456';
         await tick();
         await verifyCode(code);
       }
-    } catch {
-      error = $_('verify.resendError');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        requestRateLimited = true;
+        otpRequestCooldown.start(err.retryAfterSeconds ?? 60);
+      } else {
+        error = err instanceof ApiError ? $_('verify.resendError') : $_('login.networkError');
+      }
     } finally {
       resending = false;
     }
@@ -85,7 +77,6 @@
     returnTo = $page.url.searchParams.get('returnTo') ?? '';
     demoOtpEnabled = $page.url.searchParams.get('demo') === '1';
     // A code was already sent by the login screen right before landing here.
-    startResendCooldown();
     if (demoOtpEnabled) {
       code = '123456';
       // Paint the complete code without focusing an input, then continue
@@ -95,10 +86,6 @@
     }
   });
 
-  onDestroy(() => {
-    clearInterval(resendTimer);
-  });
-
   // No submit button — 6 digits is the whole input, so the code being
   // complete already tells us the user is done. One less tap.
   async function handleComplete(e: CustomEvent<string>) {
@@ -106,7 +93,7 @@
   }
 
   async function verifyCode(enteredCode: string) {
-    if (loading) return;
+    if (loading || $otpVerifyCooldown > 0 || attemptsExhausted) return;
     error = '';
     const parsed = verifyOtpSchema.safeParse({ phone, code: enteredCode });
     if (!parsed.success) {
@@ -136,7 +123,18 @@
       await goto(destination, { replaceState: true });
       showBanner($_('login.loginSuccessBanner'), { type: 'success' });
     } catch (err) {
-      error = err instanceof ApiError ? $_('verify.invalidCode') : $_('login.networkError');
+      if (err instanceof ApiError && err.status === 429) {
+        if (err.code === 'AUTH_TOOMANYATTEMPTS') {
+          attemptsExhausted = true;
+          error = $_('verify.attemptsExhausted');
+        } else {
+          otpVerifyCooldown.start(err.retryAfterSeconds ?? 60);
+        }
+      } else {
+        error = err instanceof ApiError
+          ? err.status === 400 ? $_('verify.invalidCode') : $_('verify.verifyError')
+          : $_('login.networkError');
+      }
       // A demo deployment can immediately offer its known test code again;
       // a real OTP is cleared so the user can safely retype it.
       code = demoOtpEnabled ? '123456' : '';
@@ -170,14 +168,23 @@
     class="flex flex-col items-center gap-4 rounded-card bg-card p-6 shadow-card"
     in:fly={{ y: 14, duration: 320, delay: 120, easing: cubicOut }}
   >
-    <OtpInput bind:value={code} disabled={loading} on:complete={handleComplete} />
+    <OtpInput bind:value={code} disabled={loading || $otpVerifyCooldown > 0 || attemptsExhausted} on:complete={handleComplete} />
     {#if demoOtpEnabled && !error}
       <p class="text-center text-[11px] font-semibold text-primary-dark">{$_('verify.testCodeFilled')}</p>
     {/if}
     {#if error}
-      <p class="text-[13px] text-coral-start">{error}</p>
+      <p class="text-[13px] text-coral-start" role="alert">{error}</p>
     {:else if loading}
       <p class="text-[13px] text-muted">{$_('verify.verifying')}</p>
+    {/if}
+
+    {#if requestRateLimited}
+      <p class="text-center text-sm leading-6 text-muted" role="status">{$_('login.tooManyRequests')}</p>
+    {/if}
+    {#if $otpVerifyCooldown > 0}
+      <p class="text-center text-sm leading-6 text-muted" role="status">
+        {$_('verify.tooManyAttempts', { values: { time: formatCooldown($otpVerifyCooldown) } })}
+      </p>
     {/if}
 
     <button
@@ -188,7 +195,7 @@
         ? 'text-muted'
         : 'text-primary-dark'}"
     >
-      {resendCooldown > 0 ? $_('verify.resendIn', { values: { time: formatCountdown(resendCooldown) } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
+      {resendCooldown > 0 ? $_('verify.resendIn', { values: { time: formatCooldown(resendCooldown) } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
     </button>
   </div>
 </div>
