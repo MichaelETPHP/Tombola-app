@@ -59,9 +59,8 @@ export async function purchaseTickets(
 
   if (input.paymentGateway === 'chapa') {
     try {
-      // Chapa Inline.js performs the real direct-charge initialization in
-      // the embedded mobile form. Initializing a hosted transaction here
-      // as well would reuse tx_ref across two competing checkout flows.
+      // The checkout form submits to our authenticated direct-charge endpoint.
+      // Do not initialize a hosted transaction with the same reference here.
       if (!env.MOCK_PAYMENTS) {
         if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
         return {

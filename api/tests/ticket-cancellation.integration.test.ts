@@ -63,6 +63,18 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
     return result.payment;
   }
 
+  test('concurrent charge submissions claim a reservation only once', async () => {
+    const f = await fixture();
+    const payment = await reserve(f.raffleId, f.userId);
+    const attempts = await Promise.allSettled([
+      queries.startPaymentCheckout(payment.id, f.userId, true),
+      queries.startPaymentCheckout(payment.id, f.userId, true),
+    ]);
+    expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect((await queries.findPaymentById(payment.id))?.checkoutStartedAt).not.toBeNull();
+  });
+
   test('started checkout cancellation frees numbers and allowance immediately', async () => {
     const f = await fixture();
     const payment = await reserve(f.raffleId, f.userId);

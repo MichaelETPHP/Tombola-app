@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { chapaWebhookSchema } from './payments.schema.js';
 import {
   processPaymentSuccess,
+  chargePaymentForUser,
   processPaymentFailure,
   getPaymentStatus,
   getMyPayments,
@@ -26,6 +27,19 @@ import type { AppEnv } from '../../types/hono.js';
 
 export const paymentsRoutes = new Hono<AppEnv>();
 paymentsRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store, private'); await next(); });
+paymentsRoutes.post('/:id/charge', authMiddleware, rateLimit({ max: 5, windowSeconds: 60 }), async (c) => {
+  const id = z.string().uuid().parse(c.req.param('id'));
+  const input = z.object({
+    mobile: z.string().regex(/^0[79]\d{8}$/),
+    method: z.enum(['telebirr', 'cbebirr', 'ebirr', 'mpesa']),
+  }).strict().parse(await c.req.json());
+  if ((input.method === 'telebirr' && !input.mobile.startsWith('09'))
+    || (input.method === 'mpesa' && !input.mobile.startsWith('07'))) {
+    throw new AppError(400, 'Phone number does not match the selected payment method');
+  }
+  const payment = await chargePaymentForUser(id, c.get('user').id, input.mobile, input.method);
+  return c.json({ payment });
+});
 paymentsRoutes.post('/:id/start', authMiddleware, rateLimit({ max: 15, windowSeconds: 60 }), async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
   await startPaymentCheckout(id, c.get('user').id);

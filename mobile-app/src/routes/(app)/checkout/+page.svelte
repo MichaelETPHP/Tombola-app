@@ -4,7 +4,7 @@
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { beforeNavigate, goto } from '$app/navigation';
-  import { api } from '$lib/api/client.js';
+  import { api, ApiError } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
@@ -65,6 +65,7 @@
   let resolved = false;
   let loadError = '';
   let paymentError = '';
+  let submitting = false;
   let renderObserver: MutationObserver | undefined;
   let scriptTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -156,8 +157,6 @@
 
     try {
       await loadChapaScript(forceReload);
-      await api.post(`/payments/${paymentId}/start`);
-      checkoutStarted = true;
       if (!window.ChapaCheckout) throw new Error('Chapa checkout is unavailable');
       const container = document.getElementById(CONTAINER_ID);
       if (!container) throw new Error('Payment form container is unavailable');
@@ -215,6 +214,33 @@
         },
       });
 
+      // Keep the vendor's form and validation, but replace its network transport.
+      // Neither inline charge nor inline validation may run in the browser.
+      chapa.open = async (payload) => {
+        if (submitting || resolved || cancelling) return;
+        const mobile = toLocalEthiopianPhone(payload.mobile);
+        if (!mobile || !PAYMENT_METHODS.includes(payload.payment_method)) return;
+        submitting = true;
+        const button = container.querySelector<HTMLButtonElement>('#chapa-pay-button');
+        if (button) button.disabled = true;
+        chapa.showLoading();
+        try {
+          await api.post(`/payments/${paymentId}/charge`, { mobile, method: payload.payment_method });
+        } catch (error) {
+          // Validation/auth errors happened before dispatch; permit correction.
+          // Network failures, server errors and conflicts can represent an active charge.
+          if (error instanceof ApiError && [400, 401, 403, 404, 422, 429].includes(error.status)) {
+            submitting = false;
+            if (button) button.disabled = false;
+            chapa.hideLoading();
+            chapa.showError(get(_)('checkout.formLoadError'));
+            return;
+          }
+        }
+        checkoutStarted = true;
+        resolved = true;
+        await goto(`/payments/${paymentId}`, { replaceState: true });
+      };
       chapa.initialize(CONTAINER_ID);
 
       const rendered = container.querySelector('#chapa-pay-button')
@@ -250,7 +276,7 @@
   }
 
   async function cancel(): Promise<void> {
-    if (cancelling) return;
+    if (cancelling || submitting) return;
     cancelling = true;
     resolved = true;
     if (paymentId) await cancelPaymentAndReturnHome(paymentId);
@@ -261,6 +287,7 @@
     // Back/gesture navigation is an explicit checkout cancellation. The gateway
     // return and receipt routes are confirmation paths, not cancellation.
     const destination = navigation.to?.url.pathname ?? '';
+    if (submitting && !resolved) { navigation.cancel(); return; }
     if (resolved || cancelling || !paymentId || navigation.willUnload || destination === '/payment-return' || destination === `/payments/${paymentId}`) return;
     navigation.cancel();
     void cancel();
@@ -337,7 +364,7 @@
 
 <section class="checkout-page flex min-h-0 flex-col">
   <header class="flex h-12 shrink-0 items-center justify-between">
-    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-ink disabled:opacity-50" aria-label={$_('checkout.cancelAria')} disabled={cancelling} on:click={cancel}>
+    <button type="button" class="pressable flex h-11 w-11 items-center justify-center rounded-full bg-white/75 text-ink disabled:opacity-50" aria-label={$_('checkout.cancelAria')} disabled={cancelling || submitting} on:click={cancel}>
       <ArrowLeft size={20} />
     </button>
     <div class="flex items-center gap-1.5 text-xs font-bold text-muted"><LockKeyhole size={14} class="text-primary-dark" /> {$_('checkout.secureCheckout')}</div>
