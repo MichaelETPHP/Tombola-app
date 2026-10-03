@@ -219,13 +219,14 @@ export async function completePaymentAndIssueTickets(
 }
 
 /** Mark a checkout in flight before exposing any gateway charge UI. */
-export async function startPaymentCheckout(id: string, userId: string): Promise<void> {
+export async function startPaymentCheckout(id: string, userId: string, claimCharge = false): Promise<void> {
   await sql.begin(async (tx) => {
     const [p] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id} AND user_id = ${userId}`;
     if (!p) throw new AppError(404, 'Payment not found');
     await tx`SELECT id FROM raffles WHERE id = ${p.raffleId} FOR UPDATE`;
     const [payment] = await tx<DbPayment[]>`SELECT * FROM payments WHERE id = ${id} FOR UPDATE`;
     if (payment.status !== 'pending' || payment.reviewRequired) throw new AppError(409, 'This payment is no longer available. Check its status.');
+    if (claimCharge && payment.checkoutStartedAt) throw new AppError(409, 'Payment was already submitted. Check its status.');
     if (!payment.checkoutStartedAt && payment.reservationExpiresAt && payment.reservationExpiresAt <= new Date()) throw new AppError(409, 'Your reservation expired. Choose your numbers again.');
     await tx`UPDATE payments SET checkout_started_at = COALESCE(checkout_started_at, NOW()) WHERE id = ${id}`;
   });
