@@ -13,7 +13,7 @@ import {
   type ChapaTransactionStatusFilter,
 } from '../../db/queries/payments.queries.js';
 import { env } from '../../config/env.js';
-import { chapaChargeMobile, chapaVerify, type ChapaMobileMethod } from '../../lib/payment-gateway.js';
+import { chapaChargeMobile, chapaVerify, ChapaVerifyError, type ChapaMobileMethod } from '../../lib/payment-gateway.js';
 import { sendTicketPurchaseConfirmation } from '../../lib/sms.js';
 import { sendTelegramTicketConfirmation } from '../../lib/telegram-bot.js';
 import { formatDisplayNumber, getGlobalCipherKey } from '../../lib/ticket-display-number.js';
@@ -246,7 +246,17 @@ export async function verifyPaymentForUser(id: string, userId: string) {
   const payment = await findPaymentReceiptById(id);
   if (!payment || payment.userId !== userId) throw new AppError(404, 'Payment not found');
   if ((payment.status === 'pending' || payment.status === 'failed') && payment.gateway === 'chapa' && payment.gatewayRef) {
-    await verifyAndReconcileChapaPayment(payment.gatewayRef);
+    try {
+      await verifyAndReconcileChapaPayment(payment.gatewayRef);
+    } catch (error) {
+      // A direct charge's tx_ref can be unrecognized by Chapa's verify
+      // endpoint for a short window while the customer is still approving
+      // on their phone — not proof it will never resolve. The background
+      // stale-payment sweep (stale-payment-check.job.ts) is the one that
+      // eventually gives up on a tx_ref Chapa truly has no record of; this
+      // user-facing poll just keeps waiting instead of erroring out.
+      if (!(error instanceof ChapaVerifyError)) throw error;
+    }
   }
   return getPaymentStatus(id, userId);
 }

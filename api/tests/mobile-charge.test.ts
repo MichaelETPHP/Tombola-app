@@ -34,6 +34,12 @@ describe('server mobile money transport', () => {
     }
   });
 
+  test('accepts a pending response — Chapa dispatches the phone approval asynchronously', async () => {
+    globalThis.fetch = mock(async () => Response.json({ status: 'pending' })) as unknown as typeof fetch;
+    await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' }))
+      .resolves.toBeUndefined();
+  });
+
   test('rejects gateway failures instead of reporting a successful submission', async () => {
     globalThis.fetch = mock(async () => Response.json({ status: 'failed' }, { status: 400 })) as unknown as typeof fetch;
     await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' }))

@@ -57,11 +57,15 @@ export async function chapaChargeMobile(payload: {
     body,
   });
   const data = await response.json() as { status?: string };
-  if (!response.ok || data.status !== 'success') {
+  // Chapa dispatches the approval prompt asynchronously: a direct charge
+  // normally answers "pending" here, settling to success/failed only once
+  // the customer responds on their phone (see chapaVerify/the status poll).
+  // Only a non-2xx or any other status means Chapa rejected the charge itself.
+  if (!response.ok || (data.status !== 'success' && data.status !== 'pending')) {
     logIntegrationEvent('chapa', 'error', 'charge', { txRef: payload.txRef, httpStatus: response.status });
     throw new Error('Chapa mobile charge was not accepted');
   }
-  logIntegrationEvent('chapa', 'success', 'charge', { txRef: payload.txRef, method: payload.method });
+  logIntegrationEvent('chapa', 'success', 'charge', { txRef: payload.txRef, method: payload.method, status: data.status });
 }
 
 export interface ChapaVerifyResponse {
