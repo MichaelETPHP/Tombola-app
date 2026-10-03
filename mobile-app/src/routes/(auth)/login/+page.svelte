@@ -6,7 +6,6 @@
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { api, ApiError } from '$lib/api/client.js';
-  import { otpRequestCooldown, formatCooldown } from '$lib/stores/otpCooldown.js';
   import Button from '$lib/components/Button.svelte';
   import IosSpinner from '$lib/components/IosSpinner.svelte';
   import { hapticLight } from '$lib/native/haptics.js';
@@ -31,8 +30,6 @@
   let phone = '';
   let error = '';
   let loading = false;
-  let rateLimited = false;
-  $: if ($otpRequestCooldown === 0) rateLimited = false;
   let telegramLoading = false;
   let isTelegramMiniApp = false;
   let platformReady = false;
@@ -116,7 +113,7 @@
   }
 
   async function submit() {
-    if (loading || $otpRequestCooldown > 0) return;
+    if (loading) return;
     error = '';
     if (!agreedToTerms) {
       shakeTerms();
@@ -137,7 +134,6 @@
         { skipAuth: true }
       );
       const params = new URLSearchParams({ phone: fullPhone });
-      otpRequestCooldown.start(60);
       if (returnTo) params.set('returnTo', returnTo);
       if (otp.demoOtpEnabled) params.set('demo', '1');
       // Replace, not push — login and verify are two steps of one sign-in
@@ -146,14 +142,7 @@
       // even after the user is authenticated (see navigateBack.ts).
       goto(`/verify?${params}`, { replaceState: true });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
-        rateLimited = true;
-        otpRequestCooldown.start(err.retryAfterSeconds ?? 60);
-      } else {
-        error = err instanceof ApiError
-          ? err.status === 400 ? $_('login.invalidPhone') : $_('login.sendCodeError')
-          : $_('login.networkError');
-      }
+      error = err instanceof ApiError ? $_('login.sendCodeError') : $_('login.networkError');
     } finally {
       loading = false;
     }
@@ -349,14 +338,7 @@
           />
         </div>
         {#if error}<p class="text-[13px] text-coral-start" role="alert">{error}</p>{/if}
-        {#if $otpRequestCooldown > 0}
-          <p class="text-sm leading-6 text-muted" role="status">
-            {rateLimited ? $_('login.tooManyRequests') : $_('login.codeCooldown')}
-          </p>
-        {/if}
-        <Button type="submit" loading={loading} disabled={$otpRequestCooldown > 0}>
-          {$otpRequestCooldown > 0 ? $_('login.retryIn', { values: { time: formatCooldown($otpRequestCooldown) } }) : $_('login.sendCode')}
-        </Button>
+        <Button type="submit" loading={loading}>{$_('login.sendCode')}</Button>
       </form>
     {/if}
 

@@ -34,36 +34,6 @@ export interface ChapaInitResponse {
   };
 }
 
-export type ChapaMobileMethod = 'telebirr' | 'cbebirr' | 'ebirr' | 'mpesa';
-
-/** Initiate mobile money on the server, never through the browser's inline TLS endpoint. */
-export async function chapaChargeMobile(payload: {
-  amount: number;
-  mobile: string;
-  txRef: string;
-  method: ChapaMobileMethod;
-}): Promise<void> {
-  if (env.MOCK_PAYMENTS) throw new Error('Direct charges are unavailable in mock payment mode');
-  if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
-  const body = new FormData();
-  body.set('amount', String(payload.amount));
-  body.set('currency', 'ETB');
-  body.set('mobile', payload.mobile);
-  body.set('tx_ref', payload.txRef);
-  const response = await fetch(`https://api.chapa.co/v1/charges?type=${payload.method}`, {
-    method: 'POST',
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${env.CHAPA_SECRET_KEY}` },
-    body,
-  });
-  const data = await response.json() as { status?: string };
-  if (!response.ok || data.status !== 'success') {
-    logIntegrationEvent('chapa', 'error', 'charge', { txRef: payload.txRef, httpStatus: response.status });
-    throw new Error('Chapa mobile charge was not accepted');
-  }
-  logIntegrationEvent('chapa', 'success', 'charge', { txRef: payload.txRef, method: payload.method });
-}
-
 export interface ChapaVerifyResponse {
   status: string;
   message?: string;

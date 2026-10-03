@@ -48,14 +48,8 @@
   const TIMEOUT_MS = 90_000;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastGatewayCheck = 0;
 
   async function checkStatus(verifyGateway = false) {
-    if (checking) return;
-    // Direct charges need server verification while the phone prompt is open,
-    // even when the merchant webhook is delayed or unavailable.
-    verifyGateway ||= payment?.status === 'pending' && Date.now() - lastGatewayCheck >= 8000;
-    if (verifyGateway) lastGatewayCheck = Date.now();
     checking = true;
     try {
       const path = `/payments/${$page.params.id}`;

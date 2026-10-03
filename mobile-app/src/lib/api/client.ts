@@ -4,8 +4,6 @@ import { goto } from '$app/navigation';
 import { auth, setAuth, clearAuth } from '../stores/auth.store.js';
 import { language } from '../stores/language.store.js';
 import { showBanner } from '../stores/banner.store.js';
-import { ApiError } from './error.js';
-export { ApiError } from './error.js';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3435';
 
@@ -77,7 +75,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
         credentials: 'include',
       });
       if (!retryResponse.ok) {
-        throw new ApiError(retryResponse.status, await retryResponse.text(), retryResponse.headers.get('Retry-After'));
+        throw new ApiError(retryResponse.status, await retryResponse.text());
       }
       return retryResponse.json() as Promise<T>;
     } else {
@@ -95,7 +93,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new ApiError(response.status, errorBody, response.headers.get('Retry-After'));
+    throw new ApiError(response.status, errorBody);
   }
 
   return response.json() as Promise<T>;
@@ -123,6 +121,16 @@ async function attemptRefresh(): Promise<{ refreshed: boolean; code?: string }> 
     return { refreshed: true };
   } catch {
     return { refreshed: false };
+  }
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public body: string
+  ) {
+    super(`API Error ${status}: ${body}`);
+    this.name = 'ApiError';
   }
 }
 

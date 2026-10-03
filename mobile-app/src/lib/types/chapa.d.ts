@@ -3,10 +3,6 @@
 // bundled, since it's the vendor's own script for their own API.
 interface ChapaCheckoutInstance {
   initialize(containerId: string): void;
-  open(payload: { mobile: string; payment_method: string }): Promise<void>;
-  showLoading(): void;
-  hideLoading(): void;
-  showError(message: string): void;
 }
 
 interface ChapaCheckoutOptions {
