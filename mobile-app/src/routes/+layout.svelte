@@ -21,6 +21,7 @@
   import BackExitToast from '$lib/components/BackExitToast.svelte';
   import Banner from '$lib/components/Banner.svelte';
   import ConnectivityGate from '$lib/components/ConnectivityGate.svelte';
+  import DesktopTelegramPrompt from '$lib/components/DesktopTelegramPrompt.svelte';
   import '../app.css';
   import { initLanguage, setLanguage } from '$lib/stores/language.store.js';
   import { authenticateTelegramMiniApp, prepareTelegramMiniApp, getTelegramMiniApp } from '$lib/telegram.js';
@@ -380,6 +381,7 @@
     <BackExitToast />
     <Banner />
     <ConnectivityGate />
+    <DesktopTelegramPrompt />
     {#if $needRefresh}
       <div class="app-frame-fixed update-toast fixed inset-x-0 z-[65] flex justify-center px-4" style="bottom: calc(92px + var(--safe-bottom));" transition:fly={{ y: 40, duration: 220, easing: cubicOut }}>
         <button
