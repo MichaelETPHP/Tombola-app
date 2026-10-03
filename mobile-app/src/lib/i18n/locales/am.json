@@ -5,6 +5,10 @@
     "loading": "በመጫን ላይ",
     "updateAvailable": "ማዘመኛ አለ — ለማደስ ይንኩ"
   },
+  "desktopPrompt": {
+    "cta": "በቴሌግራም ይክፈቱ",
+    "aria": "251 Lotteryን በቴሌግራም ይክፈቱ"
+  },
   "connectivity": {
     "checking": "የኢንተርኔት ግንኙነትዎን እያረጋገጥን ነው",
     "checkingBody": "የቅርብ ጊዜ ዕጣዎችን ለማሳየት 251 Lottery የኢንተርኔት ግንኙነት ይፈልጋል።",

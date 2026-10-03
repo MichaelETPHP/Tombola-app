@@ -5,6 +5,10 @@
     "loading": "Loading",
     "updateAvailable": "Update available — tap to refresh"
   },
+  "desktopPrompt": {
+    "cta": "Open in Telegram",
+    "aria": "Open 251 Lottery in Telegram"
+  },
   "connectivity": {
     "checking": "Checking your connection",
     "checkingBody": "251 Lottery needs an internet connection to load the latest raffles.",
