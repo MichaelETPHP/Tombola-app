@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
  * Uses connection pooling with sensible defaults for a Bun runtime.
  */
 export const sql = postgres(env.DATABASE_URL, {
+  ssl: env.DB_SSL ? { rejectUnauthorized: true } : false,
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,

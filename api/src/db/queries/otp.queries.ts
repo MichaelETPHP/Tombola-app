@@ -21,10 +21,12 @@ export async function createOtpCode(data: {
   expiresAt: Date;
 }): Promise<DbOtpCode> {
   return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`otp:${data.phoneNumber}`}))`;
     await tx`
       DELETE FROM otp_codes
       WHERE phone_number = ${data.phoneNumber}
-        AND purpose = ${data.purpose}
+        AND (purpose = ${data.purpose}
+          OR (${data.purpose === 'login' || data.purpose === 'signup'} AND purpose IN ('login', 'signup')))
         AND verified_at IS NULL
     `;
     const [otp] = await tx<DbOtpCode[]>`
@@ -36,22 +38,26 @@ export async function createOtpCode(data: {
   });
 }
 
-export async function findLatestOtp(phoneNumber: string): Promise<DbOtpCode | null> {
-  const rows = await sql<DbOtpCode[]>`
-    SELECT * FROM otp_codes
-    WHERE phone_number = ${phoneNumber} AND verified_at IS NULL
-    ORDER BY created_at DESC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
+export type OtpVerification = 'verified' | 'missing' | 'expired' | 'exhausted' | 'invalid';
 
-export async function incrementOtpAttempts(id: string): Promise<void> {
-  await sql`UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ${id} AND attempts < max_attempts`;
-}
-
-export async function markOtpVerified(id: string): Promise<void> {
-  await sql`UPDATE otp_codes SET verified_at = NOW() WHERE id = ${id}`;
+/** Serialize issuance and verification for a phone; failed attempts must commit. */
+export async function consumeLoginOtp(phoneNumber: string, code: string): Promise<OtpVerification> {
+  return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`otp:${phoneNumber}`}))`;
+    const [otp] = await tx<DbOtpCode[]>`
+      SELECT * FROM otp_codes WHERE phone_number = ${phoneNumber}
+        AND purpose IN ('login', 'signup') AND verified_at IS NULL
+      ORDER BY created_at DESC LIMIT 1 FOR UPDATE
+    `;
+    if (!otp) return 'missing' as const;
+    if (otp.expiresAt.getTime() <= Date.now()) return 'expired' as const;
+    if (otp.attempts >= otp.maxAttempts) return 'exhausted' as const;
+    await tx`UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ${otp.id}`;
+    const valid = await Bun.password.verify(code, otp.codeHash).catch(() => false);
+    if (!valid) return 'invalid' as const;
+    await tx`UPDATE otp_codes SET verified_at = NOW() WHERE id = ${otp.id}`;
+    return 'verified' as const;
+  });
 }
 
 export async function deleteExpiredOtps(): Promise<void> {

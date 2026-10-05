@@ -28,7 +28,9 @@ import { startNightlyDbBackup } from './jobs/db-backup.job.js';
 import { closeDb } from './db/client.js';
 import { logger } from './lib/logger.js';
 import { languageMiddleware } from './lib/i18n.js';
-import { runHealthChecks } from './lib/health.js';
+import { getCachedHealthReport } from './lib/health.js';
+import { rateLimit } from './middleware/rate-limit.middleware.js';
+import { bodyLimit } from 'hono/body-limit';
 import type { AppEnv } from './types/hono.js';
 
 // ─── Create Hono App ─────────────────────────────────────────────
@@ -64,6 +66,9 @@ app.use(
   })
 );
 app.use('*', languageMiddleware);
+app.use('*', bodyLimit({ maxSize: 12 * 1024 * 1024 }));
+app.use('/health', rateLimit({ max: 120, windowSeconds: 60 }));
+app.use('/health/db', rateLimit({ max: 120, windowSeconds: 60 }));
 
 app.onError(errorHandler);
 
@@ -76,13 +81,14 @@ app.onError(errorHandler);
  * Runs all checks in parallel — typical latency is just the DB ping.
  */
 app.get('/health', async (c) => {
-  const report = await runHealthChecks();
+  c.header('Cache-Control', 'no-store');
+  const report = await getCachedHealthReport();
   const httpStatus =
     report.status === 'ok'       ? 200 :
     report.status === 'degraded' ? 207 : 503;
 
   return c.json(
-    { ...report, requestId: c.get('requestId') },
+    { status: report.status, timestamp: report.timestamp, requestId: c.get('requestId') },
     httpStatus
   );
 });
@@ -107,29 +113,10 @@ app.get('/health/live', (c) => {
  * without running all other checks.
  */
 app.get('/health/db', async (c) => {
-  const start = Date.now();
-  try {
-    const rows = await import('./db/client.js').then(({ sql }) =>
-      sql<{ now: string; version: string }[]>`
-        SELECT NOW() AS now, current_setting('server_version') AS version
-      `
-    );
-    const latencyMs = Date.now() - start;
-    return c.json({
-      status: 'ok',
-      latencyMs,
-      serverTime: rows[0]?.now,
-      postgresVersion: rows[0]?.version,
-      requestId: c.get('requestId'),
-    });
-  } catch (err) {
-    return c.json({
-      status: 'error',
-      latencyMs: Date.now() - start,
-      message: err instanceof Error ? err.message : 'DB unreachable',
-      requestId: c.get('requestId'),
-    }, 503);
-  }
+  c.header('Cache-Control', 'no-store');
+  const report = await getCachedHealthReport();
+  const status = report.checks.database.status;
+  return c.json({ status, requestId: c.get('requestId') }, status === 'error' ? 503 : 200);
 });
 
 app.get('/', (c) => c.json({
@@ -166,9 +153,10 @@ app.route('/payouts', payoutsRoutes);
 
 // ─── Admin Routes ─────────────────────────────────────────────────
 
+// WebSocket handshakes authenticate their one-use ticket before generic bearer middleware.
+app.route('/admin/raffles', raffleTicketUpdatesRoutes);
 app.route('/admin', adminRoutes);
 app.route('/admin/raffles', adminRafflesRoutes);
-app.route('/admin/raffles', raffleTicketUpdatesRoutes);
 app.route('/admin/raffles', adminRoomsRoutes);  // GET/POST /admin/raffles/:id/room/messages
 app.route('/admin/payouts', adminPayoutsRoutes);
 app.route('/admin/payments', adminPaymentsRoutes);

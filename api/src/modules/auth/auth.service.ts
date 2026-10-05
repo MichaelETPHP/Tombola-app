@@ -5,11 +5,13 @@ import {
   createUser,
   linkTelegramIdentity,
   bumpSessionVersion,
+  revokeUserSession,
   type DbUser,
 } from '../../db/queries/users.queries.js';
 import { findAdminById, revokeAdminSessions } from '../../db/queries/admin.queries.js';
 import { isCurrentAdminSession } from '../../lib/admin-session.js';
-import { createOtpCode, deleteExpiredOtps, findLatestOtp, incrementOtpAttempts, markOtpVerified } from '../../db/queries/otp.queries.js';
+import { createOtpCode, deleteExpiredOtps, consumeLoginOtp } from '../../db/queries/otp.queries.js';
+import { randomInt } from 'node:crypto';
 import {
   signAccessToken,
   signRefreshToken,
@@ -35,9 +37,7 @@ import type { Locale } from '../../lib/i18n.js';
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
 
 function generateOtpCode(): string {
-  const values = new Uint32Array(1);
-  crypto.getRandomValues(values);
-  return String(100000 + (values[0] % 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 export async function requestOtp(
@@ -114,24 +114,14 @@ async function attachTelegram(user: DbUser, identity: TelegramIdentity): Promise
 }
 
 export async function verifyOtp(phone: string, code: string, telegramLinkToken?: string, meta?: LoginMeta) {
-  // DEMO_OTP_ENABLED is an explicit opt-in used by deployed test stacks as
-  // well as local development. /health keeps production deployments visibly
-  // degraded until this flag is disabled and a real SMS gateway is wired.
-  const allowDemoCode = env.DEMO_OTP_ENABLED && code === '123456';
-  const stored = await findLatestOtp(phone);
-
-  if (!stored && !allowDemoCode) throw new AppError(400, 'auth.otpMissing');
-
-  if (stored && !allowDemoCode) {
-    if (stored.expiresAt.getTime() <= Date.now()) throw new AppError(400, 'auth.otpExpired');
-    if (stored.attempts >= stored.maxAttempts) throw new AppError(429, 'auth.tooManyAttempts');
-
-    await incrementOtpAttempts(stored.id);
-    const valid = await Bun.password.verify(code, stored.codeHash).catch(() => false);
-    if (!valid) throw new AppError(400, 'auth.otpInvalid');
-    await markOtpVerified(stored.id);
-  } else if (stored) {
-    await markOtpVerified(stored.id);
+  // Demo authentication is restricted to explicitly opted-in development stacks.
+  const allowDemoCode = env.NODE_ENV !== 'production' && env.DEMO_OTP_ENABLED && code === '123456';
+  if (!allowDemoCode) {
+    const result = await consumeLoginOtp(phone, code);
+    if (result === 'missing') throw new AppError(400, 'auth.otpMissing');
+    if (result === 'expired') throw new AppError(400, 'auth.otpExpired');
+    if (result === 'exhausted') throw new AppError(429, 'auth.tooManyAttempts');
+    if (result !== 'verified') throw new AppError(400, 'auth.otpInvalid');
   }
 
   let user = await findUserByPhone(phone);
@@ -297,8 +287,8 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
   }
   // A database failure must reach the caller; it is not a successful revocation.
   if (payload.role === 'user') {
-    await bumpSessionVersion(payload.sub);
-    recordLogoutEvent(payload.sub);
+    if (Number.isSafeInteger(payload.sessionVersion) && payload.sessionVersion! >= 0
+      && await revokeUserSession(payload.sub, payload.sessionVersion!)) recordLogoutEvent(payload.sub);
   } else if (Number.isSafeInteger(payload.sessionVersion)) {
     await revokeAdminSessions(payload.sub, payload.sessionVersion!);
   }
