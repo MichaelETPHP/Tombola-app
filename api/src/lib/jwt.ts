@@ -12,6 +12,7 @@ function getSecret(secret: string): Uint8Array {
 }
 
 export interface AccessTokenPayload {
+  exp?: number;
   sub: string;
   phone: string;
   role: 'user' | 'owner' | 'moderator';

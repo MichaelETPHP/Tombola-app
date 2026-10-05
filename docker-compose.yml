@@ -37,7 +37,7 @@ services:
       API_BASE_URL: ${API_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
       DB_SCHEMA: ${DB_SCHEMA:-Tombola_DB}
-      DB_SSL: ${DB_SSL:-false}
+      DB_SSL: ${DB_SSL:-true}
       DB_POOL_MIN: ${DB_POOL_MIN:-2}
       DB_POOL_MAX: ${DB_POOL_MAX:-20}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
@@ -45,8 +45,9 @@ services:
       # SMS gateway — set DEMO_OTP_ENABLED=true on private test deployments
       # to skip delivery and accept 123456. Never use it for a public launch.
       SMS_API_URL: ${SMS_API_URL:-}
-      SMS_API_KEY: ${SMS_API_KEY:-}
-      DEMO_OTP_ENABLED: ${DEMO_OTP_ENABLED:-true}
+      SMS_API_USERNAME: ${SMS_API_USERNAME:-}
+      SMS_API_PASSWORD: ${SMS_API_PASSWORD:-}
+      DEMO_OTP_ENABLED: ${DEMO_OTP_ENABLED:-false}
       # How long a real participant has to tap their draw-spin SMS link
       # before the system auto-picks someone else. Kept separate from the
       # dev stack's much shorter testing value below.
@@ -60,7 +61,7 @@ services:
       CHAPA_SECRET_KEY: ${CHAPA_SECRET_KEY:-your-chapa-secret-key}
       CHAPA_WEBHOOK_SECRET: ${CHAPA_WEBHOOK_SECRET:-your-chapa-webhook-secret}
       CHAPA_MODE: ${CHAPA_MODE:-live}
-      MOCK_PAYMENTS: ${MOCK_PAYMENTS:-true}
+      MOCK_PAYMENTS: ${MOCK_PAYMENTS:-false}
       MOCK_PAYMENTS_SECRET: ${MOCK_PAYMENTS_SECRET:-}
       TELEBIRR_APP_ID: ${TELEBIRR_APP_ID:-your-telebirr-app-id}
       TELEBIRR_APP_KEY: ${TELEBIRR_APP_KEY:-your-telebirr-app-key}

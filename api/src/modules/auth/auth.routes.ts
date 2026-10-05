@@ -26,6 +26,7 @@ import { extractSharedContact } from '../../lib/telegram.js';
 import { logger } from '../../lib/logger.js';
 import { logClientCrash } from '../../lib/client-crash-log.js';
 import type { LoginMeta } from './auth.service.js';
+import { trustedOrigin } from '../../middleware/trusted-origin.middleware.js';
 
 export const authRoutes = new Hono<AppEnv>();
 
@@ -97,6 +98,10 @@ authRoutes.post(
     );
   }
 );
+
+for (const path of ['/otp/verify', '/telegram/mini-app', '/telegram/mini-app/complete', '/telegram/oidc', '/refresh', '/logout']) {
+  authRoutes.use(path, trustedOrigin);
+}
 
 /**
  * POST /auth/otp/verify
@@ -242,6 +247,9 @@ authRoutes.post('/refresh', rateLimit({ max: 30, windowSeconds: 300 }), async (c
  */
 authRoutes.post('/logout', async (c) => {
   await logout(getRefreshTokenFromCookie(c));
-  deleteCookie(c, 'refresh_token', { path: '/' });
+  deleteCookie(c, 'refresh_token', {
+    path: '/', httpOnly: true, secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'None' : 'Lax',
+  });
   return c.json({ message: c.get('t')('auth.loggedOut') }, 200);
 });

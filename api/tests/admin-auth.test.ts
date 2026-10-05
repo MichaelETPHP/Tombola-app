@@ -55,6 +55,11 @@ describe('admin session regression', () => {
     await expect(adminLogin(fixture.phoneNumber, 'wrong-fixture-password')).rejects.toMatchObject({ statusCode: 401 });
   });
 
+  test('previously published seed credentials are rejected even if the stored hash matches', async () => {
+    row = { ...fixture, passwordHash: await Bun.password.hash('Admin@2024!', { algorithm: 'bcrypt', cost: 4 }) };
+    await expect(adminLogin(fixture.phoneNumber, 'Admin@2024!')).rejects.toMatchObject({ statusCode: 401 });
+  });
+
   test('missing, malformed and negative versions are not defaulted to zero', () => {
     for (const version of [undefined, null, '0', -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => requireAdminSessionVersion(version)).toThrow();

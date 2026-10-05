@@ -20,6 +20,7 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
     process.env.DATABASE_URL = databaseUrl;
     process.env.DB_SCHEMA = schema;
     process.env.NODE_ENV = 'test';
+    process.env.DB_SSL = 'false';
     process.env.JWT_ACCESS_SECRET = 'test-only-access-key-for-cancellation-012345';
     process.env.JWT_REFRESH_SECRET = 'test-only-refresh-key-for-cancellation-012345';
     ({ sql } = await import('../src/db/client.js'));
@@ -29,7 +30,8 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
     try {
       await migrationClient`CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public`;
       for (const name of (await readdir(migrations)).filter((name) => name.endsWith('.sql') && !name.startsWith('002_')).sort()) {
-        const source = (await Bun.file(new URL(name, migrations)).text()).replaceAll('Tombola_DB', schema);
+        const source = (await Bun.file(new URL(name, migrations)).text())
+          .replaceAll('Tombola_DB_DEV', schema).replaceAll('Tombola_DB', schema);
         await migrationClient.unsafe(source);
       }
     } finally { await migrationClient.end(); }
@@ -50,8 +52,8 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
   async function fixture() {
     const n = ++fixtureNumber;
     const [raffle] = await sql`INSERT INTO raffles (title, prize_name, prize_value, ticket_price, ticket_cap,
-      max_tickets_per_user, deadline_days, deadline_at, status, created_by, category_code, raffle_number, public_code)
-      VALUES ('Cancellation test', 'Test prize', 100, 10, 120, 5, 7, NOW() + INTERVAL '7 days', 'open', ${adminId}, 'TST', ${n}, ${`TST-${String(n).padStart(3, '0')}`}) RETURNING id`;
+      max_tickets_per_user, deadline_days, deadline_at, status, created_by, category_code, raffle_number, public_code, number_block_start)
+      VALUES ('Cancellation test', 'Test prize', 100, 10, 120, 4, 7, NOW() + INTERVAL '7 days', 'open', ${adminId}, 'TST', ${n}, ${`TST-${String(n).padStart(3, '0')}`}, ${n * 120}) RETURNING id`;
     const users = await sql`INSERT INTO users (phone_number) VALUES (${`+25192${String(n * 2).padStart(7, '0')}`}), (${`+25192${String(n * 2 + 1).padStart(7, '0')}`}) RETURNING id`;
     return { raffleId: raffle.id as string, userId: users[0].id as string, otherId: users[1].id as string };
   }
@@ -62,6 +64,21 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
     if (!result.ok) throw new Error(result.reason);
     return result.payment;
   }
+
+  test('seed-credential migration disables only known hashes and revokes sessions', async () => {
+    const [seeded] = await sql`INSERT INTO admin_users (phone_number, password_hash, role, session_version)
+      VALUES ('+251900000001', '$2b$10$MPDlEo8KeVtPYLHSqolhzObZ3bQbk5YANKlfbAdHi7gQeJeFE1Yey', 'owner', 2) RETURNING id`;
+    const source = await Bun.file(new URL('../src/db/Migration/036_disable_known_seed_credentials.sql', import.meta.url)).text();
+    const connection = await sql.reserve();
+    try { await connection.unsafe(source.replaceAll('Tombola_DB', schema)); }
+    finally { connection.release(); }
+    const [disabled] = await sql`SELECT password_hash, session_version FROM admin_users WHERE id = ${seeded.id}`;
+    expect(disabled.passwordHash).toBe('disabled-seed-credential');
+    expect(disabled.sessionVersion).toBe(3);
+    const [unchanged] = await sql`SELECT password_hash, session_version FROM admin_users WHERE id = ${adminId}`;
+    expect(unchanged.passwordHash).toBe('unused-test-hash');
+    expect(unchanged.sessionVersion).toBe(0);
+  });
 
   test('concurrent charge submissions claim a reservation only once', async () => {
     const f = await fixture();
@@ -82,7 +99,7 @@ suite('ticket cancellation with real PostgreSQL locks and claims', () => {
     expect((await cancelForUser(payment.id, f.userId)).status).toBe('failed');
     const availability = await getAvailability(f.raffleId, f.userId, 1, 60);
     expect(availability.activePaymentId).toBeNull();
-    expect(availability.allowance).toBe(5);
+    expect(availability.allowance).toBe(4);
     expect(availability.numbers.find((n) => n.number === 7)?.state).toBe('available');
     const next = await reserve(f.raffleId, f.otherId);
     expect(next.selectedNumbers).toEqual([7, 25]);

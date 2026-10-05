@@ -11,6 +11,7 @@
  */
 
 import { sql } from './client.js';
+import { env } from '../config/env.js';
 import { commitServerSeed, generateServerSeed } from '../lib/provably-fair.js';
 
 
@@ -57,7 +58,7 @@ const PRIZE_IMAGES = {
 
 const ADMIN_ACCOUNT = {
   phone: '+251911000001',
-  password: 'Admin@2024!',  // Will be hashed
+  password: process.env.SEED_ADMIN_PASSWORD ?? '',
   role: 'owner' as const,
 };
 
@@ -173,6 +174,8 @@ const RAFFLES: RaffleSeed[] = [
 // ── Main Seed Function ───────────────────────────────────────────
 
 async function seed() {
+  if (env.NODE_ENV === 'production') throw new Error('Demo seeding is forbidden in production');
+  if (ADMIN_ACCOUNT.password.length < 16) throw new Error('Set a unique SEED_ADMIN_PASSWORD of at least 16 characters');
   console.log('🌱 Starting YeneEta seed...\n');
 
   // ─── 1. Create Admin ──────────────────────────────────────────
@@ -182,11 +185,10 @@ async function seed() {
   const [admin] = await sql<{ id: string }[]>`
     INSERT INTO admin_users (phone_number, password_hash, role)
     VALUES (${ADMIN_ACCOUNT.phone}, ${passwordHash}, ${ADMIN_ACCOUNT.role})
-    ON CONFLICT (phone_number) DO UPDATE SET password_hash = ${passwordHash}
+    ON CONFLICT (phone_number) DO NOTHING
     RETURNING id
   `;
-  console.log(`   ✅ Admin created: ${ADMIN_ACCOUNT.phone} (password: ${ADMIN_ACCOUNT.password})`);
-  console.log(`   ID: ${admin.id}\n`);
+  console.log(admin ? `Admin created: ${ADMIN_ACCOUNT.phone}` : 'Existing admin credentials preserved');
 
   // ─── 2. Create Users ──────────────────────────────────────────
   console.log('👥 Creating sample users...');
@@ -334,7 +336,7 @@ async function seed() {
   
   console.log('\n📋 ADMIN LOGIN CREDENTIALS:');
   console.log(`   Phone:    ${ADMIN_ACCOUNT.phone}`);
-  console.log(`   Password: ${ADMIN_ACCOUNT.password}`);
+  console.log('   Password: supplied through SEED_ADMIN_PASSWORD (not printed)');
   
   console.log('\n📋 SAMPLE USER PHONES (for mobile app OTP login):');
   SAMPLE_USERS.forEach(u => console.log(`   ${u.phone}  →  ${u.name}`));

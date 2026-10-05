@@ -134,6 +134,14 @@ export async function bumpSessionVersion(userId: string): Promise<number> {
   return rows[0].sessionVersion;
 }
 
+export async function revokeUserSession(userId: string, sessionVersion: number): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE users SET session_version = session_version + 1, updated_at = NOW()
+    WHERE id = ${userId} AND session_version = ${sessionVersion} RETURNING id
+  `;
+  return rows.length === 1;
+}
+
 /**
  * Suspend or unsuspend a user (admin action). Maps the boolean toggle onto
  * the `active`/`suspended` states of the `status` enum — `banned` is a
