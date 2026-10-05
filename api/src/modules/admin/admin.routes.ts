@@ -58,7 +58,6 @@ import { requireRole } from '../../middleware/require-role.middleware.js';
 import { AppError } from '../../middleware/error-handler.middleware.js';
 import type { AppEnv } from '../../types/hono.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
-import { getCachedHealthReport } from '../../lib/health.js';
 
 export const adminRoutes = new Hono<AppEnv>();
 
@@ -111,10 +110,6 @@ adminRoutes.post('/auth/logout', adminOrigin, rateLimit({ max: 20, windowSeconds
 
 // All subsequent admin routes require auth + admin role
 adminRoutes.use('*', authMiddleware, requireRole('owner', 'moderator'));
-
-adminRoutes.get('/health', requireRole('owner'), rateLimit({ max: 30, windowSeconds: 60 }), async (c) => {
-  return c.json(await getCachedHealthReport());
-});
 
 adminRoutes.get('/raffles/:id/ticket-inventory', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));

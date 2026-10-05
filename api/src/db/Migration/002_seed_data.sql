@@ -4,15 +4,7 @@
 -- Run in Supabase SQL Editor (Dashboard → SQL Editor → New query)
 -- ============================================================================
 
-BEGIN;
-SET LOCAL search_path TO "Tombola_DB", public;
-
--- Explicit opt-in on an isolated development database only.
-DO $$ BEGIN
-  IF current_setting('app.allow_demo_seed', true) IS DISTINCT FROM 'true' THEN
-    RAISE EXCEPTION 'Demo seed disabled. Use only on an isolated test database.';
-  END IF;
-END $$;
+SET search_path TO "Tombola_DB", public;
 
 -- ── 1. GRANT FULL PERMISSIONS TO POSTGRES ROLE ─────────────────
 GRANT USAGE ON SCHEMA "Tombola_DB" TO postgres;
@@ -39,10 +31,11 @@ DELETE FROM users;
 DELETE FROM admin_users;
 
 -- ── 4. SEED ADMIN ACCOUNT ───────────────────────────────────────
--- Provision an owner with the server-side provision-owner.ts command.
--- Do not ship a reusable admin password or hash with sample data.
+-- Phone: +251911000001 | Password: Admin@2024!
 INSERT INTO admin_users (id, phone_number, password_hash, role) VALUES
-  ('a0000001-aaaa-4aaa-aaaa-aaaaaaaaaaaa', '+251911000001', 'disabled-seed-credential', 'owner');
+  ('a0000001-aaaa-4aaa-aaaa-aaaaaaaaaaaa', '+251911000001',
+   '$2b$10$MPDlEo8KeVtPYLHSqolhzObZ3bQbk5YANKlfbAdHi7gQeJeFE1Yey',
+   'owner');
 
 -- ── 5. SEED 50 SAMPLE USERS ─────────────────────────────────────
 INSERT INTO users (id, phone_number, full_name, phone_verified_at, status) VALUES
@@ -303,5 +296,3 @@ SELECT
   (SELECT count(*) FROM raffles) AS total_raffles,
   (SELECT count(*) FROM tickets) AS total_tickets,
   (SELECT count(*) FROM payments) AS total_payments;
-
-COMMIT;

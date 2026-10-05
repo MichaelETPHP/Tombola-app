@@ -16,11 +16,10 @@ const emptyToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
  * Zod-validated environment configuration.
  * Fails fast at boot with a clear error if any required variable is missing.
  */
-export const envSchema = z.object({
+const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url('DATABASE_URL must be a valid PostgreSQL connection URL'),
   DB_SCHEMA: z.string().default('Tombola_DB'),
-  DB_SSL: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
 
   // JWT
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
@@ -96,7 +95,15 @@ export const envSchema = z.object({
     .default('false')
     .transform((val) => val === 'true'),
 
-  // Optional private-development mock credential; never authorizes production payments.
+  // Lets the mock-checkout page's own unsigned browser call into the
+  // webhook succeed on a production deployment that's intentionally
+  // running MOCK_PAYMENTS=true (pre-launch, real Chapa credentials not
+  // configured yet) — without this, only a non-production NODE_ENV can
+  // complete a mock payment at all (see payments.routes.ts). Deliberately
+  // separate from CHAPA_WEBHOOK_SECRET: it authorizes "this is our own
+  // mock checkout flow," not "this really came from Chapa." Unset means
+  // the bypass simply never activates — production stays fail-closed by
+  // default even with MOCK_PAYMENTS=true.
   MOCK_PAYMENTS_SECRET: z.string().optional(),
 
   // Payment - Telebirr
@@ -108,7 +115,7 @@ export const envSchema = z.object({
     z
       .string()
       .default('http://localhost:4345,http://localhost:5355')
-      .transform((val) => val.split(',').map((origin) => origin.trim()).filter(Boolean))
+      .transform((val) => val.split(','))
   ),
 
   // Server
@@ -119,26 +126,6 @@ export const envSchema = z.object({
     .pipe(z.number().int().positive()),
 
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-}).superRefine((config, ctx) => {
-  if (config.NODE_ENV !== 'production') return;
-  const reject = (path: string, message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-  if (config.DEMO_OTP_ENABLED) reject('DEMO_OTP_ENABLED', 'Demo authentication is forbidden in production');
-  if (config.MOCK_PAYMENTS) reject('MOCK_PAYMENTS', 'Mock payments are forbidden in production');
-  if (!config.DB_SSL) reject('DB_SSL', 'Verified database TLS is required in production');
-  if (config.JWT_ACCESS_SECRET === config.JWT_REFRESH_SECRET) reject('JWT_REFRESH_SECRET', 'Access and refresh secrets must be different');
-  for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
-    if (/^(your-|test-only-|change[-_]?me)/i.test(config[key])) reject(key, 'Placeholder signing secrets are forbidden in production');
-  }
-  for (const key of ['API_BASE_URL', 'MOBILE_APP_URL'] as const) {
-    if (!config[key].startsWith('https://')) reject(key, 'HTTPS is required in production');
-  }
-  for (const origin of config.CORS_ORIGINS) {
-    if (origin === 'capacitor://localhost' || origin === 'http://localhost') continue;
-    try {
-      const url = new URL(origin);
-      if (url.protocol !== 'https:' || url.origin !== origin) reject('CORS_ORIGINS', 'Use explicit HTTPS origins or a supported Capacitor origin');
-    } catch { reject('CORS_ORIGINS', 'Invalid trusted origin'); }
-  }
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -119,7 +119,11 @@ function checkConfig(): CheckResult {
       issues.push('API_BASE_URL must use HTTPS in production');
     if (!env.MOBILE_APP_URL.startsWith('https://'))
       issues.push('MOBILE_APP_URL must use HTTPS in production');
-    // Startup validation already forbids mock payments in production.
+    // MOCK_PAYMENTS=true in production (pre-launch, no real Chapa
+    // credentials yet) is legitimate, but the webhook still requires a
+    // real Chapa signature unless MOCK_PAYMENTS_SECRET is also set — see
+    // payments.routes.ts. Without it, mock-checkout's confirmation is
+    // rejected with 401 and every single checkout attempt fails.
     if (env.MOCK_PAYMENTS && !env.MOCK_PAYMENTS_SECRET)
       issues.push('MOCK_PAYMENTS=true in production but MOCK_PAYMENTS_SECRET is unset — every checkout attempt will fail with a rejected confirmation');
     if (!env.MOCK_PAYMENTS) {
@@ -188,16 +192,4 @@ export async function runHealthChecks(): Promise<HealthReport> {
     timestamp: new Date().toISOString(),
     checks: { database, memory, config },
   };
-}
-
-let cachedReport: Promise<HealthReport> | undefined;
-let cacheExpiresAt = 0;
-
-/** Share in-flight checks and bound public probes to one DB query per five seconds. */
-export function getCachedHealthReport(): Promise<HealthReport> {
-  if (!cachedReport || Date.now() >= cacheExpiresAt) {
-    cacheExpiresAt = Infinity;
-    cachedReport = runHealthChecks().finally(() => { cacheExpiresAt = Date.now() + 5000; });
-  }
-  return cachedReport;
 }

@@ -70,7 +70,7 @@ function notifyTicketPurchase(txRef: string): void {
       const receipt = await findPaymentReceiptById(payment.id);
       if (!receipt) return;
 
-      await broadcastTicketsSold(
+      broadcastTicketsSold(
         receipt.raffleId,
         receipt.ticketNumbers.map((number, index) => ({
           number,

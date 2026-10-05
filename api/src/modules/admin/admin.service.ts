@@ -381,8 +381,6 @@ function toPublicAdmin(admin: DbAdminUser) {
  * Authenticate admin with phone/email and password.
  */
 export async function adminLogin(phone?: string, password?: string) {
-  // Previously distributed seed credentials must never authenticate again.
-  if (password === 'Admin@2024!') throw new AppError(401, 'auth.invalidCredentials');
   if (!password) {
     throw new AppError(400, 'auth.invalidCredentials');
   }

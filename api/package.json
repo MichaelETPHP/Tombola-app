@@ -7,19 +7,18 @@
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
     "check": "tsc --noEmit",
-    "db:owner": "bun run src/db/provision-owner.ts",
     "db:raffles:demo": "bun run src/db/reset-demo-raffles.ts",
     "db:raffles:add-demos": "bun run src/db/add-demo-raffles.ts",
     "db:admin-sessions:check": "bun run src/db/admin-session-schema.ts --check",
     "db:admin-sessions:apply": "bun run src/db/admin-session-schema.ts --apply"
   },
   "dependencies": {
-    "hono": "^4.13.5",
+    "hono": "^4.7.0",
     "i18next": "^26.4.0",
     "jose": "^6.0.0",
     "nanoid": "^5.1.0",
     "postgres": "^3.4.5",
-    "sharp": "^0.35.3",
+    "sharp": "^0.33.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

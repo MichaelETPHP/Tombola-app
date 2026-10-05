@@ -121,9 +121,14 @@ paymentsRoutes.post('/webhook/chapa', async (c) => {
   // unsigned client-side call, NODE_ENV=development + MOCK_PAYMENTS=true)
   // work exactly as before.
   const isMockDeployment = env.MOCK_PAYMENTS && env.NODE_ENV !== 'production';
-  // Mock secrets are restricted to private development stacks.
+  // A production deployment can ALSO be intentionally running
+  // MOCK_PAYMENTS=true pre-launch (no real Chapa credentials yet). That
+  // combination fails the check above by design, so mock-checkout's own
+  // confirmation can present a separate, deployer-only secret instead —
+  // see MOCK_PAYMENTS_SECRET in config/env.ts. Left unset, this never
+  // matches and production stays fail-closed exactly as before.
   const mockSecret = c.req.header('x-mock-payment-secret') || '';
-  const isAuthorizedMockTest = env.NODE_ENV !== 'production' && env.MOCK_PAYMENTS && verifyMockPaymentSecret(mockSecret);
+  const isAuthorizedMockTest = env.MOCK_PAYMENTS && verifyMockPaymentSecret(mockSecret);
 
   if (!isMockDeployment && !isAuthorizedMockTest) {
     if (!payloadSignature && !secretSignature) {

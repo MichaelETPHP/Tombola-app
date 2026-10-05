@@ -83,21 +83,12 @@
   // (load() already fetches fresh state then).
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  let destroyed = false;
-  let connecting = false;
 
-  async function connectLiveUpdates() {
-    if (destroyed || connecting || socket || !get(auth).accessToken) return;
-    connecting = true;
-    try {
-      const { ticket } = await api.post<{ ticket: string }>(`/admin/raffles/${raffleId}/ticket-updates/ticket`);
-      if (destroyed || !get(auth).accessToken) return;
-      const wsUrl = `${API_BASE.replace(/^http/, 'ws')}/admin/raffles/${raffleId}/ticket-updates`;
-      socket = new WebSocket(wsUrl, [`ticket.${ticket}`]);
-    } catch {
-      if (!destroyed && get(auth).accessToken) reconnectTimer = setTimeout(connectLiveUpdates, 3000);
-      return;
-    } finally { connecting = false; }
+  function connectLiveUpdates() {
+    const token = get(auth).accessToken;
+    if (!token) return;
+    const wsUrl = `${API_BASE.replace(/^http/, 'ws')}/admin/raffles/${raffleId}/ticket-updates?token=${encodeURIComponent(token)}`;
+    socket = new WebSocket(wsUrl);
     socket.onmessage = (event) => {
       if (!inventory) return;
       try {
@@ -119,13 +110,12 @@
     // refresh — same reasoning as this app's other live-ish polling loops.
     socket.onclose = () => {
       socket = null;
-      if (!destroyed && get(auth).accessToken) reconnectTimer = setTimeout(connectLiveUpdates, 3000);
+      reconnectTimer = setTimeout(connectLiveUpdates, 3000);
     };
   }
 
   onMount(connectLiveUpdates);
   onDestroy(() => {
-    destroyed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (socket) {
       // Detach first — an intentional close on unmount must not trigger
