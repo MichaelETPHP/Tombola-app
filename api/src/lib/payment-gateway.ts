@@ -80,10 +80,12 @@ export async function chapaChargeMobile(payload: {
   // the customer responds on their phone (see chapaVerify/the status poll).
   // Only a non-2xx or any other status means Chapa rejected the charge itself.
   if (!response.ok || (data?.status !== 'success' && data?.status !== 'pending')) {
-    logIntegrationEvent('chapa', 'error', 'charge', {
+    const detail = {
       txRef: payload.txRef, method: payload.method, httpStatus: response.status,
       status: data?.status, message: data?.message,
-    });
+    };
+    logger.error('Chapa mobile charge rejected', detail);
+    logIntegrationEvent('chapa', 'error', 'charge', detail);
     throw new Error('Chapa mobile charge was not accepted');
   }
   logIntegrationEvent('chapa', 'success', 'charge', { txRef: payload.txRef, method: payload.method, status: data.status });
