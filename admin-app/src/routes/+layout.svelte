@@ -21,7 +21,13 @@
     } finally { retrying = false; }
   }
   onMount(() => { void restore(); });
+
+  const envLabel = import.meta.env.VITE_APP_ENV === 'production' ? 'PRODUCTION' : 'DEVELOPMENT';
 </script>
+
+<svelte:head>
+  <title>251 Lottery Admin — {envLabel}</title>
+</svelte:head>
 
 {#if sessionError && !$auth.isAuthenticated && $page.url.pathname !== '/login'}
   <main class="flex min-h-dvh items-center justify-center bg-bg p-6">
