@@ -17,6 +17,9 @@ COPY admin-app/ .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
+ARG VITE_APP_ENV=production
+ENV VITE_APP_ENV=$VITE_APP_ENV
+
 RUN bun run build
 
 # adapter-node@5 bundles everything in devDependencies straight into the

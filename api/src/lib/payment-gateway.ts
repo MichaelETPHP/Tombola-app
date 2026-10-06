@@ -50,19 +50,40 @@ export async function chapaChargeMobile(payload: {
   body.set('currency', 'ETB');
   body.set('mobile', payload.mobile);
   body.set('tx_ref', payload.txRef);
-  const response = await fetch(`https://api.chapa.co/v1/charges?type=${payload.method}`, {
-    method: 'POST',
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${env.CHAPA_SECRET_KEY}` },
-    body,
-  });
-  const data = await response.json() as { status?: string };
+  let response: Response;
+  try {
+    response = await fetch(`https://api.chapa.co/v1/charges?type=${payload.method}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${env.CHAPA_SECRET_KEY}` },
+      body,
+    });
+  } catch (error) {
+    logIntegrationEvent('chapa', 'error', 'charge', {
+      txRef: payload.txRef, method: payload.method,
+      reason: error instanceof Error ? error.name : 'NetworkError',
+    });
+    throw error;
+  }
+  let data: { status?: string; message?: unknown };
+  try {
+    data = await response.json();
+  } catch {
+    logIntegrationEvent('chapa', 'error', 'charge', {
+      txRef: payload.txRef, method: payload.method, httpStatus: response.status,
+      reason: 'Invalid gateway JSON response',
+    });
+    throw new Error(`Chapa returned an invalid charge response (HTTP ${response.status})`);
+  }
   // Chapa dispatches the approval prompt asynchronously: a direct charge
   // normally answers "pending" here, settling to success/failed only once
   // the customer responds on their phone (see chapaVerify/the status poll).
   // Only a non-2xx or any other status means Chapa rejected the charge itself.
-  if (!response.ok || (data.status !== 'success' && data.status !== 'pending')) {
-    logIntegrationEvent('chapa', 'error', 'charge', { txRef: payload.txRef, httpStatus: response.status });
+  if (!response.ok || (data?.status !== 'success' && data?.status !== 'pending')) {
+    logIntegrationEvent('chapa', 'error', 'charge', {
+      txRef: payload.txRef, method: payload.method, httpStatus: response.status,
+      status: data?.status, message: data?.message,
+    });
     throw new Error('Chapa mobile charge was not accepted');
   }
   logIntegrationEvent('chapa', 'success', 'charge', { txRef: payload.txRef, method: payload.method, status: data.status });

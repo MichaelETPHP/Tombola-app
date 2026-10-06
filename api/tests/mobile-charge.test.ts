@@ -6,10 +6,11 @@ process.env.JWT_REFRESH_SECRET ||= 'test-only-refresh-secret-for-mobile-charge-0
 const { env: testEnv } = await import('../src/config/env.js');
 const originalConfig = { MOCK_PAYMENTS: testEnv.MOCK_PAYMENTS, CHAPA_SECRET_KEY: testEnv.CHAPA_SECRET_KEY };
 const integrationLog = await import('../src/lib/integration-log.js');
-mock.module('../src/lib/integration-log.js', () => ({ ...integrationLog, logIntegrationEvent: () => undefined }));
+const logEvent = mock((..._args: Parameters<typeof integrationLog.logIntegrationEvent>) => undefined);
+mock.module('../src/lib/integration-log.js', () => ({ ...integrationLog, logIntegrationEvent: logEvent }));
 const { chapaChargeMobile } = await import('../src/lib/payment-gateway.js');
 const originalFetch = globalThis.fetch;
-beforeEach(() => { testEnv.MOCK_PAYMENTS = false; testEnv.CHAPA_SECRET_KEY = 'test-only-secret'; });
+beforeEach(() => { logEvent.mockClear(); testEnv.MOCK_PAYMENTS = false; testEnv.CHAPA_SECRET_KEY = 'test-only-secret'; });
 afterEach(() => { globalThis.fetch = originalFetch; Object.assign(testEnv, originalConfig); });
 afterAll(() => { mock.module('../src/lib/integration-log.js', () => integrationLog); });
 
@@ -53,5 +54,31 @@ describe('server mobile money transport', () => {
     await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' }))
       .rejects.toThrow('Direct charges are unavailable in mock payment mode');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('records gateway rejection details for diagnosis', async () => {
+    globalThis.fetch = mock(async () => Response.json({ status: 'failed', message: 'Invalid API key' }, { status: 401 })) as unknown as typeof fetch;
+    await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' })).rejects.toThrow();
+    expect(logEvent).toHaveBeenCalledWith('chapa', 'error', 'charge', {
+      txRef: 'TEST-charge', method: 'telebirr', httpStatus: 401, status: 'failed', message: 'Invalid API key',
+    });
+  });
+
+  test('records non-JSON gateway failures without treating them as accepted', async () => {
+    globalThis.fetch = mock(async () => new Response('Bad Gateway', { status: 502 })) as unknown as typeof fetch;
+    await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' })).rejects.toThrow('invalid charge response');
+    expect(logEvent).toHaveBeenCalledWith('chapa', 'error', 'charge', {
+      txRef: 'TEST-charge', method: 'telebirr', httpStatus: 502, reason: 'Invalid gateway JSON response',
+    });
+  });
+
+  test('records a timeout without retrying a potentially accepted charge', async () => {
+    const fetchMock = mock(async () => { throw new DOMException('Timed out', 'TimeoutError'); });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await expect(chapaChargeMobile({ amount: 250, mobile: '0912345678', txRef: 'TEST-charge', method: 'telebirr' })).rejects.toThrow('Timed out');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(logEvent).toHaveBeenCalledWith('chapa', 'error', 'charge', {
+      txRef: 'TEST-charge', method: 'telebirr', reason: 'TimeoutError',
+    });
   });
 });

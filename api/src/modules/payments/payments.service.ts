@@ -31,7 +31,12 @@ export async function chargePaymentForUser(id: string, userId: string, mobile: s
   await startPaymentCheckout(id, userId, true);
   try {
     await chapaChargeMobile({ amount: Number(payment.amount), mobile, txRef: payment.gatewayRef, method });
-  } catch {
+  } catch (error) {
+    logger.error('Unable to submit Chapa mobile charge', {
+      paymentId: id,
+      method,
+      message: error instanceof Error ? error.message : 'Unknown gateway error',
+    });
     // A timeout is not proof that Chapa rejected the charge. Keep the reservation
     // for reconciliation instead of releasing numbers after a possible debit.
     throw new AppError(502, 'Unable to confirm payment submission. Check payment status before trying again.');
