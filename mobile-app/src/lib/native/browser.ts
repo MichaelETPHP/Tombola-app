@@ -76,34 +76,33 @@ export function paymentReturnTarget(): 'native' | 'web' {
 }
 
 /**
- * Opens Chapa checkout for the payment flow — the SAME in-app page
- * (routes/(app)/checkout) on every surface: native APK, Telegram Mini App,
- * and plain web/PWA. That page renders Chapa's own Inline.js widget
- * directly into our own DOM — no iframe, no redirect, no separate browser
- * tab or Custom Tab anywhere. It's safe everywhere for the same reason:
- * the widget talks to Chapa via Bearer-token fetch/FormData calls, not
- * cookies, so none of the CSRF/cookie restrictions that broke an earlier
- * iframe attempt apply, and unlike a hosted-page redirect there's no
- * separate browsing context to ever "open in a browser" in the first
- * place — on any platform.
+ * Opens Chapa checkout for the payment flow.
  *
- * (checkoutUrl is still threaded through as a last-resort fallback link
- * for the rare case where Chapa's script itself fails to load — see that
- * page's `scriptError` state.)
- *
- * Always navigates itself (there's no "opens separately" case anymore —
- * every path lands in-app), so the caller doesn't need to.
+ * - Same-origin checkoutUrl (MOCK_PAYMENTS' /mock-checkout) navigates
+ *   in-app via SPA routing, same as openExternal's own same-origin case.
+ * - A real cross-origin checkoutUrl (Chapa's hosted checkout.chapa.co page
+ *   — used while direct charges await Chapa's merchant approval, see
+ *   tickets.service.ts) goes through openExternal: Custom Tab on native,
+ *   same-tab redirect on web.
+ * - No checkoutUrl at all falls back to the in-app Inline.js widget page
+ *   (routes/(app)/checkout) — only reachable today if direct charges get
+ *   re-enabled as the default without restoring a checkoutUrl-less path.
  */
 export async function openCheckout(
   url: string | undefined,
   paymentId: string
 ): Promise<void> {
-  // MOCK_PAYMENTS' /mock-checkout is part of this same app — same
-  // same-origin handling as openExternal, so local testing isn't forced
-  // through the inline widget it doesn't need.
-  if (url && new URL(url, window.location.origin).origin === window.location.origin) {
-    const path = url.replace(window.location.origin, '');
-    await goto(path);
+  if (url) {
+    const target = new URL(url, window.location.origin);
+    if (target.origin === window.location.origin) {
+      await goto(target.pathname + target.search);
+      return;
+    }
+    const { opensSeparately } = await openExternal(url);
+    // Native opened a separate Custom Tab and returned immediately — the
+    // app itself still needs to move to the waiting/receipt screen. Web's
+    // same-tab redirect already navigated away, so this never runs there.
+    if (opensSeparately) await goto(`/payments/${paymentId}`);
     return;
   }
 

@@ -59,8 +59,11 @@ export async function purchaseTickets(
 
   if (input.paymentGateway === 'chapa') {
     try {
-      // The checkout form submits to our authenticated direct-charge endpoint.
-      // Do not initialize a hosted transaction with the same reference here.
+      // Direct charges (the in-app phone-entry flow, see /payments/:id/charge)
+      // need Chapa's own "direct charges" merchant approval — now granted —
+      // so the real checkout form submits to our authenticated direct-charge
+      // endpoint. Do not initialize a hosted transaction with the same
+      // reference here.
       if (!env.MOCK_PAYMENTS) {
         if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
         return {
