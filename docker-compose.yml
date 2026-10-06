@@ -46,6 +46,8 @@ services:
       # to skip delivery and accept 123456. Never use it for a public launch.
       SMS_API_URL: ${SMS_API_URL:-}
       SMS_API_KEY: ${SMS_API_KEY:-}
+      SMS_API_USERNAME: ${SMS_API_USERNAME:-}
+      SMS_API_PASSWORD: ${SMS_API_PASSWORD:-}
       DEMO_OTP_ENABLED: ${DEMO_OTP_ENABLED:-true}
       # How long a real participant has to tap their draw-spin SMS link
       # before the system auto-picks someone else. Kept separate from the
@@ -83,6 +85,7 @@ services:
         # Build-time only — baked into the client bundle, so this must be
         # the API's real public URL, not an internal Docker hostname.
         VITE_API_URL: ${VITE_API_URL}
+        VITE_CHAPA_PUBLIC_KEY: ${VITE_CHAPA_PUBLIC_KEY:-}
     restart: unless-stopped
     expose:
       - '80'
