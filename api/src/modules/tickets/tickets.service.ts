@@ -60,13 +60,22 @@ export async function purchaseTickets(
   if (input.paymentGateway === 'chapa') {
     try {
       // Direct charges (the in-app phone-entry flow, see /payments/:id/charge)
-      // need Chapa's separate "direct charges" merchant approval, which this
-      // account does not have yet. Until that's granted, every Chapa payment
-      // — mock or real — goes through chapaInitialize's hosted checkout
-      // instead: it already branches on MOCK_PAYMENTS internally to return
-      // either the fake mock-checkout URL or a real checkout.chapa.co one.
-      if (!env.MOCK_PAYMENTS && !env.CHAPA_SECRET_KEY) {
-        throw new Error('CHAPA_SECRET_KEY not configured');
+      // need Chapa's own "direct charges" merchant approval — now granted —
+      // so the real checkout form submits to our authenticated direct-charge
+      // endpoint. Do not initialize a hosted transaction with the same
+      // reference here.
+      if (!env.MOCK_PAYMENTS) {
+        if (!env.CHAPA_SECRET_KEY) throw new Error('CHAPA_SECRET_KEY not configured');
+        return {
+          selectedNumbers: payment.selectedNumbers,
+          expiresAt: payment.reservationExpiresAt,
+          paymentId: payment.id,
+          txRef,
+          amount,
+          ticketCount: quantity,
+          raffleTitle: raffle.title,
+          checkoutMode: 'inline' as const,
+        };
       }
 
       const returnUrl = new URL('/payment-return', env.MOBILE_APP_URL);
@@ -114,7 +123,7 @@ export async function purchaseTickets(
         amount,
         ticketCount: quantity,
         raffleTitle: raffle.title,
-        checkoutMode: 'hosted' as const,
+        checkoutMode: 'mock' as const,
       };
     } catch (error) {
       // A failed gateway initialization must not reserve raffle inventory.

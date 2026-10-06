@@ -4,7 +4,7 @@
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { beforeNavigate, goto } from '$app/navigation';
-  import { api, ApiError } from '$lib/api/client.js';
+  import { api } from '$lib/api/client.js';
   import { auth } from '$lib/stores/auth.store.js';
   import { formatEtb } from '$lib/utils/currency.js';
   import { getPullRefreshContext } from '$lib/stores/pullRefresh.js';
@@ -205,41 +205,38 @@
         // This remains on our own origin inside the same WebView. It verifies
         // the server-side payment before showing the issued ticket receipt.
         returnUrl: `${window.location.origin}/payment-return?payment_id=${encodeURIComponent(paymentId)}&target=web`,
+        // Chapa's own account-level approval for direct charges is now
+        // granted, so these fire once the SDK's own submission (see
+        // chapa.open below) actually resolves the charge — not just once
+        // our backend accepts the attempt.
         onSuccessfulPayment: () => {
           resolved = true;
+          checkoutStarted = true;
+          void goto(`/payments/${paymentId}`, { replaceState: true });
         },
         onPaymentFailure: (message) => {
           paymentError = message || get(_)('checkout.paymentFailedReleasing');
           void cancel();
         },
+        onClose: () => {
+          submitting = false;
+        },
       });
 
-      // Keep the vendor's form and validation, but replace its network transport.
-      // Neither inline charge nor inline validation may run in the browser.
+      // Let Chapa's own SDK submit the charge directly (publicKey auth,
+      // per Chapa's Inline.js docs) rather than relaying it through our
+      // own API. Wrapping (not replacing) open() keeps `submitting`
+      // accurate for the beforeNavigate guard below while a real charge
+      // is in flight.
+      const submitCharge = chapa.open.bind(chapa);
       chapa.open = async (payload) => {
         if (submitting || resolved || cancelling) return;
-        const mobile = toLocalEthiopianPhone(payload.mobile);
-        if (!mobile || !PAYMENT_METHODS.includes(payload.payment_method)) return;
         submitting = true;
-        const button = container.querySelector<HTMLButtonElement>('#chapa-pay-button');
-        if (button) button.disabled = true;
-        chapa.showLoading();
         try {
-          await api.post(`/payments/${paymentId}/charge`, { mobile, method: payload.payment_method });
-        } catch (error) {
-          // Validation/auth errors happened before dispatch; permit correction.
-          // Network failures, server errors and conflicts can represent an active charge.
-          if (error instanceof ApiError && [400, 401, 403, 404, 422, 429].includes(error.status)) {
-            submitting = false;
-            if (button) button.disabled = false;
-            chapa.hideLoading();
-            chapa.showError(get(_)('checkout.formLoadError'));
-            return;
-          }
+          await submitCharge(payload);
+        } finally {
+          submitting = false;
         }
-        checkoutStarted = true;
-        resolved = true;
-        await goto(`/payments/${paymentId}`, { replaceState: true });
       };
       chapa.initialize(CONTAINER_ID);
 
