@@ -68,7 +68,7 @@
     hapticMedium();
     try {
       await shareYeneEtaContent({
-        title: '251 Lottery',
+        title: '251',
         text: $_('about.shareText'),
         url: BOT_LINK,
       });
@@ -115,7 +115,7 @@
         class="h-[52px] w-[52px] rounded-[17px] bg-white object-cover shadow-[0_12px_28px_-15px_rgba(0,0,0,0.7)]"
       />
       <div>
-        <p class="text-[20px] font-extrabold leading-none tracking-[-0.03em]">251 Lottery</p>
+        <p class="text-[20px] font-extrabold leading-none tracking-[-0.03em]">251</p>
         <p class="mt-1.5 text-[11px] font-semibold text-white/65">{$_('header.tagline')}</p>
       </div>
     </div>

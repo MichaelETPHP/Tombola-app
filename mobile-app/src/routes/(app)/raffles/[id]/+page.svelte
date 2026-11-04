@@ -229,7 +229,7 @@
   $: rankedPrizes = raffle?.prizes && raffle.prizes.length > 1 ? [...raffle.prizes].sort((a, b) => a.tier - b.tier) : [];
 </script>
 
-<svelte:head><title>{raffle?.title ?? $_('raffle.pageTitleFallback')} · 251 Lottery</title></svelte:head>
+<svelte:head><title>{raffle?.title ?? $_('raffle.pageTitleFallback')} · 251</title></svelte:head>
 <svelte:window on:keydown={handleWindowKeydown} />
 
 {#if loading}

@@ -288,7 +288,7 @@
   }
 </script>
 
-<svelte:head><title>Registered Users | 251 Lottery Admin</title></svelte:head>
+<svelte:head><title>Registered Users | 251 Admin</title></svelte:head>
 
 <div class="flex flex-col gap-6">
 

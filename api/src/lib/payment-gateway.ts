@@ -118,7 +118,7 @@ export interface ChapaVerifyResponse {
 // Chapa's ~16-character limit.
 function sanitizeChapaText(text: string, maxLength: number): string {
   const cleaned = text.replace(/[^A-Za-z0-9\-_. ]/g, ' ').replace(/\s+/g, ' ').trim();
-  return (cleaned || '251 Lottery').slice(0, maxLength);
+  return (cleaned || '251').slice(0, maxLength);
 }
 
 /**
@@ -137,8 +137,8 @@ export async function chapaInitialize(payload: ChapaInitPayload): Promise<ChapaI
       amount: String(payload.amount),
       callback_url: payload.mock?.callbackUrl ?? payload.callback_url,
       return_url: payload.return_url ?? '',
-      title: payload.customization?.title ?? '251 Lottery',
-      raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? '251 Lottery raffle',
+      title: payload.customization?.title ?? '251',
+      raffle_title: payload.mock?.raffleTitle ?? payload.customization?.title ?? '251 raffle',
       ticket_count: String(payload.mock?.ticketCount ?? 1),
       unit_price: String(payload.mock?.unitPrice ?? payload.amount),
       // Only present when the deployer has opted in — see

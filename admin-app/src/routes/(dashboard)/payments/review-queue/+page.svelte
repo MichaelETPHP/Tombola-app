@@ -85,7 +85,7 @@
   }
 </script>
 
-<svelte:head><title>Payment reviews · 251 Lottery Admin</title></svelte:head>
+<svelte:head><title>Payment reviews · 251 Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <header class="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-end">

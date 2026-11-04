@@ -243,9 +243,9 @@
         class="h-16 w-16 rounded-[20px] object-cover shadow-card"
       />
     {:else}
-      <img src="/logo-new.png" alt="251 Lottery" class="h-16 w-16 rounded-[20px] object-cover shadow-card" />
+      <img src="/logo-new.png" alt="251" class="h-16 w-16 rounded-[20px] object-cover shadow-card" />
     {/if}
-    <h1 class="font-display text-[26px] font-semibold text-ink">251 Lottery</h1>
+    <h1 class="font-display text-[26px] font-semibold text-ink">251</h1>
     <p class="max-w-[300px] text-sm leading-relaxed text-muted">
       {isTelegramMiniApp
         ? telegramUser
