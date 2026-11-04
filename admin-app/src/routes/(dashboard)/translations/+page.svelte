@@ -96,7 +96,7 @@
   })();
 </script>
 
-<svelte:head><title>Translations · 251 Lottery Admin</title></svelte:head>
+<svelte:head><title>Translations · 251 Admin</title></svelte:head>
 
 <div class="admin-reveal flex flex-col gap-6">
   <div class="flex items-center gap-3">

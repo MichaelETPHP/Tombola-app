@@ -107,7 +107,7 @@
           </span>
         </div>
 
-        <p class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary-dark">251 Lottery</p>
+        <p class="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary-dark">251</p>
         <h1 class="max-w-[300px] text-[27px] font-extrabold leading-[1.12] tracking-[-0.035em]">
           {isInitialCheck ? text.checking : isServiceProblem ? text.serviceTitle : text.offlineTitle}
         </h1>

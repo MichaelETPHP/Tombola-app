@@ -12,7 +12,7 @@
   }
 </script>
 
-<svelte:head><title>Terms of Service · 251 Lottery</title></svelte:head>
+<svelte:head><title>Terms of Service · 251</title></svelte:head>
 
 <div class="legal-page flex flex-col gap-6">
   <header class="flex items-center gap-3">
@@ -32,7 +32,7 @@
 
   <div class="legal-copy flex flex-col gap-6 rounded-card bg-card p-5 shadow-card-light">
     <p class="text-[13px] leading-[1.8] text-muted">
-      These terms govern your use of 251 Lottery, operated by 251 Technology. By creating an account or buying a
+      These terms govern your use of 251, operated by 251 Technology. By creating an account or buying a
       ticket, you agree to them.
     </p>
 
@@ -48,7 +48,7 @@
     <section>
       <h2>2. Your account</h2>
       <p>
-        Keep your one-time verification code private — 251 Lottery staff will never ask you for it. Signing in on a
+        Keep your one-time verification code private — 251 staff will never ask you for it. Signing in on a
         new device ends your session on the previous one. You're responsible for activity on your account.
       </p>
     </section>

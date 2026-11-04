@@ -120,7 +120,7 @@ app.get('/health/db', async (c) => {
 });
 
 app.get('/', (c) => c.json({
-  name: '251 Lottery API',
+  name: '251 API',
   version: '1.0.0',
   status: 'ready',
   languages: ['en', 'am'],
@@ -219,7 +219,7 @@ process.on('unhandledRejection', (reason) => {
 
 // ─── Start Server ─────────────────────────────────────────────────
 
-logger.info(`🎰 251 Lottery API starting on port ${env.PORT}`);
+logger.info(`🎰 251 API starting on port ${env.PORT}`);
 logger.info(`   Environment: ${env.NODE_ENV}`);
 logger.info(`   CORS origins: ${env.CORS_ORIGINS.join(', ')}`);
 

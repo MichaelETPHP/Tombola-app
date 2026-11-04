@@ -1,4 +1,4 @@
-# 251 Lottery development stack for the Coolify `dev` resource.
+# 251 development stack for the Coolify `dev` resource.
 #
 # Every setting is prefixed with DEV_ so project-level/production variables
 # cannot silently leak into this stack. Add these variables only to the dev

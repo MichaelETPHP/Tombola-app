@@ -74,7 +74,7 @@
   }
 </script>
 
-<svelte:head><title>Splash screen · 251 Lottery Admin</title></svelte:head>
+<svelte:head><title>Splash screen · 251 Admin</title></svelte:head>
 
 <div class="admin-reveal">
   <header class="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

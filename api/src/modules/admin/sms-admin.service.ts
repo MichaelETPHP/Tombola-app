@@ -28,10 +28,10 @@ export interface SmsLogsPage {
 }
 
 // Fixed, not environment-configurable: this app only ever has one real SMS
-// identity ("251 Lottery"), and a per-environment override is exactly what
+// identity ("251"), and a per-environment override is exactly what
 // let a stale "YeneEta" default survive in dev's compose file after the
 // rebrand. One hardcoded value here can't drift the way an env var can.
-const SENDER_LABEL = '251 Lottery';
+const SENDER_LABEL = '251';
 
 /**
  * Paginated, name-enriched read of the SMS slice of integration_logs for

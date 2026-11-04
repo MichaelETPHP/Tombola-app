@@ -366,8 +366,8 @@ export async function sendOtp(phone: string, code: string, locale: 'en' | 'am' =
   }
 
   const body = locale === 'am'
-    ? `የ251 Lottery ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
-    : `Your 251 Lottery verification code is ${code}. It is valid for 5 minutes.`;
+    ? `የ251 ማረጋገጫ ኮድዎ ${code} ነው። ለ5 ደቂቃ ያገለግላል።`
+    : `Your 251 verification code is ${code}. It is valid for 5 minutes.`;
 
   return sendSms({
     to: phone,
@@ -397,7 +397,7 @@ const LOTTERY_BOT_LINK = 'https://t.me/lottery251_bot';
 // recipient to save the number themselves. Deliberately sent only once,
 // on sendWelcomeSms — the first message this number will ever send someone
 // — not repeated on every later message.
-const SAVE_NUMBER_LINE = 'Save this number as 251 Lottery · ይህን ቁጥር 251 Lottery ብለው ያስቀምጡ';
+const SAVE_NUMBER_LINE = 'Save this number as 251 · ይህን ቁጥር 251 ብለው ያስቀምጡ';
 
 /**
  * Sent once, the moment a brand-new account is created via Telegram
@@ -411,7 +411,7 @@ const SAVE_NUMBER_LINE = 'Save this number as 251 Lottery · ይህን ቁጥር
  */
 export async function sendWelcomeSms(phone: string): Promise<SmsGatewayResponse> {
   const message = [
-    `🎉 Welcome to 251 Lottery!`,
+    `🎉 Welcome to 251!`,
     `Ethiopia's premier raffle platform — win amazing prizes with transparent, provably-fair draws.`,
     `እንኳን ደህና መጡ · Welcome aboard!`,
     SAVE_NUMBER_LINE,
@@ -479,7 +479,7 @@ export async function sendRepresentativeInvitation(
     timeZone: 'Africa/Addis_Ababa',
   });
   const message = [
-    `251 Lottery: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link}`,
+    `251: You've been selected as the representative for the ${details.prizeLabel} (${details.prizeName}) draw of "${details.raffleName}". Approve here: ${details.link}`,
     `Expires ${format.format(details.expiresAt)}.`,
   ].join('\n');
   return sendSms({ to: phone, event: 'representative_invitation', message });
@@ -503,7 +503,7 @@ export async function sendDrawInvitation(
     timeZone: 'Africa/Addis_Ababa',
   });
   const message = [
-    `251 Lottery draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}".`,
+    `251 draw invitation: ${details.prizeLabel} (${details.prizeName}) for "${details.raffleName}".`,
     `Opened ${format.format(details.drawAt)}. Open ${details.link} to run the draw.`,
     `Link expires ${format.format(details.expiresAt)}.`,
     `Good luck! · መልካም እድል!`,

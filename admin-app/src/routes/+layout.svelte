@@ -26,7 +26,7 @@
 </script>
 
 <svelte:head>
-  <title>251 Lottery Admin — {envLabel}</title>
+  <title>251 Admin — {envLabel}</title>
 </svelte:head>
 
 {#if sessionError && !$auth.isAuthenticated && $page.url.pathname !== '/login'}

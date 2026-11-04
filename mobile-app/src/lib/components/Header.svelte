@@ -45,7 +45,7 @@
       height="40"
     />
     <div class="min-w-0">
-      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">251 Lottery</p>
+      <p class="font-sans text-[17px] font-extrabold leading-none tracking-[-0.03em] text-ink">251</p>
       <p class="mt-1 text-[10px] font-medium text-muted">{$_('header.tagline')}</p>
     </div>
   </a>

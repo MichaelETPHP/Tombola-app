@@ -12,7 +12,7 @@
   }
 </script>
 
-<svelte:head><title>Privacy Policy · 251 Lottery</title></svelte:head>
+<svelte:head><title>Privacy Policy · 251</title></svelte:head>
 
 <div class="legal-page flex flex-col gap-6">
   <header class="flex items-center gap-3">
@@ -32,8 +32,8 @@
 
   <div class="legal-copy flex flex-col gap-6 rounded-card bg-card p-5 shadow-card-light">
     <p class="text-[13px] leading-[1.8] text-muted">
-      This policy explains what information 251 Lottery ("we", "us") collects when you use the app, why we collect
-      it, and the choices you have. By using 251 Lottery, you agree to the practices described here.
+      This policy explains what information 251 ("we", "us") collects when you use the app, why we collect
+      it, and the choices you have. By using 251, you agree to the practices described here.
     </p>
 
     <section>
@@ -97,7 +97,7 @@
 
     <section>
       <h2>7. Children</h2>
-      <p>251 Lottery is for adults. You must be 18 or older to create an account or purchase a ticket.</p>
+      <p>251 is for adults. You must be 18 or older to create an account or purchase a ticket.</p>
     </section>
 
     <section>

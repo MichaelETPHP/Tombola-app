@@ -71,7 +71,7 @@ const SUPPORT_TELEGRAM = '@lottery251_bot';
  */
 export async function sendTelegramWelcome(telegramUserId: string): Promise<TelegramSendResult> {
   const text = [
-    '🎉 Welcome to 251 Lottery! Real prizes, fair draws.',
+    '🎉 Welcome to 251! Real prizes, fair draws.',
     'እንኳን ደህና መጡ!',
     '',
     `Support: ${SUPPORT_PHONE}`,
