@@ -294,6 +294,23 @@
     else await goto('/raffles');
   }
 
+  // The in-app paths (Cancel button, beforeNavigate below) already release
+  // the reservation immediately. The gap is someone just closing the tab
+  // or swiping the app away entirely — no SvelteKit navigation ever fires
+  // for that, so without this the reserved numbers sat held for the full
+  // 15-minute window before the background sweep (stale-payment-check.job)
+  // caught it. `pagehide` is the one event that reliably fires on an actual
+  // unload; `keepalive` lets the request survive past the page already
+  // being gone. Skip it while a charge is genuinely in flight (submitting)
+  // — the customer may have switched away to approve a USSD prompt in
+  // their phone's own payment app, which is the normal flow, not
+  // abandonment; racing a release against a real charge belongs to the
+  // existing verify/review-queue path instead.
+  function handlePageHide() {
+    if (resolved || cancelling || submitting || !paymentId) return;
+    void api.post(`/payments/${paymentId}/cancel`, undefined, { keepalive: true }).catch(() => {});
+  }
+
   beforeNavigate((navigation) => {
     // Back/gesture navigation is an explicit checkout cancellation. The gateway
     // return and receipt routes are confirmation paths, not cancellation.
@@ -352,6 +369,7 @@
   onMount(async () => {
     pullRefresh.set(null);
     window.addEventListener('unhandledrejection', suppressChapaInlineNoise);
+    window.addEventListener('pagehide', handlePageHide);
     const params = $page.url.searchParams;
     paymentId = params.get('paymentId') ?? '';
     invalid = !/^[0-9a-f-]{36}$/i.test(paymentId);
@@ -367,6 +385,7 @@
     clearRuntimeChecks();
     clearInterval(countdownTimer);
     window.removeEventListener('unhandledrejection', suppressChapaInlineNoise);
+    window.removeEventListener('pagehide', handlePageHide);
     // Navigation is not proof that a gateway charge failed. Keep server state.
   });
 </script>
