@@ -95,6 +95,21 @@ function checkMemory(): CheckResult {
 function checkConfig(): CheckResult {
   const issues: string[] = [];
 
+  // The refresh-token cookie uses SameSite=None only when NODE_ENV is
+  // exactly 'production' (see setRefreshCookie in auth.routes.ts) — every
+  // other value falls back to SameSite=Lax, which browsers never attach to
+  // a background fetch() across origins. The app and API are deployed on
+  // different domains, so a non-'production' NODE_ENV here silently breaks
+  // every user's session refresh the moment their 15-minute access token
+  // expires, surfacing as random "session expired" logouts rather than any
+  // error at the point of misconfiguration.
+  if (env.NODE_ENV !== 'production' && !/^https?:\/\/localhost(:|\/|$)/.test(env.API_BASE_URL)) {
+    issues.push(
+      `NODE_ENV is '${env.NODE_ENV}' but API_BASE_URL (${env.API_BASE_URL}) is not localhost — this looks like a real deployment. ` +
+      'Refresh-token cookies will use SameSite=Lax and will not be sent across the app/API origins, breaking session refresh for everyone.'
+    );
+  }
+
   if (env.JWT_ACCESS_SECRET === 'your-access-secret-here')
     issues.push('JWT_ACCESS_SECRET is still the placeholder value');
   if (env.JWT_REFRESH_SECRET === 'your-refresh-secret-here')
