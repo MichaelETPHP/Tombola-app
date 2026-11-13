@@ -61,7 +61,14 @@ export async function checkConnectivity(): Promise<boolean> {
     const timeoutId = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(`${API_BASE}/health`, {
+      // /health/live, not /health — this gate only needs to know the API
+      // process is reachable, not whether every config check or the DB
+      // ping passed. /health's overall status (and HTTP code) reflects
+      // ops-relevant diagnostics like a misconfigured env var, which don't
+      // actually prevent the API from serving requests; treating that as
+      // "service unreachable" would full-screen-block every real user over
+      // a problem that isn't blocking them at all.
+      const response = await fetch(`${API_BASE}/health/live`, {
         method: 'GET',
         cache: 'no-store',
         signal: controller.signal,
