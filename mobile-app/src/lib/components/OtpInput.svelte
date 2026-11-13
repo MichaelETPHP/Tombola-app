@@ -75,6 +75,16 @@
     boxes[nextEmpty]?.focus();
   }
 
+  // Fallback for WebViews that overlay the keyboard instead of honoring
+  // app.html's interactive-widget=resizes-content hint — a smooth native
+  // scroll once the keyboard has actually finished animating in, not an
+  // instant layout snap on focus itself (see auth-screen's own centering
+  // in login/verify pages, which no longer needs a focus-triggered jump).
+  function onFocus(e: FocusEvent) {
+    const target = e.currentTarget as HTMLElement;
+    setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+  }
+
   function onKeydown(i: number, e: KeyboardEvent) {
     if (e.key === 'Backspace' && !digits[i] && i > 0) {
       digits = digits.map((digit, index) => index === i - 1 ? '' : digit);
@@ -100,6 +110,7 @@
       on:input={(e) => onInput(i, e)}
       on:keydown={(e) => onKeydown(i, e)}
       on:paste={onPaste}
+      on:focus={onFocus}
       type="text"
       inputmode="numeric"
       enterkeyhint={i === length - 1 ? 'done' : 'next'}

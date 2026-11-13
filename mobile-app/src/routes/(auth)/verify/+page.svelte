@@ -143,7 +143,7 @@
   }
 </script>
 
-<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-8 overflow-y-auto p-6">
+<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-start gap-8 overflow-y-auto p-6">
   <button
     type="button"
     aria-label={$_('verify.backToLoginAria')}
@@ -153,6 +153,7 @@
     <ChevronLeft size={22} />
   </button>
 
+  <div class="my-auto flex flex-col gap-8">
   <div
     class="flex flex-col items-center gap-3 text-center"
     in:fly={{ y: 14, duration: 320, delay: 60, easing: cubicOut }}
@@ -198,11 +199,5 @@
       {resendCooldown > 0 ? $_('verify.resendIn', { values: { time: formatCooldown(resendCooldown) } }) : resending ? $_('verify.sending') : $_('verify.resendCode')}
     </button>
   </div>
+  </div>
 </div>
-
-<style>
-  .auth-screen:focus-within {
-    justify-content: flex-start;
-    padding-top: max(88px, calc(var(--safe-top, 0px) + 64px));
-  }
-</style>
