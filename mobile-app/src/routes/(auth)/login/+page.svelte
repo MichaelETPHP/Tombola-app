@@ -75,6 +75,18 @@
     if (phone.length === 10) phoneInput?.blur();
   }
 
+  // `interactive-widget=resizes-content` (app.html) already shrinks the
+  // real viewport smoothly as most keyboards animate in, so .auth-screen's
+  // own auto-margin centering re-centers itself with no extra code. Some
+  // WebViews (notably inside Telegram) don't honor that hint and overlay
+  // the keyboard instead — this is the fallback for those: a smooth native
+  // scroll once the keyboard has actually finished animating in, not an
+  // instant layout snap on focus itself.
+  function scrollFieldIntoView(event: FocusEvent) {
+    const target = event.currentTarget as HTMLElement;
+    setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+  }
+
   function shakeTerms() {
     // Toggling straight back to true wouldn't retrigger the CSS animation
     // on a repeated failed tap — drop the class for a frame first.
@@ -222,7 +234,7 @@
   }
 </script>
 
-<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-center gap-7 overflow-y-auto p-6">
+<div class="auth-screen safe-area-top safe-area-bottom relative flex min-h-dvh flex-col justify-start gap-7 overflow-y-auto p-6">
   <button
     type="button"
     aria-label={$_('login.backHomeAria')}
@@ -232,6 +244,7 @@
     <ChevronLeft size={22} />
   </button>
 
+  <div class="my-auto flex flex-col gap-7">
   <div
     class="flex flex-col items-center gap-3 text-center"
     in:fly={{ y: 14, duration: 320, delay: 60, easing: cubicOut }}
@@ -341,6 +354,7 @@
             placeholder={$_('login.phonePlaceholder')}
             value={phone}
             on:input={handlePhoneInput}
+            on:focus={scrollFieldIntoView}
             autocomplete="tel-national"
             autocapitalize="none"
             spellcheck="false"
@@ -402,6 +416,7 @@
       aria-label={$_('login.loadingOptionsAria')}
     ></div>
   {/if}
+  </div>
 </div>
 
 {#if termsOpen}
@@ -441,14 +456,6 @@
 {/if}
 
 <style>
-  /* A resized Telegram/Android viewport can become shorter than the form.
-     Move focused content to a scrollable top-aligned layout instead of
-     allowing the IME to cover the active field or submit action. */
-  .auth-screen:focus-within {
-    justify-content: flex-start;
-    padding-top: max(88px, calc(var(--safe-top, 0px) + 64px));
-  }
-
   .terms-shake {
     animation: terms-shake 400ms ease-in-out;
   }
