@@ -458,10 +458,19 @@ export async function findPaymentReceiptById(id: string): Promise<DbPaymentRecei
  * (e.g. the user closed the checkout screen right as Chapa confirmed it).
  */
 export async function cancelPendingPayment(id: string): Promise<DbPayment | null> {
-  // Explicit cancellation releases even a started checkout. The raffle lock
-  // serializes this with issuance: completed tickets can never be released.
-  // A subsequently verified charge follows the existing refund-review path.
-  return transitionPendingPayment(id, 'failed');
+  // Restricted to a checkout that never dispatched a charge. Once
+  // checkout_started_at is set, a direct-charge attempt is or was in
+  // flight at Chapa — releasing the claimed numbers right out from under
+  // it races a USSD approval the customer may already have confirmed on
+  // their phone: Chapa later reports success, completePaymentAndIssueTickets
+  // finds the numbers gone (possibly resold), and the payment lands in the
+  // review queue needing a manual refund — exactly the "I just changed my
+  // mind" case turning into a scary "paid but not issued" message. Once
+  // started, the payment resolves itself: verifyPaymentForUser's poll and
+  // Chapa's webhook both drive it to 'completed' or 'failed' on their own,
+  // and a genuine decline releases the claim through the same path below —
+  // onlyUnstarted=true just keeps a manual cancel from racing ahead of that.
+  return transitionPendingPayment(id, 'failed', true);
 }
 
 async function transitionPendingPayment(
