@@ -234,8 +234,6 @@
   body {
     font-family: var(--font-sans);
     background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
-    min-height: 100vh;
-    min-height: 100dvh;
     position: relative;
     /* The phone-frame cap (see --app-max-width above). A plain width+margin
        centering, not a transform: this app's whole scroll model depends on
@@ -250,6 +248,13 @@
        for the same reason. */
     max-width: var(--app-max-width);
     margin-inline: auto;
+    /* Floats the letterboxed frame clear of the browser's own top/bottom
+       edges on anything wider than a phone (see --app-frame-inset-y) — a
+       no-op everywhere else, since the variable is only ever defined
+       inside that breakpoint. */
+    margin-block: var(--app-frame-inset-y, 0px);
+    min-height: calc(100vh - var(--app-frame-inset-y, 0px) * 2);
+    min-height: calc(100dvh - var(--app-frame-inset-y, 0px) * 2);
     /* A hairline highlight (like light catching a device's edge) plus two
        stacked shadows — a tight near shadow and a soft far one — read as
        real elevation off the dark stage instead of a single flat blur. */
@@ -305,6 +310,11 @@
     inset: 0;
     left: 0;
     right: 0;
+    /* Matches body's own margin-block above, so the rounded mask floats
+       at the same top/bottom edges as the real content box instead of
+       the mask still reaching the browser's true corners underneath it. */
+    top: var(--app-frame-inset-y, 0px);
+    bottom: var(--app-frame-inset-y, 0px);
     margin-inline: auto;
     max-width: var(--app-max-width);
     border-radius: var(--app-frame-radius);
@@ -314,6 +324,15 @@
   }
 
   @media (min-width: 481px) {
+    :root {
+      /* Vertical breathing room around the letterboxed frame, so it reads
+         as a floating card against the dark stage instead of a phone
+         silhouette fused to the browser's own top/bottom edges — the
+         horizontal letterboxing (--app-max-width) already gave it that
+         floating quality on the sides. */
+      --app-frame-inset-y: 32px;
+    }
+
     body::after {
       display: block;
     }
@@ -381,7 +400,11 @@ html.telegram-mini-app.telegram-mini-app-fullscreen .safe-area-floating-top {
 /* Fixed navigation must sit above Android's system navigation area rather
    than merely adding the inset inside its own fixed-height box. */
 .native-bottom-nav-position {
-  bottom: calc(16px + var(--safe-bottom));
+  /* position:fixed pins to the true viewport edge, not body's own
+     (margin-shrunk) box — add the same desktop letterbox inset here so
+     the nav sits just inside the floating card's bottom edge instead of
+     the browser window's, where --app-frame-inset-y is otherwise 0. */
+  bottom: calc(16px + var(--safe-bottom) + var(--app-frame-inset-y, 0px));
 }
 
 /* Keep the final page content scrollable above the raised navigation bar. */
